@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block title %}Kontroller · Kontroll Og Oppsyn {{ app_version }}{% endblock %}
+{% block title %}Kontroller · {{ app_name }}{% endblock %}
 {% block content %}
 <section class="page-header">
   <div>
@@ -7,7 +7,9 @@
     <p class="muted">Tidligere kontroller er lagret og kan åpnes, videreføres eller eksporteres.</p>
   </div>
   <div class="actions-row wrap">
-    <a class="btn btn-primary" href="/cases/new">Ny kontroll</a>
+    <form method="post" action="/cases/new" class="inline-form">
+      <button class="btn btn-primary" type="submit">Ny kontroll</button>
+    </form>
   </div>
 </section>
 
@@ -42,7 +44,9 @@
             <div class="actions-row wrap compact-actions">
               <a class="btn btn-secondary btn-small" href="/cases/{{ case.id }}/edit">Rediger</a>
               <a class="btn btn-secondary btn-small" href="/cases/{{ case.id }}/preview">Forhåndsvis</a>
-              <a class="btn btn-primary btn-small" href="/cases/{{ case.id }}/pdf">PDF</a>
+              <form method="post" action="/cases/{{ case.id }}/pdf" class="inline-form">
+                <button class="btn btn-primary btn-small" type="submit">PDF</button>
+              </form>
             </div>
           </td>
         </tr>

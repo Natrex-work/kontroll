@@ -955,6 +955,31 @@
 
     var lawBrowser = parseJson(root.dataset.lawBrowser, []);
     var mapCatalog = parseJson(root.dataset.mapCatalog, []);
+    var mapFilterWrap = document.getElementById('map-layer-filters');
+    var mapFilterStorageKey = 'kv-map-layer-filter:' + root.dataset.caseId;
+    var activeLayerStatuses = { 'fredningsområde': true, 'stengt område': true, 'maksimalmål område': true, 'regulert område': true };
+    try {
+      var savedLayerFilter = JSON.parse(localStorage.getItem(mapFilterStorageKey) || 'null');
+      if (savedLayerFilter && typeof savedLayerFilter === 'object') {
+        Object.keys(activeLayerStatuses).forEach(function (key) {
+          if (Object.prototype.hasOwnProperty.call(savedLayerFilter, key)) activeLayerStatuses[key] = !!savedLayerFilter[key];
+        });
+      }
+    } catch (e) {}
+    function filteredMapCatalog() {
+      return (mapCatalog || []).filter(function (layer) {
+        var status = String(layer.status || '').trim().toLowerCase();
+        if (!Object.prototype.hasOwnProperty.call(activeLayerStatuses, status)) return true;
+        return !!activeLayerStatuses[status];
+      });
+    }
+    function syncLayerFiltersUi() {
+      if (!mapFilterWrap) return;
+      Array.prototype.forEach.call(mapFilterWrap.querySelectorAll('input[data-layer-filter]'), function (input) {
+        var key = String(input.getAttribute('data-layer-filter') || '').trim().toLowerCase();
+        input.checked = activeLayerStatuses[key] !== false;
+      });
+    }
     latestZoneResult = null;
 
     var form = document.getElementById('case-form');
@@ -1339,7 +1364,7 @@
     function buildEvidenceCardHtml(entry) {
       return [
         '<article class="evidence-card">',
-        '<img src="' + escapeHtml(entry.url || ('/uploads/' + (entry.filename || ''))) + '" alt="' + escapeHtml(entry.caption || entry.original_filename || 'Bildebevis') + '" />',
+        '<img src="' + escapeHtml(evidenceFileUrl(entry)) + '" alt="' + escapeHtml(entry.caption || entry.original_filename || 'Bildebevis') + '" />',
         '<div class="evidence-body">',
         '<strong>' + escapeHtml(entry.caption || entry.original_filename || 'Bildebevis') + '</strong>',
         (entry.finding_key ? '<div class="muted small">Kontrollpunkt: ' + escapeHtml(entry.finding_key) + '</div>' : ''),
@@ -1347,7 +1372,7 @@
         (entry.violation_reason ? '<div class="muted small">Begrunnelse: ' + escapeHtml(entry.violation_reason) + '</div>' : ''),
         (entry.law_text ? '<div class="muted small">Hjemmel: ' + escapeHtml(entry.law_text) + '</div>' : ''),
         '<div class="actions-row wrap margin-top-s">',
-        '<form method="post" action="/evidence/' + escapeHtml(String(entry.id || '')) + '/delete" onsubmit="return confirm(&quot;Slette vedlegg?&quot;);">',
+        '<form method="post" action="/evidence/' + escapeHtml(String(entry.id || '')) + '/delete" data-confirm="Slette vedlegg?">',
         '<button class="btn btn-danger btn-small" type="submit">Slett</button>',
         '</form>',
         '</div>',
@@ -1514,7 +1539,7 @@
       formData.append('seizure_ref', row.seizure_ref || '');
       formData.append('file', file, file.name || ('bildebevis-' + Date.now() + '.jpg'));
       setInlineEvidenceFeedback('Laster opp bildebevis ...');
-      fetch('/api/cases/' + root.dataset.caseId + '/evidence', { method: 'POST', body: formData })
+      fetch('/api/cases/' + root.dataset.caseId + '/evidence', secureFetchOptions({ method: 'POST', body: formData }))
         .then(function (response) { return response.json().then(function (payload) { return { ok: response.ok, payload: payload }; }); })
         .then(function (result) {
           if (!result.ok || !result.payload || !result.payload.ok || !result.payload.evidence) {
@@ -1627,7 +1652,7 @@
         scheduleAutosave('Manuell kartposisjon oppdatert');
       };
       if (options.recenterTo) mapState.recenterTo = options.recenterTo;
-      createPortalMap(caseMap, mapCatalog, mapState).then(function () {
+      createPortalMap(caseMap, filteredMapCatalog(), mapState).then(function () {
         if (options.recenterTo) mapState.recenterTo = '';
       });
       syncManualPositionNotice();
@@ -1775,6 +1800,17 @@
     document.getElementById('btn-use-location').addEventListener('click', startLocationWatch);
     var btnSetManualPosition = document.getElementById('btn-set-manual-position');
     if (btnSetManualPosition) btnSetManualPosition.addEventListener('click', setManualPositionFromMapCenter);
+    if (mapFilterWrap) {
+      syncLayerFiltersUi();
+      Array.prototype.forEach.call(mapFilterWrap.querySelectorAll('input[data-layer-filter]'), function (input) {
+        input.addEventListener('change', function () {
+          var key = String(input.getAttribute('data-layer-filter') || '').trim().toLowerCase();
+          activeLayerStatuses[key] = !!input.checked;
+          try { localStorage.setItem(mapFilterStorageKey, JSON.stringify(activeLayerStatuses)); } catch (e) {}
+          updateCaseMap();
+        });
+      });
+    }
     function applyManualCoordinateFields() {
       if (!latitude.value || !longitude.value) {
         updateCaseMap();
@@ -2140,11 +2176,11 @@
     document.getElementById('btn-generate-basis').addEventListener('click', generateBasisText);
     var polishBasisBtn = document.getElementById('btn-polish-basis');
     if (polishBasisBtn) polishBasisBtn.addEventListener('click', function () {
-      fetch('/api/text/polish', {
+      fetch('/api/text/polish', secureFetchOptions({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode: 'basis', text: basisDetails.value, case_basis: caseBasis.value, source_name: basisSourceName.value || '', location: locationName.value || areaContextForNarrative() || '' })
-      }).then(function (r) { return r.json(); }).then(function (payload) {
+      })).then(function (r) { return r.json(); }).then(function (payload) {
         if (payload && payload.text) { basisDetails.value = payload.text; scheduleAutosave('Rettet grunnlagstekst'); }
       }).catch(function () {});
     });
@@ -2180,7 +2216,7 @@
       formData.set('crew_json', JSON.stringify(crewState));
       formData.set('external_actors_json', JSON.stringify(externalActorsState));
       formData.set('interview_sessions_json', JSON.stringify(interviewState));
-      fetch(root.dataset.autosaveUrl, { method: 'POST', body: formData })
+      fetch(root.dataset.autosaveUrl, secureFetchOptions({ method: 'POST', body: formData }))
         .then(function (r) { return r.json(); })
         .then(function (payload) {
           autosaveInFlight = false;
@@ -2561,11 +2597,11 @@
         var entry = interviewState[idx] || {};
         var mode = event.target.classList.contains('interview-summarize') ? 'interview_summary' : 'generic';
         var sourceText = mode === 'interview_summary' ? (entry.transcript || '') : ((entry.transcript || '') + '\n' + (entry.summary || ''));
-        fetch('/api/text/polish', {
+        fetch('/api/text/polish', secureFetchOptions({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ mode: mode, text: sourceText, subject: entry.name || '' })
-        }).then(function (r) { return r.json(); }).then(function (payload) {
+        })).then(function (r) { return r.json(); }).then(function (payload) {
           if (mode === 'interview_summary') entry.summary = payload.text || entry.summary;
           else entry.transcript = payload.text || entry.transcript;
           renderInterviews();
@@ -2584,7 +2620,7 @@
       formData.append('caption', 'Lydopptak avhør - ' + labelName);
       formData.append('file', file, file.name || 'avhor.webm');
       audioStatus.innerHTML = 'Laster opp lydfil ...';
-      fetch('/cases/' + root.dataset.caseId + '/evidence', { method: 'POST', body: formData }).then(function () {
+      fetch('/cases/' + root.dataset.caseId + '/evidence', secureFetchOptions({ method: 'POST', body: formData })).then(function () {
         audioStatus.innerHTML = 'Lydfil lastet opp. Siden oppdateres ...';
         window.location.reload();
       }).catch(function () { audioStatus.innerHTML = 'Kunne ikke laste opp lydfil.'; });
@@ -2742,11 +2778,11 @@
         findings: findingsState
       };
       summaryPreview.innerHTML = 'Genererer utkast ...';
-      fetch(root.dataset.summaryUrl, {
+      fetch(root.dataset.summaryUrl, secureFetchOptions({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
-      }).then(function (r) { return r.json(); })
+      })).then(function (r) { return r.json(); })
         .then(function (drafts) {
           if (drafts.basis_details) basisDetails.value = drafts.basis_details;
           if (drafts.notes) notes.value = drafts.notes;
@@ -2771,7 +2807,7 @@
       formData.set('external_actors_json', JSON.stringify(externalActorsState));
       formData.set('interview_sessions_json', JSON.stringify(interviewState));
       setAutosaveStatus('Lagrer manuelt …', 'is-saving');
-      fetch(root.dataset.autosaveUrl, { method: 'POST', body: formData })
+      fetch(root.dataset.autosaveUrl, secureFetchOptions({ method: 'POST', body: formData }))
         .then(function (r) { return r.json(); })
         .then(function () {
           lastAutosaveFingerprint = formFingerprint();

@@ -1,19 +1,19 @@
 from __future__ import annotations
 
 import json
-import shutil
+import os
 import uuid
 from pathlib import Path
 from typing import Any
 
-from fastapi import UploadFile
+from fastapi import HTTPException, UploadFile
 
 from .. import db
 from ..config import settings
 from ..pdf_export import CASE_BASIS_LABELS, build_text_drafts
-from ..validation import validate_saved_file_size, validate_upload_file
+from ..validation import sanitize_original_filename, validate_saved_file_size, validate_upload_file, validate_upload_signature
 
-DEMO_EVIDENCE_FILENAMES = {'demo_evidence_case1.png', '4e6749af8fc3498e879dbc692632e6a8.png'}
+LEGACY_PLACEHOLDER_EVIDENCE_FILENAMES = {'legacy_evidence_case1.png', 'legacy_placeholder_image.png'}
 
 
 def clean_json_array(raw: str | None) -> str:
@@ -152,28 +152,60 @@ def case_has_avvik(case_row: dict[str, Any]) -> bool:
 def delete_case_files(evidence_rows: list[dict[str, Any]]) -> None:
     for item in evidence_rows:
         filename = str(item.get('filename') or '')
-        if not filename or filename in DEMO_EVIDENCE_FILENAMES:
+        if not filename or filename in LEGACY_PLACEHOLDER_EVIDENCE_FILENAMES:
             continue
         path = settings.upload_dir / filename
         if path.exists():
             path.unlink(missing_ok=True)
 
 
+def _stream_upload_to_path(upload_file: UploadFile, dest: Path, original_filename: str) -> tuple[int, str]:
+    max_bytes = settings.max_upload_size_mb * 1024 * 1024
+    first_chunk = upload_file.file.read(64 * 1024)
+    if not first_chunk:
+        raise HTTPException(status_code=400, detail='Filen er tom.')
+    normalized_mime = validate_upload_signature(original_filename, first_chunk)
+    total = len(first_chunk)
+    if total > max_bytes:
+        raise HTTPException(status_code=400, detail=f'Filen er for stor. Maks tillatt størrelse er {settings.max_upload_size_mb} MB.')
+    try:
+        with dest.open('wb') as buffer:
+            buffer.write(first_chunk)
+            while True:
+                chunk = upload_file.file.read(1024 * 1024)
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > max_bytes:
+                    raise HTTPException(status_code=400, detail=f'Filen er for stor. Maks tillatt størrelse er {settings.max_upload_size_mb} MB.')
+                buffer.write(chunk)
+        os.chmod(dest, 0o600)
+        validate_saved_file_size(total)
+        return total, normalized_mime
+    except Exception:
+        dest.unlink(missing_ok=True)
+        raise
+    finally:
+        try:
+            upload_file.file.close()
+        except Exception:
+            pass
+
+
 def store_evidence_upload(*, case_id: int, upload_file: UploadFile, caption: str, created_by: int, finding_key: str = '', law_text: str = '', violation_reason: str = '', seizure_ref: str = '') -> tuple[int, str]:
-    validate_upload_file(upload_file)
-    suffix = Path(upload_file.filename or '').suffix.lower() or '.bin'
+    original_filename = validate_upload_file(upload_file)
+    original_filename = sanitize_original_filename(original_filename)
+    suffix = Path(original_filename).suffix.lower() or '.bin'
     unique_name = f'{uuid.uuid4().hex}{suffix}'
     dest = settings.upload_dir / unique_name
-    with dest.open('wb') as buffer:
-        shutil.copyfileobj(upload_file.file, buffer)
-    validate_saved_file_size(dest.stat().st_size)
-    evidence_id = db.add_evidence(case_id, unique_name, upload_file.filename or unique_name, caption or None, upload_file.content_type, created_by, finding_key or None, law_text or None, violation_reason or None, seizure_ref or None)
+    _, mime_type = _stream_upload_to_path(upload_file, dest, original_filename)
+    evidence_id = db.add_evidence(case_id, unique_name, original_filename, caption or None, mime_type, created_by, finding_key or None, law_text or None, violation_reason or None, seizure_ref or None)
     return evidence_id, unique_name
 
 
 def delete_evidence_file(filename: str | None) -> None:
     clean_name = str(filename or '').strip()
-    if not clean_name or clean_name in DEMO_EVIDENCE_FILENAMES:
+    if not clean_name or clean_name in LEGACY_PLACEHOLDER_EVIDENCE_FILENAMES:
         return
     path = settings.upload_dir / clean_name
     if path.exists():

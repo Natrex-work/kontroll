@@ -813,3 +813,67 @@ button { cursor: pointer; }
   .preview-bottom-bar { display:block; position: sticky; bottom: 12px; z-index: 30; padding-bottom: 12px; }
   .case-number-edit { width: 100%; max-width: none; }
 }
+
+
+.sidebar-main { display: grid; gap: 24px; }
+.sidebar-topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.brand-meta { min-width: 0; }
+.sidebar-toggle { display: none; border: none; border-radius: 999px; padding: 10px 14px; background: rgba(255,255,255,0.14); color: #fff; font-weight: 700; }
+.brand-title { display: inline-flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
+.brand-version { opacity: 0.82; }
+.sidebar-user-card { display: grid; gap: 4px; padding: 14px; border-radius: 16px; background: rgba(255,255,255,0.08); }
+.pill-invert { background: rgba(255,255,255,0.12); color: #fff; }
+.map-filter-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.map-symbol-legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 10px; }
+.map-symbol-chip { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 999px; background: #eef4fb; color: var(--primary); border: 1px solid #d8e4ef; font-size: 0.92rem; }
+.map-symbol { width: 12px; height: 12px; border-radius: 999px; display: inline-block; }
+.map-symbol.user { background: #1e7bff; box-shadow: 0 0 0 3px rgba(30,123,255,0.22); }
+.map-symbol.case { background: #e23b2d; box-shadow: 0 0 0 3px rgba(226,59,45,0.18); }
+.position-action-group { grid-column: 1 / -1; }
+.position-actions { width: 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.position-actions .btn { width: 100%; }
+.coordinate-disclosure summary { cursor: pointer; font-weight: 700; }
+:root { --safe-top: env(safe-area-inset-top, 0px); --safe-right: env(safe-area-inset-right, 0px); --safe-bottom: env(safe-area-inset-bottom, 0px); --safe-left: env(safe-area-inset-left, 0px); }
+html { -webkit-text-size-adjust: 100%; background: var(--bg); }
+body { padding-top: var(--safe-top); padding-right: var(--safe-right); padding-bottom: var(--safe-bottom); padding-left: var(--safe-left); touch-action: manipulation; -webkit-tap-highlight-color: rgba(16,39,61,0.08); }
+input, select, textarea, button, .btn, .step-btn, .nav-link, .chip, .check-chip { min-height: 44px; }
+input, select, textarea { font-size: 16px; }
+.stepper { position: sticky; top: calc(var(--safe-top) + 8px); z-index: 15; }
+@media (max-width: 960px) {
+  .sidebar { position: sticky; top: 0; z-index: 20; padding: calc(10px + var(--safe-top)) 12px 10px; gap: 10px; width: 100%; }
+  .brand { gap: 10px; }
+  .brand-badge { width: 42px; height: 42px; border-radius: 14px; font-size: 1.15rem; }
+  .brand-title { font-size: 1rem; }
+  .brand-version, .sidebar-subtitle { display: none; }
+  .sidebar-toggle { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; flex: 0 0 auto; }
+  .sidebar-footer { display: none; }
+  .sidebar.sidebar-open .sidebar-footer { display: grid; }
+  .nav { margin-top: 0; grid-auto-flow: column; grid-auto-columns: minmax(132px, 1fr); overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+  .nav::-webkit-scrollbar { display: none; }
+  .nav-link { padding: 10px 12px; }
+  .main { padding: 14px; padding-bottom: calc(18px + var(--safe-bottom)); }
+  .card, .page-header-soft, .subcard, .status-panel { border-radius: 18px; }
+  .actions-row .btn, .step-actions .btn, .page-header .btn, .page-header-soft .btn, .position-actions .btn { width: 100%; }
+  .actions-row, .step-actions { flex-direction: column; align-items: stretch; }
+  .position-actions { grid-template-columns: 1fr; }
+  #case-position-map { min-height: 460px; }
+  .leaflet-legend-control { min-width: 170px; max-width: 220px; }
+  .step-actions { position: sticky; bottom: calc(var(--safe-bottom) + 8px); background: rgba(238,243,248,0.96); backdrop-filter: blur(10px); padding-top: 8px; }
+  .login-wrap { padding: 16px; padding-bottom: calc(16px + var(--safe-bottom)); }
+}
+
+
+.nav-form, .inline-form, .home-link-card-form { margin: 0; }
+.nav-link-button, .home-link-card-button {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.inline-form { display: inline-flex; }
+.inline-form .btn { width: 100%; }
+.nav-link-button { font: inherit; color: inherit; }
+.home-link-card-form { display: block; }
+.home-link-card-button { display: block; font: inherit; color: inherit; padding: 0; }
+.hidden { display: none !important; }

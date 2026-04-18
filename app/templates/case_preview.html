@@ -14,9 +14,9 @@
   <div class="actions-row wrap">
     <a class="btn btn-secondary" href="/cases/{{ case.id }}/edit">Tilbake til sak</a>
     <button class="btn btn-secondary" form="preview-edit-form" type="submit">Lagre tekstendringer</button>
-    <a class="btn btn-secondary" href="/cases/{{ case.id }}/interview-pdf">Eksporter kun avhørsrapport</a>
-    <a class="btn btn-secondary" href="/cases/{{ case.id }}/bundle">Eksporter PDF og filer (ZIP)</a>
-    <a class="btn btn-primary" href="/cases/{{ case.id }}/pdf">Eksporter PDF</a>
+    <form method="post" action="/cases/{{ case.id }}/interview-pdf" class="inline-form"><button class="btn btn-secondary" type="submit">Eksporter kun avhørsrapport</button></form>
+    <form method="post" action="/cases/{{ case.id }}/bundle" class="inline-form"><button class="btn btn-secondary" type="submit">Eksporter PDF og filer (ZIP)</button></form>
+    <form method="post" action="/cases/{{ case.id }}/pdf" class="inline-form"><button class="btn btn-primary" type="submit">Eksporter PDF</button></form>
   </div>
 </section>
 
@@ -137,7 +137,7 @@
   <div class="evidence-grid">
     {% for item in packet.evidence %}
     <article class="evidence-card">
-      <img src="{{ item.preview_url or ('/uploads/' ~ item.filename) }}" alt="{{ item.caption or item.original_filename }}" />
+      <img src="{{ item.preview_url }}" alt="{{ item.caption or item.original_filename }}" />
       <div class="evidence-body">
         <strong>{{ packet.illustration_texts[loop.index0] }}</strong>
         <div class="muted small">{{ item.created_at }}</div>

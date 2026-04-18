@@ -7,7 +7,7 @@ from . import rules
 CREW_ROLES = ['Vitne', 'Båtfører', 'Båtassistent']
 EXTERNAL_ACTORS = ['Politiet', 'SNO', 'Fiskeridirektoratet']
 
-# Regelmotoren er bygd for test/demo med tydelige, regulerte valg.
+# Regelmotoren er bygd for test/test med tydelige, regulerte valg.
 # Kontrollpunktene genereres i rules.py, mens denne modulen beskriver
 # hvilke valg som skal tilbys i UI-et og i regelverksoversikten.
 

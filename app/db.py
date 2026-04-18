@@ -24,7 +24,7 @@ USER_PERMISSION_LABELS = {
     'control_admin': 'Slette/gjenopprette kontroller',
 }
 DEFAULT_INVESTIGATOR_PERMISSIONS = list(INVESTIGATOR_PERMISSION_OPTIONS)
-DEFAULT_ADMIN_PERMISSIONS = list(ADMIN_PERMISSION_OPTIONS)
+DEFAULT_ADMIN_PERMISSIONS = list(USER_PERMISSION_OPTIONS)
 
 
 def utcnow_iso() -> str:
@@ -266,8 +266,7 @@ def init_db() -> None:
 
         now = utcnow_iso()
         conn.execute("UPDATE users SET active = 1 WHERE active IS NULL")
-        conn.execute("UPDATE users SET case_prefix = 'LBHN' WHERE (case_prefix IS NULL OR trim(case_prefix) = '') AND email IN ('admin@kv.demo', 'kontrollor@kv.demo')")
-        conn.execute("UPDATE users SET case_prefix = 'KV' WHERE case_prefix IS NULL OR trim(case_prefix) = ''")
+        conn.execute("UPDATE users SET case_prefix = 'LBHN' WHERE case_prefix IS NULL OR trim(case_prefix) = ''")
         conn.execute(
             "UPDATE users SET updated_at = COALESCE(NULLIF(updated_at, ''), created_at, ?) WHERE updated_at IS NULL OR updated_at = '' OR updated_at = '1970-01-01T00:00:00Z'",
             (now,),

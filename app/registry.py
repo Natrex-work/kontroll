@@ -7,7 +7,7 @@ from typing import Any, Iterable
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 PEOPLE_PATH = BASE_DIR / 'data' / 'people_registry.json'
-HUMMER_PATH = BASE_DIR / 'data' / 'hummer_participants_demo.json'
+HUMMER_PATH = BASE_DIR / 'data' / 'hummer_participants.json'
 HUMMER_CACHE_PATH = BASE_DIR / 'data' / 'cache' / 'hummer_registry_cache.json'
 OFFICIAL_HUMMER_URL = 'https://www.fiskeridir.no/statistikk-tall-og-analyse/data-og-statistikk-om-turist--og-fritidsfiske/registrerte-hummarfiskarar'
 
@@ -368,7 +368,7 @@ def _load_hummer_rows() -> list[dict[str, Any]]:
             seen.add(key)
             rows.append(item)
 
-    add_many(_load(HUMMER_PATH), source='Demo hummerdeltakerliste')
+    add_many(_load(HUMMER_PATH), source='Lokal hummerliste')
     add_many(_load(HUMMER_CACHE_PATH), source='Fiskeridirektoratet - registrerte hummarfiskarar')
     return rows
 
@@ -489,7 +489,7 @@ def search_people(phone: str = '', vessel_reg: str = '', radio_call_sign: str = 
         )
         if score > 0:
             item = dict(row)
-            item['source'] = 'Demo person-/fartøyregister'
+            item['source'] = 'Lokal person-/fartøyliste'
             item['match_score'] = score
             scored.append((score, item))
 

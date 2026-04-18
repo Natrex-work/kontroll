@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block title %}Kontroller - admin · Kontroll Og Oppsyn {{ app_version }}{% endblock %}
+{% block title %}Kontroller - admin · {{ app_name }}{% endblock %}
 {% block content %}
 <section class="page-header">
   <div>
@@ -79,11 +79,11 @@
           <td>
             <div class="actions-row wrap compact-actions">
               {% if case.deleted_at %}
-              <form method="post" action="/admin/controls/{{ case.id }}/restore" onsubmit="return confirm('Gjenopprette kontrollen?');">
+              <form method="post" action="/admin/controls/{{ case.id }}/restore" data-confirm="Gjenopprette kontrollen?">
                 <button class="btn btn-primary btn-small" type="submit">Gjenopprett</button>
               </form>
               {% else %}
-              <form method="post" action="/admin/controls/{{ case.id }}/delete" onsubmit="return confirm('Slette kontrollen? Den kan gjenopprettes senere.');">
+              <form method="post" action="/admin/controls/{{ case.id }}/delete" data-confirm="Slette kontrollen? Den kan gjenopprettes senere.">
                 <button class="btn btn-danger btn-small" type="submit">Slett</button>
               </form>
               {% endif %}

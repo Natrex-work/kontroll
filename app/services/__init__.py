@@ -1,1 +1,1 @@
-"""Service layer for KV Kontroll demo."""
+"""Service layer for KV Kontroll."""

@@ -1,11 +1,17 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, File, Form, Request, UploadFile
+import mimetypes
+from pathlib import Path
+from urllib.parse import quote
+
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from starlette.status import HTTP_303_SEE_OTHER
 
 from .. import catalog, db
+from ..config import settings
 from ..dependencies import get_case_for_user, require_control_admin, require_permission
+from ..security import enforce_csrf
 from ..services.case_service import autofill_case_drafts, case_data_from_form, case_has_avvik, delete_evidence_file, preview_overrides_from_form, store_evidence_upload
 from ..services.pdf_service import build_case_preview_packet, export_case_bundle, export_case_pdf, export_interview_pdf
 from ..ui import STATUS_OPTIONS, render_template
@@ -29,9 +35,22 @@ def _build_case_number_from_suffix(existing_case_number: str, suffix_value: str 
     return f"{match.group(1)}{suffix_int:03d}"
 
 
+def _inline_file_headers(filename: str) -> dict[str, str]:
+    safe_name = Path(str(filename or 'fil')).name
+    return {'Content-Disposition': "inline; filename*=UTF-8''" + quote(safe_name), 'Cache-Control': 'no-store'}
+
+
 @router.get('/cases/new')
-def new_case(request: Request):
+def new_case_get(request: Request):
+    require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til KV Kontroll.')
+    return RedirectResponse('/dashboard', status_code=HTTP_303_SEE_OTHER)
+
+
+@router.post('/cases/new')
+async def new_case(request: Request):
     user = require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til KV Kontroll.')
+    form = await request.form()
+    enforce_csrf(request, form)
     case_id = db.create_case(created_by=user['id'], investigator_name=user['full_name'], complainant_name=user.get('last_complainant_name'), witness_name=user.get('last_witness_name'))
     db.record_audit(user['id'], 'create_case', 'case', case_id, {})
     return RedirectResponse(f'/cases/{case_id}/edit', status_code=HTTP_303_SEE_OTHER)
@@ -55,6 +74,7 @@ async def save_case(request: Request, case_id: int):
     user = require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til KV Kontroll.')
     case_row = get_case_for_user(user, case_id)
     form = await request.form()
+    enforce_csrf(request, form)
     data = case_data_from_form(form, user, STATUS_OPTIONS)
     updated_case_number = _build_case_number_from_suffix(str(case_row.get('case_number') or ''), form.get('case_number_suffix'))
     redirect_suffix = '?saved=1'
@@ -74,6 +94,7 @@ async def autosave_case(request: Request, case_id: int):
     user = require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til KV Kontroll.')
     get_case_for_user(user, case_id)
     form = await request.form()
+    enforce_csrf(request, form)
     data = case_data_from_form(form, user, STATUS_OPTIONS)
     db.save_case(case_id, data)
     db.update_user_last_names(user['id'], data['complainant_name'], data['witness_name'])
@@ -82,8 +103,10 @@ async def autosave_case(request: Request, case_id: int):
 
 
 @router.post('/cases/{case_id}/delete')
-def delete_case(request: Request, case_id: int):
+async def delete_case(request: Request, case_id: int):
     admin = require_control_admin(request)
+    form = await request.form()
+    enforce_csrf(request, form)
     case_row = db.get_case(case_id)
     if not case_row:
         return RedirectResponse('/admin/controls', status_code=HTTP_303_SEE_OTHER)
@@ -95,6 +118,8 @@ def delete_case(request: Request, case_id: int):
 @router.post('/cases/{case_id}/evidence')
 async def upload_evidence(request: Request, case_id: int, caption: str = Form(default=''), finding_key: str = Form(default=''), law_text: str = Form(default=''), violation_reason: str = Form(default=''), seizure_ref: str = Form(default=''), file: UploadFile = File(...)):
     user = require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til KV Kontroll.')
+    form = await request.form()
+    enforce_csrf(request, form)
     get_case_for_user(user, case_id)
     evidence_id, filename = store_evidence_upload(case_id=case_id, upload_file=file, caption=caption, created_by=user['id'], finding_key=finding_key, law_text=law_text, violation_reason=violation_reason, seizure_ref=seizure_ref)
     db.record_audit(user['id'], 'upload_evidence', 'evidence', evidence_id, {'case_id': case_id, 'filename': filename})
@@ -104,18 +129,22 @@ async def upload_evidence(request: Request, case_id: int, caption: str = Form(de
 @router.post('/api/cases/{case_id}/evidence')
 async def upload_evidence_api(request: Request, case_id: int, caption: str = Form(default=''), finding_key: str = Form(default=''), law_text: str = Form(default=''), violation_reason: str = Form(default=''), seizure_ref: str = Form(default=''), file: UploadFile = File(...)):
     user = require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til KV Kontroll.')
+    form = await request.form()
+    enforce_csrf(request, form)
     get_case_for_user(user, case_id)
     evidence_id, filename = store_evidence_upload(case_id=case_id, upload_file=file, caption=caption, created_by=user['id'], finding_key=finding_key, law_text=law_text, violation_reason=violation_reason, seizure_ref=seizure_ref)
     row = db.get_evidence_by_id(evidence_id) or {}
     payload = dict(row)
-    payload['url'] = f"/uploads/{filename}"
+    payload['url'] = f"/cases/{case_id}/evidence/{evidence_id}/file"
     db.record_audit(user['id'], 'upload_evidence_api', 'evidence', evidence_id, {'case_id': case_id, 'filename': filename})
     return JSONResponse({'ok': True, 'message': 'Bildebevis er lagret i illustrasjonsrapporten.', 'evidence': payload})
 
 
 @router.post('/evidence/{evidence_id}/delete')
-def delete_evidence(request: Request, evidence_id: int):
+async def delete_evidence(request: Request, evidence_id: int):
     user = require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til KV Kontroll.')
+    form = await request.form()
+    enforce_csrf(request, form)
     row = db.get_evidence_by_id(evidence_id)
     if not row:
         return RedirectResponse('/dashboard', status_code=HTTP_303_SEE_OTHER)
@@ -126,19 +155,49 @@ def delete_evidence(request: Request, evidence_id: int):
     return RedirectResponse(f"/cases/{row['case_id']}/edit", status_code=HTTP_303_SEE_OTHER)
 
 
+@router.get('/cases/{case_id}/evidence/{evidence_id}/file')
+def evidence_file(request: Request, case_id: int, evidence_id: int):
+    user = require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til KV Kontroll.')
+    get_case_for_user(user, case_id)
+    row = db.get_evidence_by_id(evidence_id)
+    if not row or int(row.get('case_id') or 0) != int(case_id):
+        raise HTTPException(status_code=404, detail='Fant ikke vedlegget.')
+    filename = Path(str(row.get('filename') or '')).name
+    path = settings.upload_dir / filename
+    if not path.exists():
+        raise HTTPException(status_code=404, detail='Fant ikke filen.')
+    media_type = str(row.get('mime_type') or '') or mimetypes.guess_type(filename)[0] or 'application/octet-stream'
+    headers = _inline_file_headers(str(row.get('original_filename') or filename))
+    return FileResponse(path=str(path), media_type=media_type, headers=headers)
+
+
+@router.get('/cases/{case_id}/generated/{filename}')
+def generated_file(request: Request, case_id: int, filename: str):
+    user = require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til KV Kontroll.')
+    case_row = get_case_for_user(user, case_id)
+    safe_name = Path(filename).name
+    if safe_name != filename:
+        raise HTTPException(status_code=404, detail='Fant ikke filen.')
+    case_prefix = str(case_row.get('case_number') or '').replace(' ', '_')
+    if case_prefix and not safe_name.startswith(case_prefix):
+        raise HTTPException(status_code=403, detail='Ingen tilgang til filen.')
+    path = settings.generated_dir / safe_name
+    if not path.exists():
+        raise HTTPException(status_code=404, detail='Fant ikke filen.')
+    media_type = mimetypes.guess_type(safe_name)[0] or 'application/octet-stream'
+    headers = _inline_file_headers(safe_name)
+    return FileResponse(path=str(path), media_type=media_type, headers=headers)
+
+
 @router.get('/cases/{case_id}/preview', response_class=HTMLResponse)
 def preview_case(request: Request, case_id: int):
     user = require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til KV Kontroll.')
     case_row = get_case_for_user(user, case_id)
-    updates = autofill_case_drafts(case_row)
-    updates['last_previewed_at'] = db.utcnow_iso()
-    if updates:
-        db.save_case(case_id, updates)
-        case_row = db.get_case(case_id) or case_row
     evidence = db.list_evidence(case_id)
-    packet = build_case_preview_packet(case_row, evidence)
-    db.record_audit(user['id'], 'preview_case', 'case', case_id, {})
-    return render_template(request, 'case_preview.html', case=case_row, evidence=evidence, packet=packet)
+    preview_case_row = dict(case_row)
+    preview_case_row.update(autofill_case_drafts(case_row))
+    packet = build_case_preview_packet(preview_case_row, evidence)
+    return render_template(request, 'case_preview.html', case=preview_case_row, evidence=evidence, packet=packet)
 
 
 @router.post('/cases/{case_id}/preview/save')
@@ -146,36 +205,43 @@ async def preview_save_case(request: Request, case_id: int):
     user = require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til KV Kontroll.')
     get_case_for_user(user, case_id)
     form = await request.form()
+    enforce_csrf(request, form)
     updates = preview_overrides_from_form(form)
     db.save_case(case_id, updates)
     db.record_audit(user['id'], 'save_preview_overrides', 'case', case_id, {})
     return RedirectResponse(f'/cases/{case_id}/preview?saved=1', status_code=HTTP_303_SEE_OTHER)
 
 
-@router.get('/cases/{case_id}/pdf')
-def export_case_pdf_route(request: Request, case_id: int):
+@router.post('/cases/{case_id}/pdf')
+async def export_case_pdf_route(request: Request, case_id: int):
     user = require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til KV Kontroll.')
+    form = await request.form()
+    enforce_csrf(request, form)
     case_row = get_case_for_user(user, case_id)
     outpath = export_case_pdf(case_id, case_row, user)
     refreshed_case = db.get_case(case_id) or case_row
     db.record_audit(user['id'], 'export_pdf', 'case', case_id, {'filename': outpath.name, 'has_avvik': case_has_avvik(refreshed_case)})
-    return FileResponse(path=str(outpath), media_type='application/pdf', filename=outpath.name)
+    return FileResponse(path=str(outpath), media_type='application/pdf', filename=outpath.name, headers={'Cache-Control': 'no-store'})
 
 
-@router.get('/cases/{case_id}/interview-pdf')
-def export_interview_pdf_route(request: Request, case_id: int):
+@router.post('/cases/{case_id}/interview-pdf')
+async def export_interview_pdf_route(request: Request, case_id: int):
     user = require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til KV Kontroll.')
+    form = await request.form()
+    enforce_csrf(request, form)
     case_row = get_case_for_user(user, case_id)
     outpath = export_interview_pdf(case_id, case_row, user)
     db.record_audit(user['id'], 'export_interview_pdf', 'case', case_id, {'filename': outpath.name})
-    return FileResponse(path=str(outpath), media_type='application/pdf', filename=outpath.name)
+    return FileResponse(path=str(outpath), media_type='application/pdf', filename=outpath.name, headers={'Cache-Control': 'no-store'})
 
 
-@router.get('/cases/{case_id}/bundle')
-def export_case_bundle_route(request: Request, case_id: int):
+@router.post('/cases/{case_id}/bundle')
+async def export_case_bundle_route(request: Request, case_id: int):
     user = require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til KV Kontroll.')
+    form = await request.form()
+    enforce_csrf(request, form)
     case_row = get_case_for_user(user, case_id)
     bundle_path = export_case_bundle(case_id, case_row, user)
     refreshed_case = db.get_case(case_id) or case_row
     db.record_audit(user['id'], 'export_bundle', 'case', case_id, {'filename': bundle_path.name, 'has_avvik': case_has_avvik(refreshed_case)})
-    return FileResponse(path=str(bundle_path), media_type='application/zip', filename=bundle_path.name)
+    return FileResponse(path=str(bundle_path), media_type='application/zip', filename=bundle_path.name, headers={'Cache-Control': 'no-store'})

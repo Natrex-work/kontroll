@@ -10,6 +10,7 @@ from . import area, catalog, db, live_sources
 from .config import settings
 from .dependencies import current_user, first_allowed_path, has_permission, user_permissions
 from .pdf_export import CASE_BASIS_LABELS
+from .security import ensure_csrf_token
 
 templates = Jinja2Templates(directory=str(settings.templates_dir))
 
@@ -44,18 +45,18 @@ def build_nav_links(user: dict[str, Any] | None) -> list[dict[str, str]]:
     links: list[dict[str, str]] = []
     if has_permission(user, 'kv_kontroll'):
         links.extend([
-            {'href': '/dashboard', 'label': 'Hjem', 'icon': '⌂'},
-            {'href': '/kontroller', 'label': 'Kontroller og historikk', 'icon': '🗂'},
-            {'href': '/cases/new', 'label': 'Ny kontroll', 'icon': '➕'},
+            {'href': '/dashboard', 'label': 'Hjem', 'icon': '⌂', 'method': 'get'},
+            {'href': '/kontroller', 'label': 'Kontroller og historikk', 'icon': '🗂', 'method': 'get'},
+            {'href': '/cases/new', 'label': 'Ny kontroll', 'icon': '➕', 'method': 'post'},
         ])
     if has_permission(user, 'kart'):
-        links.append({'href': '/kart', 'label': 'Kart og Område', 'icon': '🗺'})
+        links.append({'href': '/kart', 'label': 'Kart og Område', 'icon': '🗺', 'method': 'get'})
     if has_permission(user, 'regelverk'):
-        links.append({'href': '/regelverk', 'label': 'Regelverk Fiskeri', 'icon': '📘'})
+        links.append({'href': '/regelverk', 'label': 'Regelverk Fiskeri', 'icon': '📘', 'method': 'get'})
     if has_permission(user, 'user_admin'):
-        links.append({'href': '/admin/users', 'label': 'Brukere', 'icon': '👤'})
+        links.append({'href': '/admin/users', 'label': 'Brukere', 'icon': '👤', 'method': 'get'})
     if has_permission(user, 'control_admin'):
-        links.append({'href': '/admin/controls', 'label': 'Kontroller', 'icon': '♻'})
+        links.append({'href': '/admin/controls', 'label': 'Kontroller', 'icon': '♻', 'method': 'get'})
     return links
 
 
@@ -86,6 +87,9 @@ def render_template(request: Request, name: str, **context: Any) -> HTMLResponse
         'dashboard_zones': area.ZONES,
         'app_version': settings.app_version_label,
         'app_name': settings.app_name,
+        'csrf_token': ensure_csrf_token(request),
+        'server_url': settings.server_url,
+        'production_mode': settings.production_mode,
     }
     base_context.update(context)
     return templates.TemplateResponse(request, name, base_context)

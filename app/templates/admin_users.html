@@ -1,10 +1,10 @@
 {% extends 'base.html' %}
-{% block title %}Brukere · Kontroll Og Oppsyn {{ app_version }}{% endblock %}
+{% block title %}Brukere · {{ app_name }}{% endblock %}
 {% block content %}
 <section class="page-header">
   <div>
     <h1>Admin - brukerstyring</h1>
-    <p class="muted">Admin kan legge til, oppdatere og fjerne brukere. Tilganger styres per modul. Admin-brukere får kun brukerstyring og sletting/gjenoppretting av kontroller.</p>
+    <p class="muted">Admin kan legge til, oppdatere og fjerne brukere. Tilganger styres per modul. Admin-brukere får full tilgang til kontroll, kart, regelverk og adminmoduler.</p>
   </div>
 </section>
 
@@ -21,19 +21,19 @@
       <div class="grid-two">
         <label>
           <span>Fullt navn</span>
-          <input name="full_name" required />
+          <input name="full_name" autocomplete="name" required />
         </label>
         <label>
           <span>E-post</span>
-          <input name="email" type="email" required />
+          <input name="email" type="email" autocomplete="email" required />
         </label>
         <label>
           <span>Telefonnummer</span>
-          <input name="phone" placeholder="F.eks. 900 00 000" />
+          <input name="phone" placeholder="F.eks. 900 00 000" autocomplete="tel" />
         </label>
         <label>
           <span>Adresse</span>
-          <input name="address" placeholder="Gate, postnummer og sted" />
+          <input name="address" placeholder="Gate, postnummer og sted" autocomplete="street-address" />
         </label>
         <label>
           <span>Fartøystilhørighet</span>
@@ -53,7 +53,7 @@
         </label>
         <label>
           <span>Passord</span>
-          <input name="password" type="text" required />
+          <input name="password" type="password" autocomplete="new-password" required />
         </label>
         <label>
           <span>Rolle</span>
@@ -71,7 +71,7 @@
           <label class="permission-option"><input type="checkbox" name="permissions" value="{{ option.value }}" {% if option.value == 'kv_kontroll' %}checked{% endif %} /> <span>{{ option.label }}</span></label>
           {% endfor %}
         </div>
-        <div class="callout margin-top-s admin-fixed-permissions hidden">Admin-bruker får automatisk tilgang til brukerstyring og sletting/gjenoppretting av kontroller, og ingen andre moduler.</div>
+        <div class="callout margin-top-s admin-fixed-permissions hidden">Admin-bruker får automatisk full tilgang til alle moduler.</div>
       </div>
       <button class="btn btn-primary" type="submit">Opprett bruker</button>
     </form>
@@ -149,18 +149,18 @@
               <label class="permission-option"><input type="checkbox" name="permissions" value="{{ option.value }}" {% if option.value in user.permissions %}checked{% endif %} /> <span>{{ option.label }}</span></label>
               {% endfor %}
             </div>
-            <div class="callout margin-top-s admin-fixed-permissions {% if user.role != 'admin' %}hidden{% endif %}">Admin-bruker får automatisk tilgang til {% for option in admin_permission_options %}{{ option.label }}{% if not loop.last %}, {% endif %}{% endfor %}.</div>
+            <div class="callout margin-top-s admin-fixed-permissions {% if user.role != 'admin' %}hidden{% endif %}">Admin-bruker får automatisk full tilgang til kontroll, kart, regelverk og adminmoduler.</div>
           </div>
           <div class="actions-row wrap">
             <button class="btn btn-secondary" type="submit">Lagre bruker</button>
             {% if current_user.id != user.id %}
-            <button class="btn btn-danger" type="submit" formaction="/admin/users/{{ user.id }}/remove" formmethod="post" onclick="return confirm('Fjerne brukeren fra aktiv bruk?');">Fjern bruker</button>
+            <button class="btn btn-danger" type="submit" formaction="/admin/users/{{ user.id }}/remove" formmethod="post" data-confirm="Fjerne brukeren fra aktiv bruk?">Fjern bruker</button>
             {% endif %}
           </div>
         </form>
 
         <form method="post" action="/admin/users/{{ user.id }}/reset-password" class="inline-input-group wide-group">
-          <input name="password" type="text" placeholder="Nytt passord" required />
+          <input name="password" type="password" autocomplete="new-password" placeholder="Nytt passord" required />
           <button class="btn btn-secondary btn-small" type="submit">Nullstill passord</button>
         </form>
 
@@ -175,34 +175,4 @@
   </section>
 </div>
 {% endblock %}
-
-{% block page_scripts %}
-<script>
-  (() => {
-    const syncPanel = panel => {
-      const selectId = panel.dataset.roleSelectId;
-      const roleSelect = document.getElementById(selectId);
-      if (!roleSelect) return;
-      const isAdmin = roleSelect.value === 'admin';
-      const optionWrap = panel.querySelector('.permission-options');
-      const adminHint = panel.querySelector('.admin-fixed-permissions');
-      if (optionWrap) {
-        optionWrap.classList.toggle('hidden', isAdmin);
-        optionWrap.querySelectorAll('input[type="checkbox"]').forEach(input => {
-          input.disabled = isAdmin;
-        });
-      }
-      if (adminHint) {
-        adminHint.classList.toggle('hidden', !isAdmin);
-      }
-    };
-    document.querySelectorAll('.permission-panel').forEach(panel => {
-      syncPanel(panel);
-      const select = document.getElementById(panel.dataset.roleSelectId);
-      if (select) {
-        select.addEventListener('change', () => syncPanel(panel));
-      }
-    });
-  })();
-</script>
-{% endblock %}
+{% block page_scripts %}<script src="/static/js/admin-users.js"></script>{% endblock %}

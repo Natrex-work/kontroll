@@ -83,7 +83,7 @@ def _project_point(lng: float, lat: float, bbox: tuple[float, float, float, floa
 def _collect_overview_shapes(case_row: Dict[str, Any], bbox: tuple[float, float, float, float]) -> list[dict[str, Any]]:
     shapes: list[dict[str, Any]] = []
 
-    # local demo zones use [lat, lng] order
+    # local fallback zones use [lat, lng] order
     try:
         from . import area
         for zone in getattr(area, 'ZONES', []):
@@ -91,7 +91,7 @@ def _collect_overview_shapes(case_row: Dict[str, Any], bbox: tuple[float, float,
             ring = [[float(pt[1]), float(pt[0])] for pt in polygon if len(pt) >= 2]
             if ring and _shape_intersects_bbox(ring, bbox):
                 shapes.append({
-                    'name': zone.get('name') or 'Demo-sone',
+                    'name': zone.get('name') or 'Regulert sone',
                     'status': zone.get('status') or 'regulert område',
                     'color': '#d97706' if 'fredning' in str(zone.get('status') or '').lower() else '#b91c1c',
                     'rings': [ring],
@@ -196,7 +196,7 @@ def _generate_vector_overview_map_image(case_row: Dict[str, Any], output_dir: Pa
         'violation_reason': 'Automatisk generert kartoversikt med kontrollposisjon og nærliggende regulerte områder.',
         'created_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC'),
         'generated_path': str(outpath),
-        'preview_url': '/generated/' + outpath.name,
+        'preview_url': (f"/cases/{case_row.get('id')}/generated/{outpath.name}" if case_row.get('id') is not None else None),
     }
 
 
@@ -231,7 +231,7 @@ def _fetch_osm_tile(z: int, x: int, y: int) -> PILImage.Image | None:
         except Exception:
             pass
     try:
-        resp = requests.get(OSM_TILE_URL.format(z=z, x=x, y=y), timeout=2.5, headers={'User-Agent': 'KV-Kontroll-Demo-v18/1.0'})
+        resp = requests.get(OSM_TILE_URL.format(z=z, x=x, y=y), timeout=2.5, headers={'User-Agent': 'KV-Kontroll-v41/1.0'})
         resp.raise_for_status()
         img = PILImage.open(io.BytesIO(resp.content)).convert('RGBA')
         try:
@@ -334,7 +334,7 @@ def _generate_tile_overview_map_image(case_row: Dict[str, Any], output_dir: Path
         'violation_reason': 'Automatisk generert kartoversikt med kontrollposisjon, stedsnavn og nærliggende regulerte områder.',
         'created_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC'),
         'generated_path': str(outpath),
-        'preview_url': '/generated/' + outpath.name,
+        'preview_url': (f"/cases/{case_row.get('id')}/generated/{outpath.name}" if case_row.get('id') is not None else None),
     }
 
 
@@ -1433,8 +1433,8 @@ def build_case_packet(case_row: Dict[str, Any], evidence_rows: Iterable[Dict[str
         'legal_refs': legal_refs,
         'findings': findings,
         'sources': sources,
-        'evidence': [dict(item, preview_url=item.get('preview_url') or ('/uploads/' + str(item.get('filename') or ''))) for item in list(image_rows)],
-        'audio_files': [dict(item, preview_url='/uploads/' + str(item.get('filename') or '')) for item in list(audio_rows)],
+        'evidence': [dict(item, preview_url=item.get('preview_url') or (f"/cases/{case_row.get('id')}/evidence/{item.get('id')}/file" if case_row.get('id') is not None and item.get('id') is not None else None)) for item in list(image_rows)],
+        'audio_files': [dict(item, preview_url=(f"/cases/{case_row.get('id')}/evidence/{item.get('id')}/file" if case_row.get('id') is not None and item.get('id') is not None else None)) for item in list(audio_rows)],
         'interview_entries': [entry for entry in _safe_list_json(case_row.get('interview_sessions_json')) if isinstance(entry, dict)],
         'notes': case_row.get('notes') or 'Ingen utfyllende egenrapport registrert.',
         'hearing_text': case_row.get('hearing_text') or 'Ingen avhørstekst registrert.',
@@ -1493,7 +1493,7 @@ def build_case_pdf(case_row: Dict[str, Any], evidence_rows: Iterable[Dict[str, A
         topMargin=1.2 * cm,
         bottomMargin=1.2 * cm,
         title=f"Anmeldelsespakke {case_row['case_number']}",
-        author=case_row.get('investigator_name') or 'KV Kontroll Demo',
+        author=case_row.get('investigator_name') or 'KV Kontroll',
     )
     story: List[Any] = []
 
@@ -2150,7 +2150,7 @@ def build_case_pdf(case_row: Dict[str, Any], evidence_rows: Iterable[Dict[str, A
 
     c = rl_canvas.Canvas(str(outpath), pagesize=A4)
     c.setTitle(f"Anmeldelsespakke {case_row['case_number']}")
-    c.setAuthor(case_row.get('investigator_name') or 'KV Kontroll Demo')
+    c.setAuthor(case_row.get('investigator_name') or 'KV Kontroll')
 
     # document list
     _draw_template(c, 'page-01.png')
@@ -2343,7 +2343,7 @@ def build_interview_only_pdf(case_row: Dict[str, Any], evidence_rows: Iterable[D
     outpath = output_dir / filename
     c = rl_canvas.Canvas(str(outpath), pagesize=A4)
     c.setTitle(f"Avhørsrapport {case_row['case_number']}")
-    c.setAuthor(case_row.get('investigator_name') or 'KV Kontroll Demo')
+    c.setAuthor(case_row.get('investigator_name') or 'KV Kontroll')
     _draw_interview_pages(c, case_row)
     c.save()
     return outpath

@@ -23,6 +23,48 @@
     try { return JSON.parse(value || ''); } catch (e) { return fallback; }
   }
 
+
+  function csrfToken() {
+    var meta = document.querySelector('meta[name="csrf-token"]');
+    return meta ? String(meta.getAttribute('content') || '') : '';
+  }
+
+  function injectCsrfField(form) {
+    if (!form || String(form.method || '').toLowerCase() !== 'post') return;
+    var token = csrfToken();
+    if (!token) return;
+    var existing = form.querySelector('input[name="csrf_token"]');
+    if (existing) {
+      existing.value = token;
+      return;
+    }
+    var input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'csrf_token';
+    input.value = token;
+    form.appendChild(input);
+  }
+
+  function appendCsrfToForms(scope) {
+    Array.prototype.forEach.call((scope || document).querySelectorAll('form[method="post"], form[method="POST"]'), injectCsrfField);
+  }
+
+  function csrfHeaders(extraHeaders) {
+    var headers = new Headers(extraHeaders || {});
+    var token = csrfToken();
+    if (token && !headers.has('X-CSRF-Token')) headers.set('X-CSRF-Token', token);
+    return headers;
+  }
+
+  function secureFetchOptions(options) {
+    var result = Object.assign({ credentials: 'same-origin' }, options || {});
+    var method = String(result.method || 'GET').toUpperCase();
+    if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
+      result.headers = csrfHeaders(result.headers);
+    }
+    return result;
+  }
+
   function sourceChip(item) {
     var label = '<strong>' + escapeHtml(item.name || 'Kilde') + '</strong><span>' + escapeHtml(item.ref || '') + '</span>';
     if (item.url) return '<a class="source-chip" href="' + escapeHtml(item.url) + '" target="_blank" rel="noopener">' + label + '</a>';
@@ -282,5 +324,54 @@
     });
   }
 
-  window.KVCommon = { ready: ready, escapeHtml: escapeHtml, parseJson: parseJson, sourceChip: sourceChip, findingSource: findingSource, lawHelpCard: lawHelpCard, buildReadonlyFindingsHtml: buildReadonlyFindingsHtml, normalizeFeatureCollection: normalizeFeatureCollection, createPortalMap: createPortalMap };
+
+  function setupSecurityInteractions() {
+    appendCsrfToForms(document);
+    document.addEventListener('submit', function (event) {
+      var form = event.target;
+      if (!form || form.tagName !== 'FORM') return;
+      if (String(form.method || '').toLowerCase() === 'post') injectCsrfField(form);
+      var message = form.getAttribute('data-confirm');
+      if (message && !window.confirm(message)) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    }, true);
+    document.addEventListener('click', function (event) {
+      var trigger = event.target.closest('[data-confirm]:not(form)');
+      if (!trigger) return;
+      if (!window.confirm(trigger.getAttribute('data-confirm') || 'Er du sikker?')) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    }, true);
+  }
+
+  function setupSidebarToggle() {
+    var sidebar = document.getElementById('app-sidebar');
+    var toggle = document.getElementById('sidebar-toggle');
+    if (!sidebar || !toggle) return;
+    function closeMobileSidebar() {
+      if (!window.matchMedia('(max-width: 960px)').matches) return;
+      sidebar.classList.remove('sidebar-open');
+      toggle.setAttribute('aria-expanded', 'false');
+    }
+    toggle.addEventListener('click', function () {
+      var willOpen = !sidebar.classList.contains('sidebar-open');
+      sidebar.classList.toggle('sidebar-open', willOpen);
+      toggle.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+    });
+    Array.prototype.forEach.call(sidebar.querySelectorAll('.nav-link, .nav-link-button'), function (link) { link.addEventListener('click', closeMobileSidebar); });
+    window.addEventListener('resize', function () {
+      if (!window.matchMedia('(max-width: 960px)').matches) {
+        sidebar.classList.remove('sidebar-open');
+        toggle.setAttribute('aria-expanded', 'false');
+      }
+    });
+  }
+
+  ready(setupSecurityInteractions);
+  ready(setupSidebarToggle);
+
+  window.KVCommon = { ready: ready, escapeHtml: escapeHtml, parseJson: parseJson, csrfToken: csrfToken, injectCsrfField: injectCsrfField, appendCsrfToForms: appendCsrfToForms, csrfHeaders: csrfHeaders, secureFetchOptions: secureFetchOptions, sourceChip: sourceChip, findingSource: findingSource, lawHelpCard: lawHelpCard, buildReadonlyFindingsHtml: buildReadonlyFindingsHtml, normalizeFeatureCollection: normalizeFeatureCollection, createPortalMap: createPortalMap };
 })();

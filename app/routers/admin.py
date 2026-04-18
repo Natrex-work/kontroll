@@ -7,6 +7,7 @@ from starlette.status import HTTP_303_SEE_OTHER
 from .. import db
 from ..auth import hash_password
 from ..dependencies import require_control_admin, require_user_admin
+from ..security import enforce_csrf
 from ..ui import render_template
 from ..validation import validate_case_prefix, validate_email, validate_password, validate_role
 
@@ -37,6 +38,7 @@ async def admin_create_user(request: Request):
     form = await request.form()
     users = db.list_users()
     try:
+        enforce_csrf(request, form)
         email = validate_email(form.get('email'))
         full_name = str(form.get('full_name') or '').strip()
         if not full_name:
@@ -81,6 +83,7 @@ async def admin_update_user(request: Request, user_id: int):
     form = await request.form()
     users = db.list_users()
     try:
+        enforce_csrf(request, form)
         full_name = str(form.get('full_name') or '').strip()
         if not full_name:
             raise HTTPException(status_code=400, detail='Navn mangler.')
@@ -125,6 +128,7 @@ async def admin_reset_password(request: Request, user_id: int):
     form = await request.form()
     users = db.list_users()
     try:
+        enforce_csrf(request, form)
         password = validate_password(form.get('password'))
         db.set_user_password(user_id, hash_password(password))
         db.record_audit(admin['id'], 'reset_password', 'user', user_id, {'email': user_row['email']})
@@ -134,11 +138,16 @@ async def admin_reset_password(request: Request, user_id: int):
 
 
 @router.post('/admin/users/{user_id}/remove')
-def admin_remove_user(request: Request, user_id: int):
+async def admin_remove_user(request: Request, user_id: int):
     admin = require_user_admin(request)
     user_row = db.get_user_by_id(user_id)
     if not user_row:
         raise HTTPException(status_code=404, detail='Fant ikke bruker.')
+    form = await request.form()
+    try:
+        enforce_csrf(request, form)
+    except HTTPException as exc:
+        raise HTTPException(status_code=403, detail=exc.detail) from exc
     if int(user_row['id']) == int(admin['id']):
         raise HTTPException(status_code=400, detail='Admin kan ikke fjerne sin egen bruker.')
     db.remove_user(user_id)
@@ -155,8 +164,10 @@ def admin_controls(request: Request, state: str = 'active', q: str = ''):
 
 
 @router.post('/admin/controls/{case_id}/delete')
-def admin_delete_control(request: Request, case_id: int):
+async def admin_delete_control(request: Request, case_id: int):
     admin = require_control_admin(request)
+    form = await request.form()
+    enforce_csrf(request, form)
     case_row = db.get_case(case_id)
     if not case_row:
         raise HTTPException(status_code=404, detail='Fant ikke saken.')
@@ -168,8 +179,10 @@ def admin_delete_control(request: Request, case_id: int):
 
 
 @router.post('/admin/controls/{case_id}/restore')
-def admin_restore_control(request: Request, case_id: int):
+async def admin_restore_control(request: Request, case_id: int):
     admin = require_control_admin(request)
+    form = await request.form()
+    enforce_csrf(request, form)
     case_row = db.get_case(case_id)
     if not case_row:
         raise HTTPException(status_code=404, detail='Fant ikke saken.')

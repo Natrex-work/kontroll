@@ -5,6 +5,7 @@ from typing import Any, Dict, Iterable, Optional
 from fastapi import HTTPException, Request
 
 from . import db
+from .security import touch_authenticated_session
 
 UserRow = Dict[str, Any]
 CaseRow = Dict[str, Any]
@@ -14,7 +15,14 @@ def current_user(request: Request) -> Optional[UserRow]:
     user_id = request.session.get('user_id')
     if not user_id:
         return None
-    user = db.get_user_by_id(int(user_id))
+    try:
+        user_id = int(user_id)
+    except Exception:
+        request.session.clear()
+        return None
+    if not touch_authenticated_session(request):
+        return None
+    user = db.get_user_by_id(user_id)
     if not user or not int(user.get('active', 1)):
         request.session.clear()
         return None

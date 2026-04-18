@@ -1,1 +1,1 @@
-"""Route modules for KV Kontroll demo."""
+"""Route modules for KV Kontroll."""

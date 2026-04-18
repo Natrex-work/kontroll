@@ -43,8 +43,8 @@ def _merge_directory_contact(person: dict[str, Any], *, phone_lookup: str = '', 
     source_name = str(item.get('source') or '').strip().lower()
     prefer_directory = source_name in {
         'hummerliste',
-        'demo',
-        'demo hummerdeltakerliste',
+        'lokal hummerliste',
+        'lokal person-/fartøyliste',
         'fiskeridirektoratet - registrerte hummarfiskarar',
     }
     if directory_person.get('address'):
@@ -113,12 +113,12 @@ def lookup_registry(*, phone: str = '', vessel_reg: str = '', radio_call_sign: s
     live_result: dict[str, Any] = {'found': False, 'message': '', 'candidates': []}
 
     person: dict[str, Any] | None = None
-    source = 'demo'
+    source = 'local'
     candidates: list[dict[str, Any]] = []
 
     if local_candidates:
         person = dict(local_candidates[0])
-        source = 'demo'
+        source = 'local'
         candidates.extend(local_candidates)
         candidates.extend(case_candidates)
     elif case_candidates:

@@ -1,21 +1,35 @@
-const CACHE = 'kv-kontroll-demo-v40';
+const CACHE = 'kv-kontroll-v42-secure';
+const STATIC_PREFIX = '/static/';
 const ASSETS = [
   '/static/styles.css',
   '/static/js/common.js',
   '/static/js/case-app.js',
   '/static/js/map-overview.js',
   '/static/js/rules-overview.js',
+  '/static/js/admin-users.js',
   '/static/icon-192.png',
-  '/static/icon-512.png',
-  '/login'
+  '/static/icon-512.png'
 ];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', event => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    caches.keys().then(keys => Promise.all(keys.filter(key => key !== CACHE).map(key => caches.delete(key)))).then(() => self.clients.claim())
+  );
 });
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
-  event.respondWith(caches.match(event.request).then(res => res || fetch(event.request)));
+  const url = new URL(event.request.url);
+  if (url.origin !== self.location.origin || !url.pathname.startsWith(STATIC_PREFIX)) return;
+  event.respondWith(
+    caches.match(event.request).then(res => {
+      if (res) return res;
+      return fetch(event.request).then(networkRes => {
+        const clone = networkRes.clone();
+        caches.open(CACHE).then(cache => cache.put(event.request, clone)).catch(() => {});
+        return networkRes;
+      });
+    })
+  );
 });

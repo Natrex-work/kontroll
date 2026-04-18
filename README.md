@@ -1,84 +1,101 @@
-# KV Kontroll Demo v25
+# KV Kontroll v42 – sikker produksjonspakke
 
-Lokal demo/PWA for stegvis kontroll av fritidsfiske og kommersielt fiskeri.
+Herdet PWA / webapp for fullskala feltutprøving av kontrollsaker, kart, regelverk, registeroppslag og dokumenteksport.
 
-## Hva som er gjort i v25
-- delt backend opp i **routers** for auth, sider, admin, saker og API
-- flyttet sakslogikk til **services** for bootstrap, saker, PDF, regelverk og registeroppslag
-- lagt til **miljøstyrt konfigurasjon** i `app/config.py`
-- lagt til enkel **logging** og tydelig varsel hvis `SESSION_SECRET` ikke er satt
-- strammet inn **validering** av e-post, passord, saksnummer-prefix, koordinater og filopplasting
-- flyttet frontend til **side-spesifikke scripts** (`common.js`, `map-overview.js`, `rules-overview.js`, `case-app.js`)
-- beholdt eksisterende demo-funksjoner og eksportflyt
+## Sikkerhetsforbedringer i denne pakken
+- fjernet demooppsett, demoordlyd, eksempeldatabaser og unødvendige hjelpefiler
+- slått av åpne FastAPI-dokumentasjonssider i produksjon
+- lagt inn **CSRF-beskyttelse** på innlogging, lagring, eksport, adminhandlinger og API-kall
+- lagt inn **Trusted Host**-kontroll og strammere sesjonsinnstillinger
+- lagt inn **sikkerhetsheadere** som CSP, `X-Frame-Options`, `Referrer-Policy`, `X-Content-Type-Options` og HSTS på HTTPS
+- fjernet offentlig tilgang til `/uploads` og `/generated`; filer åpnes nå bare via autentiserte, saksbundne ruter
+- lagt inn **filsignaturkontroll** og strengere filtrering av filtyper ved opplasting
+- lagt inn **innloggingsbegrensning** mot brute force og tidsavgrenset sesjonskontroll
+- oppdatert service worker til å cache kun statiske filer
+- beholdt kartforbedringer med **blå GPS-prikk + nøyaktighetssirkel** og **rød kontrollnål**
+- beholdt redigering av de tre siste sifrene i saksnummeret
+- beholdt `/healthz` for Render
 
-## Prosjektstruktur
-```text
-app/
-  main.py
-  config.py
-  logging_setup.py
-  dependencies.py
-  ui.py
-  validation.py
-  schemas.py
-  routers/
-    auth.py
-    pages.py
-    admin.py
-    cases.py
-    api.py
-  services/
-    bootstrap_service.py
-    case_service.py
-    pdf_service.py
-    rules_service.py
-    registry_service.py
-  static/js/
-    common.js
-    map-overview.js
-    rules-overview.js
-    case-app.js
-```
-
-## Miljøvariabler
+## Første oppstart
 Kopier `.env.example` til `.env` og sett minst:
 
-```bash
+```env
+KV_PRODUCTION_MODE=1
 SESSION_SECRET=sett-en-lang-og-unik-hemmelig-verdi
+KV_DATA_ENCRYPTION_KEY=sett-en-lang-og-unik-krypteringsnoekkel
+KV_ALLOWED_HOSTS=www.dittdomene.no,dittdomene.onrender.com
+KV_SESSION_HTTPS_ONLY=1
+KV_BOOTSTRAP_ADMIN_EMAIL=navn@domene.no
+KV_BOOTSTRAP_ADMIN_NAME=Fullt Navn
+KV_BOOTSTRAP_ADMIN_PASSWORD=VelgEtSterktPassord123!Ekstra
+KV_BOOTSTRAP_ADMIN_PREFIX=LBHN
 ```
 
-Andre valgfrie innstillinger:
-- `KV_DB_PATH`
-- `KV_UPLOAD_DIR`
-- `KV_GENERATED_DIR`
-- `KV_LOG_LEVEL`
-- `KV_MAX_UPLOAD_MB`
-- `KV_LIVE_SOURCES`
+Du kan også opprette første administrator lokalt med:
 
-## Windows
-1. Pakk ut zip-filen.
-2. Åpne mappen `kv_kontroll_demo_v24`.
-3. Lag eventuelt en `.env` basert på `.env.example`.
-4. Dobbeltklikk `start_windows.bat`.
-5. Hvis nettleseren ikke åpnes automatisk, åpne `http://127.0.0.1:8000`.
+```bash
+python manage.py create-admin --email navn@domene.no --name "Fullt Navn" --password "VelgEtSterktPassord123!Ekstra" --prefix LBHN
+```
 
-## Manuell oppstart
+## Kjør lokalt
 ```bash
 python -m pip install -r requirements.txt
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-## Innlogging
-- Admin: `admin@kv.demo` / `Admin123!`
-- Kontrollør: `kontrollor@kv.demo` / `Demo123!`
+## Kjør i Docker / Render
+Denne pakken inneholder `Dockerfile` og kan brukes direkte i Render som Docker service.
+
+Health check path:
+
+```text
+/healthz
+```
+
+Anbefalte Render-variabler:
+- `KV_PRODUCTION_MODE=1`
+- `KV_ALLOWED_HOSTS=www.minfiskerikontroll.no,minfiskerikontroll.onrender.com`
+- `KV_SESSION_HTTPS_ONLY=1`
+- `SESSION_SECRET=...`
+- `KV_DATA_ENCRYPTION_KEY=...`
+- `KV_BOOTSTRAP_ADMIN_EMAIL=...`
+- `KV_BOOTSTRAP_ADMIN_NAME=...`
+- `KV_BOOTSTRAP_ADMIN_PASSWORD=...`
+- `KV_BOOTSTRAP_ADMIN_PREFIX=LBHN`
+- `KV_DB_PATH=/var/data/fiskerikontroll/kv_kontroll.db`
+- `KV_UPLOAD_DIR=/var/data/fiskerikontroll/uploads`
+- `KV_GENERATED_DIR=/var/data/fiskerikontroll/generated`
+
+## Nyttige miljøvariabler
+- `KV_PRODUCTION_MODE`
+- `SESSION_SECRET`
+- `KV_DATA_ENCRYPTION_KEY`
+- `KV_ALLOWED_HOSTS`
+- `KV_SESSION_HTTPS_ONLY`
+- `KV_SESSION_MAX_AGE_SECONDS`
+- `KV_SESSION_IDLE_MINUTES`
+- `KV_SESSION_ABSOLUTE_MINUTES`
+- `KV_DB_PATH`
+- `KV_UPLOAD_DIR`
+- `KV_GENERATED_DIR`
+- `KV_LOG_LEVEL`
+- `KV_MAX_REQUEST_MB`
+- `KV_MIN_PASSWORD_LENGTH`
+- `KV_LOGIN_RATE_LIMIT_ATTEMPTS`
+- `KV_LOGIN_RATE_LIMIT_WINDOW_SECONDS`
+- `KV_LIVE_SOURCES`
+- `KV_BOOTSTRAP_ADMIN_EMAIL`
+- `KV_BOOTSTRAP_ADMIN_NAME`
+- `KV_BOOTSTRAP_ADMIN_PASSWORD`
+- `KV_BOOTSTRAP_ADMIN_PREFIX`
 
 ## Teststatus
-- Python-syntakssjekk bestått
-- JavaScript-syntakssjekk bestått
-- backend smoke-test bestått
-- PDF-eksport bestått
-- ZIP-eksport bestått
-- eksport av kun avhørsrapport bestått
+- Python-syntakssjekk
+- JavaScript-syntakssjekk
+- smoke test med bootstrap-admin og CSRF
+- health check `/healthz`
+- oppretting, lagring, forhåndsvisning og PDF-eksport av sak
+- saksnummerendring av tresifret løpenummer
 
 ## Merknad
-Dette er fortsatt en lokal testversjon. Live kartlag, hummerregister, fartøyregister og eventuelle katalogoppslag krever internett. Hvis en ekstern kilde ikke svarer, brukes lokale demo-data der det finnes fallback.
+Live kartlag, hummerregister, fartøyregister og andre eksterne oppslag krever internett. Når en ekstern kilde ikke svarer, brukes lokale fallback-data der det finnes trygge geografiske reserveflater og grunnleggende oppslagsdata.

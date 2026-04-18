@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 
 from .. import live_sources
 from ..dependencies import require_any_permission, require_permission
+from ..security import enforce_csrf
 from ..pdf_export import build_text_drafts
 from ..schemas import SummarySuggestRequest, TextPolishRequest
 from ..services.registry_service import gear_summary, lookup_registry
@@ -31,6 +32,7 @@ def _basis_opening_phrase(case_basis: str, source_name: str = '') -> str:
 @router.post('/api/text/polish')
 def api_text_polish(request: Request, payload: TextPolishRequest):
     require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til KV Kontroll.')
+    enforce_csrf(request)
     mode = str(payload.mode or 'generic').strip()
     text_in = str(payload.text or '').strip()
     case_basis = str(payload.case_basis or '').strip() or 'patruljeobservasjon'
@@ -113,6 +115,7 @@ def api_gear_summary(request: Request, phone: str = '', name: str = '', address:
 @router.post('/api/summary/suggest')
 def api_summary_suggest(request: Request, payload: SummarySuggestRequest):
     require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til KV Kontroll.')
+    enforce_csrf(request)
     case_row = {'summary': '', 'case_basis': payload.case_basis or 'patruljeobservasjon', 'control_type': payload.control_type or '', 'species': payload.species or '', 'fishery_type': payload.fishery_type or payload.species or '', 'gear_type': payload.gear_type or '', 'location_name': payload.location_name or '', 'area_name': payload.area_name or '', 'area_status': payload.area_status or '', 'suspect_name': payload.suspect_name or '', 'basis_details': payload.basis_details or '', 'start_time': payload.start_time or '', 'latitude': payload.latitude, 'longitude': payload.longitude}
     drafts = build_text_drafts(case_row, payload.findings)
     return JSONResponse(drafts)

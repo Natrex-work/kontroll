@@ -15,9 +15,9 @@
     <button class="btn btn-primary" id="btn-manual-save" type="button">Lagre manuelt</button>
     <span class="autosave-pill muted" id="autosave-status">Autosave ikke startet</span>
     <a class="btn btn-secondary" href="/cases/{{ case.id }}/preview" target="_blank" rel="noopener">Forhåndsvis dokumentpakke</a>
-    <a class="btn btn-secondary" href="/cases/{{ case.id }}/interview-pdf">Eksporter kun avhørsrapport</a>
-    <a class="btn btn-secondary" href="/cases/{{ case.id }}/bundle">Eksporter PDF og filer (ZIP)</a>
-    <a class="btn btn-secondary" href="/cases/{{ case.id }}/pdf">Avslutt og eksporter PDF</a>
+    <form method="post" action="/cases/{{ case.id }}/interview-pdf" class="inline-form"><button class="btn btn-secondary" type="submit">Eksporter kun avhørsrapport</button></form>
+    <form method="post" action="/cases/{{ case.id }}/bundle" class="inline-form"><button class="btn btn-secondary" type="submit">Eksporter PDF og filer (ZIP)</button></form>
+    <form method="post" action="/cases/{{ case.id }}/pdf" class="inline-form"><button class="btn btn-secondary" type="submit">Avslutt og eksporter PDF</button></form>
     <span class="pill">Sletting og gjenoppretting gjøres av admin</span>
   </div>
 </section>
@@ -138,9 +138,21 @@
           <h3>Posisjon og område</h3>
           <div class="grid-two compact-grid-form margin-top-s">
             <label><span>Nærmeste sted</span><input name="location_name" id="location_name" value="{{ case.location_name or '' }}" /></label>
-            <div class="stack gap-s"><span>Handlinger</span><div class="actions-row wrap"><button type="button" class="btn btn-secondary" id="btn-use-location">Bruk min posisjon</button><button type="button" class="btn btn-secondary" id="btn-set-manual-position">Sett manuelt i kart</button><button type="button" class="btn btn-secondary" id="btn-check-zone">Oppdater områdestatus</button></div></div>
-            <label><span>Latitude</span><input name="latitude" id="latitude" value="{{ case.latitude or '' }}" /></label>
-            <label><span>Longitude</span><input name="longitude" id="longitude" value="{{ case.longitude or '' }}" /></label>
+            <div class="position-action-group">
+              <span>Handlinger</span>
+              <div class="position-actions margin-top-s">
+                <button type="button" class="btn btn-secondary" id="btn-use-location">Bruk min posisjon</button>
+                <button type="button" class="btn btn-secondary" id="btn-set-manual-position">Sett manuelt i kart</button>
+                <button type="button" class="btn btn-secondary" id="btn-check-zone">Oppdater områdestatus</button>
+              </div>
+            </div>
+            <details class="coordinate-disclosure span-2">
+              <summary>Vis / rediger koordinater</summary>
+              <div class="grid-two margin-top-s">
+                <label><span>Latitude</span><input name="latitude" id="latitude" value="{{ case.latitude or '' }}" /></label>
+                <label><span>Longitude</span><input name="longitude" id="longitude" value="{{ case.longitude or '' }}" /></label>
+              </div>
+            </details>
             <label><span>Områdestatus</span><input name="area_status" id="area_status" value="{{ case.area_status or '' }}" readonly /></label>
             <input type="hidden" name="area_name" id="area_name" value="{{ case.area_name or '' }}" />
           </div>
@@ -150,8 +162,20 @@
       </div>
       <div class="subcard margin-top-m">
         <div class="subcard-head">
-          <h3>Kartoversikt</h3>
-          <span class="muted small">Fredningsområder, forbudsområder, nullfiskeområder og relevante reguleringslag vises over kartet.</span>
+          <div>
+            <h3>Kartoversikt</h3>
+            <span class="muted small">Fredningsområder, stengte felt, nullfiskeområder og andre relevante reguleringslag vises over kartet.</span>
+          </div>
+        </div>
+        <div class="map-filter-row" id="map-layer-filters">
+          <label class="check-chip"><input type="checkbox" data-layer-filter="fredningsområde" checked /> Fredningsområder</label>
+          <label class="check-chip"><input type="checkbox" data-layer-filter="stengt område" checked /> Stengte felt / forbud</label>
+          <label class="check-chip"><input type="checkbox" data-layer-filter="maksimalmål område" checked /> Maksimalmål</label>
+          <label class="check-chip"><input type="checkbox" data-layer-filter="regulert område" checked /> Andre reguleringer</label>
+        </div>
+        <div class="map-symbol-legend">
+          <span class="map-symbol-chip"><span class="map-symbol user"></span> GPS-posisjon</span>
+          <span class="map-symbol-chip"><span class="map-symbol case"></span> Kontrollposisjon / rød nål</span>
         </div>
         <div id="case-position-map" class="leaflet-map case-map" data-portal-catalog='{{ portal_layers|tojson }}'></div>
       </div>
@@ -270,7 +294,7 @@
         {% for item in evidence %}
         {% if not item.mime_type or not item.mime_type.startswith('audio/') %}
         <article class="evidence-card">
-          <img src="/uploads/{{ item.filename }}" alt="{{ item.caption or item.original_filename }}" />
+          <img src="/cases/{{ case.id }}/evidence/{{ item.id }}/file" alt="{{ item.caption or item.original_filename }}" />
           <div class="evidence-body">
             <strong>{{ item.caption or item.original_filename }}</strong>
             {% if item.finding_key %}<div class="muted small">Kontrollpunkt: {{ item.finding_key }}</div>{% endif %}
@@ -278,7 +302,7 @@
             {% if item.violation_reason %}<div class="muted small">Begrunnelse: {{ item.violation_reason }}</div>{% endif %}
             {% if item.law_text %}<div class="muted small">Hjemmel: {{ item.law_text }}</div>{% endif %}
             <div class="actions-row wrap margin-top-s">
-              <form method="post" action="/evidence/{{ item.id }}/delete" onsubmit="return confirm('Slette vedlegg?');">
+              <form method="post" action="/evidence/{{ item.id }}/delete" data-confirm="Slette vedlegg?">
                 <button class="btn btn-danger btn-small" type="submit">Slett</button>
               </form>
             </div>
@@ -324,10 +348,10 @@
             {% if item.mime_type and item.mime_type.startswith('audio/') %}
             <article class="audio-item">
               <strong>{{ item.caption or item.original_filename }}</strong>
-              <audio controls preload="none" src="/uploads/{{ item.filename }}"></audio>
+              <audio controls preload="none" src="/cases/{{ case.id }}/evidence/{{ item.id }}/file"></audio>
               <div class="actions-row wrap">
-                <a class="btn btn-secondary btn-small" href="/uploads/{{ item.filename }}" download>Last ned</a>
-                <form method="post" action="/evidence/{{ item.id }}/delete" onsubmit="return confirm('Slette lydfil?');">
+                <a class="btn btn-secondary btn-small" href="/cases/{{ case.id }}/evidence/{{ item.id }}/file" download>Last ned</a>
+                <form method="post" action="/evidence/{{ item.id }}/delete" data-confirm="Slette lydfil?">
                   <button class="btn btn-danger btn-small" type="submit">Slett</button>
                 </form>
               </div>
@@ -347,7 +371,7 @@
       <label class="span-2"><span>Avhørtes / mistenktes signatur</span><input form="case-form" name="suspect_signature" value="{{ case.suspect_signature or case.suspect_name or '' }}" placeholder="Skriv navn / signatur" /></label>
     </div>
     <div class="actions-row wrap margin-top-s">
-      <a class="btn btn-secondary" href="/cases/{{ case.id }}/interview-pdf">Eksporter kun avhørsrapport</a>
+      <form method="post" action="/cases/{{ case.id }}/interview-pdf" class="inline-form"><button class="btn btn-secondary" type="submit">Eksporter kun avhørsrapport</button></form>
     </div>
     <div class="step-actions"><button type="button" class="btn btn-secondary" data-prev-step>Tilbake</button><button type="button" class="btn btn-primary" data-next-step>Videre</button></div>
   </section>
@@ -371,9 +395,9 @@
     <div class="actions-row wrap margin-top-s">
       <button class="btn btn-secondary" type="button" id="btn-generate-summary">Autogenerer tekst</button>
       <a class="btn btn-secondary" href="/cases/{{ case.id }}/preview" target="_blank" rel="noopener">Forhåndsvis dokumentpakke</a>
-      <a class="btn btn-secondary" href="/cases/{{ case.id }}/interview-pdf">Eksporter kun avhørsrapport</a>
-      <a class="btn btn-secondary" href="/cases/{{ case.id }}/bundle">Eksporter PDF og filer (ZIP)</a>
-      <a class="btn btn-primary" href="/cases/{{ case.id }}/pdf">Avslutt og eksporter PDF</a>
+      <form method="post" action="/cases/{{ case.id }}/interview-pdf" class="inline-form"><button class="btn btn-secondary" type="submit">Eksporter kun avhørsrapport</button></form>
+      <form method="post" action="/cases/{{ case.id }}/bundle" class="inline-form"><button class="btn btn-secondary" type="submit">Eksporter PDF og filer (ZIP)</button></form>
+      <form method="post" action="/cases/{{ case.id }}/pdf" class="inline-form"><button class="btn btn-primary" type="submit">Avslutt og eksporter PDF</button></form>
     </div>
     <div class="callout margin-top-s" id="summary-preview">AI-støttet, punktvis utkast vises her når du trykker på knappen. Oppsummeringen bygger bare på registrerte avvik og lovbrudd i kontrollpunktene og viser forholdene per beslagnummer når dette finnes.</div>
     <div class="step-actions"><button type="button" class="btn btn-secondary" data-prev-step>Tilbake</button></div>

@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block title %}Regelverk · Kontroll Og Oppsyn {{ app_version }}{% endblock %}
+{% block title %}Regelverk · {{ app_name }}{% endblock %}
 {% block content %}
 <section class="page-header">
   <div>
@@ -18,16 +18,12 @@
     <label><span>Redskap</span><select id="overview_gear_type"><option value="">Velg</option></select></label>
   </div>
   <div class="actions-row wrap">
-    <button class="btn btn-primary" type="button" id="btn-overview-load-rules">Vis kontrollpunkter</button>
-    <a class="btn btn-secondary" href="/cases/new">Bruk i ny kontroll</a>
+    <button class="btn btn-primary" type="button" id="overview_fetch_rules">Vis relevante kontrollpunkter</button>
+    <form method="post" action="/cases/new" class="inline-form">
+      <button class="btn btn-secondary" type="submit">Bruk i ny kontroll</button>
+    </form>
   </div>
-  <div id="rules-overview-meta" class="callout">Velg kontrolltype, art og redskap for å se hvilke lovpunkter som skal kontrolleres.</div>
-  <div id="rules-overview-findings" class="stack gap-m"></div>
-  <details class="source-disclosure">
-    <summary>Vis kildespor</summary>
-    <div id="rules-overview-sources" class="source-list margin-top-s"></div>
-  </details>
+  <div id="overview_rule_summary" class="stack gap-s"></div>
 </section>
 {% endblock %}
-
 {% block page_scripts %}<script src="/static/js/rules-overview.js"></script>{% endblock %}
