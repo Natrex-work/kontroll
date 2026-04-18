@@ -32,6 +32,11 @@
       <div id="overview-map-status" class="callout">Trykk «Bruk min posisjon» for å se om kontrollpunktet ligger i fredningsområde, stengt felt, nullfiskeområde eller annen regulert sone.</div>
     </article>
     <article class="card">
+      <h2>Synlige soner</h2>
+      <div class="muted small" id="overview-zone-count">Laster soner i kartutsnittet …</div>
+      <div id="overview-zone-list" class="zone-list margin-top-s"></div>
+    </article>
+    <article class="card">
       <h2>Kartlag i bruk</h2>
       <div class="source-list">
         {% for layer in portal_layers %}

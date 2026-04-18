@@ -155,7 +155,8 @@
         markerState: markerState || {},
         clickBound: false,
         layerViewKeys: {},
-        currentLayers: []
+        currentLayers: [],
+        featureSummariesByLayer: {}
       };
       map.on('moveend zoomend', function () {
         try {
@@ -175,6 +176,7 @@
     state.currentLayers = layers || [];
     state.refreshLayers = function () { createPortalMap(el, state.currentLayers, state.markerState || {}); };
     var map = state.map;
+    var ms = state.markerState || {};
     var activeLayerIds = {};
     var bounds = map.getBounds ? map.getBounds() : null;
     var bbox = bounds ? [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()] : null;
@@ -196,14 +198,16 @@
             try { map.removeLayer(state.overlaysById[cacheKey]); } catch (e) {}
             delete state.overlaysById[cacheKey];
           }
+          state.featureSummariesByLayer[cacheKey] = [];
           if (!data.features.length) return;
+          var featureSummaries = [];
           var geo = L.geoJSON(data, {
             style: function () {
               return { color: layer.color || '#c1121f', weight: 2.5, fillColor: layer.color || '#c1121f', fillOpacity: 0.2 };
             },
             onEachFeature: function (feature, lyr) {
               var props = feature && feature.properties ? feature.properties : {};
-              var title = props.navn || props.omraade || layer.name;
+              var title = props.navn || props.omraade || props.område || props.name || layer.name;
               var desc = props.info || props.beskrivelse || props.informasjon || props.omraade_stengt_text || props.vurderes_aapnet_text || layer.description || layer.status || '';
               var law = props.jmelding_navn || props.url || '';
               var html = '<strong>' + escapeHtml(title || layer.name) + '</strong>';
@@ -212,10 +216,12 @@
               if (law) html += '<div class="small muted" style="margin-top:6px">Kilde: ' + escapeHtml(law) + '</div>';
               if (props.url) html += '<div class="small" style="margin-top:6px"><a href="' + escapeHtml(props.url) + '" target="_blank" rel="noopener">Åpne regelgrunnlag</a></div>';
               lyr.bindPopup(html);
+              featureSummaries.push({ layerId: layer.id, layer: layer.name, status: layer.status || '', name: title || layer.name, description: desc || '', url: props.url || '', source: law || '' });
             }
           }).addTo(map);
           state.overlaysById[cacheKey] = geo;
-        }).catch(function () {});
+          state.featureSummariesByLayer[cacheKey] = featureSummaries;
+        }).catch(function () { state.featureSummariesByLayer[cacheKey] = []; });
     });
 
     return Promise.all(promises).then(function () {
@@ -223,17 +229,35 @@
         if (activeLayerIds[key]) return;
         try { map.removeLayer(state.overlaysById[key]); } catch (e) {}
         delete state.overlaysById[key];
+        delete state.layerViewKeys[key];
+        delete state.featureSummariesByLayer[key];
       });
+
+      var visibleFeatureSummaries = [];
+      Object.keys(state.featureSummariesByLayer).forEach(function (key) {
+        if (!activeLayerIds[key]) {
+          delete state.featureSummariesByLayer[key];
+          return;
+        }
+        visibleFeatureSummaries = visibleFeatureSummaries.concat(state.featureSummariesByLayer[key] || []);
+      });
+      if (typeof ms.onFeaturesRendered === 'function') {
+        try { ms.onFeaturesRendered({ layers: layers || [], features: visibleFeatureSummaries, bbox: bbox || null }); } catch (e) {}
+      }
 
       if (state.legendControl) {
         try { map.removeControl(state.legendControl); } catch (e) {}
         state.legendControl = null;
       }
-      if (layers && layers.length) {
+      var legendLayers = (layers || []).filter(function (layer) {
+        var key = String(layer.id);
+        return (state.featureSummariesByLayer[key] || []).length > 0;
+      });
+      if (legendLayers.length) {
         var legendControl = L.control({ position: 'bottomleft' });
         legendControl.onAdd = function () {
           var div = L.DomUtil.create('div', 'leaflet-legend-control');
-          div.innerHTML = '<div class="leaflet-legend-title">Kartlag</div>' + (layers || []).map(function (layer) {
+          div.innerHTML = '<div class="leaflet-legend-title">Kartlag</div>' + legendLayers.map(function (layer) {
             return '<div class="leaflet-legend-row"><span class="leaflet-legend-swatch" style="background:' + escapeHtml(layer.color || '#c1121f') + '"></span><span>' + escapeHtml(layer.name || '') + '</span></div>';
           }).join('');
           return div;
@@ -242,7 +266,6 @@
         state.legendControl = legendControl;
       }
 
-      var ms = state.markerState || {};
       var hasCase = validLatLng(ms.lat, ms.lng);
       var hasDevice = validLatLng(ms.deviceLat, ms.deviceLng);
 

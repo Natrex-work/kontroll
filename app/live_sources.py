@@ -16,7 +16,7 @@ from urllib.parse import urljoin, quote_plus, quote
 import requests
 from bs4 import BeautifulSoup
 
-from . import area, registry
+from . import area, map_relevance, registry
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / 'data'
@@ -357,7 +357,7 @@ def _ygg_query_point(layer_id: int, lat: float, lng: float) -> list[dict[str, An
     return list(data.get('features') or [])
 
 
-def classify_position_live(lat: float, lng: float, species: str = '', gear_type: str = '') -> dict[str, Any]:
+def classify_position_live(lat: float, lng: float, species: str = '', gear_type: str = '', control_type: str = '') -> dict[str, Any]:
     hits: list[dict[str, Any]] = []
     status = 'normalt område'
     name = 'Ingen live-treff i Yggdrasil'
@@ -1169,7 +1169,7 @@ def _feature_attr(feature: dict[str, Any], *keys: str) -> str:
 
 
 
-def classify_position_live(lat: float, lng: float, species: str = '', gear_type: str = '') -> dict[str, Any]:
+def classify_position_live(lat: float, lng: float, species: str = '', gear_type: str = '', control_type: str = '') -> dict[str, Any]:
     hits: list[dict[str, Any]] = []
     highest = {
         'rank': 0,
@@ -1530,7 +1530,9 @@ def _load_portal_catalog_cache() -> list[dict[str, Any]]:
         payload = json.loads(PORTAL_LAYER_CACHE_JSON.read_text(encoding='utf-8'))
     except Exception:
         return []
-    return payload if isinstance(payload, list) else []
+    if not isinstance(payload, list):
+        return []
+    return _enrich_catalog_rows(payload)
 
 
 def _write_portal_catalog_cache(rows: list[dict[str, Any]], *, source_kind: str) -> None:
@@ -1539,6 +1541,15 @@ def _write_portal_catalog_cache(rows: list[dict[str, Any]], *, source_kind: str)
         PORTAL_LAYER_CACHE_META.write_text(json.dumps({'refreshed_at_unix': time.time(), 'source_kind': source_kind}, ensure_ascii=False), encoding='utf-8')
     except Exception:
         pass
+
+
+def _enrich_catalog_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    enriched: list[dict[str, Any]] = []
+    for row in list(rows or []):
+        if not isinstance(row, dict):
+            continue
+        enriched.append(map_relevance.decorate_catalog_row(row))
+    return enriched
 
 
 def refresh_portal_layer_catalog(force: bool = False, max_age_seconds: int = 6 * 3600) -> list[dict[str, Any]]:
@@ -1582,6 +1593,7 @@ def refresh_portal_layer_catalog(force: bool = False, max_age_seconds: int = 6 *
             }
             rows.append(row)
         if rows:
+            rows = _enrich_catalog_rows(rows)
             rows.sort(key=lambda item: (_ascii_header(item.get('status')), _ascii_header(item.get('name'))))
             _write_portal_catalog_cache(rows, source_kind='live')
             return rows
@@ -1590,13 +1602,16 @@ def refresh_portal_layer_catalog(force: bool = False, max_age_seconds: int = 6 *
 
     if cached:
         return cached
-    fallback = _fallback_portal_layer_defs()
+    fallback = _enrich_catalog_rows(_fallback_portal_layer_defs())
     _write_portal_catalog_cache(fallback, source_kind='fallback')
     return fallback
 
 
-def portal_layer_catalog() -> list[dict[str, Any]]:
-    return refresh_portal_layer_catalog(force=False)
+def portal_layer_catalog(*, fishery: str = '', control_type: str = '', gear_type: str = '') -> list[dict[str, Any]]:
+    rows = _enrich_catalog_rows(refresh_portal_layer_catalog(force=False))
+    if fishery or control_type or gear_type:
+        rows = [row for row in rows if map_relevance.matches_selection(row, fishery=fishery, control_type=control_type, gear_type=gear_type)]
+    return rows
 
 
 def _portal_layer_defs() -> list[dict[str, Any]]:
@@ -1732,7 +1747,7 @@ def _ygg_query_point(layer_id: int, lat: float, lng: float, *, geometry_type: st
     return list(data.get('features') or [])
 
 
-def classify_position_live(lat: float, lng: float, species: str = '', gear_type: str = '') -> dict[str, Any]:
+def classify_position_live(lat: float, lng: float, species: str = '', gear_type: str = '', control_type: str = '') -> dict[str, Any]:
     hits: list[dict[str, Any]] = []
     highest = {
         'rank': 0,
@@ -1744,6 +1759,8 @@ def classify_position_live(lat: float, lng: float, species: str = '', gear_type:
 
     for layer in _portal_layer_defs():
         if not layer.get('alertable'):
+            continue
+        if not map_relevance.matches_selection(layer, fishery=species, control_type=control_type, gear_type=gear_type):
             continue
         try:
             features = _ygg_query_point(int(layer['id']), lat, lng, geometry_type=layer.get('geometry_type') or 'esriGeometryPolygon')

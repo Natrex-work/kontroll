@@ -1,4 +1,4 @@
-# KV Kontroll v43 – feltklar kart- og posisjonspakke
+# KV Kontroll v44 – feltklar kart- og posisjonspakke
 
 Herdet PWA / webapp for fullskala feltutprøving av kontrollsaker, kart, regelverk, registeroppslag og dokumenteksport.
 
@@ -13,6 +13,9 @@ Herdet PWA / webapp for fullskala feltutprøving av kontrollsaker, kart, regelve
 - lagt inn **innloggingsbegrensning** mot brute force og tidsavgrenset sesjonskontroll
 - oppdatert service worker til å cache kun statiske filer
 - beholdt kartforbedringer med **blå GPS-prikk + nøyaktighetssirkel** og **rød kontrollnål**
+- oversiktskartet viser nå **synlige soner i kartutsnittet** i egen liste
+- kontrollkartet viser nå **bare soner og kartlag som matcher valgt kontrolltype, fiskeri og redskap**
+- områdesjekk filtrerer nå treff etter valgt fiskeri/kontrolltype slik at varslene blir mer presise
 - beholdt redigering av de tre siste sifrene i saksnummeret
 - beholdt `/healthz` for Render
 

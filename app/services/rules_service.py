@@ -23,11 +23,11 @@ def get_rule_bundle_with_live_sources(*, control_type: str, species: str, gear_t
     return bundle
 
 
-def check_zone_status(lat: float, lng: float, species: str = '', gear_type: str = '') -> dict[str, Any]:
-    result = area.classify_position(lat, lng)
+def check_zone_status(lat: float, lng: float, species: str = '', gear_type: str = '', control_type: str = '') -> dict[str, Any]:
+    result = area.classify_position(lat, lng, species=species, gear_type=gear_type, control_type=control_type)
     local_is_fallback = str(result.get('source_kind') or '').lower() == 'fallback'
     try:
-        live_result = live_sources.classify_position_live(lat, lng, species=species, gear_type=gear_type)
+        live_result = live_sources.classify_position_live(lat, lng, species=species, gear_type=gear_type, control_type=control_type)
         if live_result.get('match'):
             result = {
                 'match': True,

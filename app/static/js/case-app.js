@@ -23,6 +23,9 @@
     try { return JSON.parse(value || ''); } catch (e) { return fallback; }
   }
 
+  var Common = window.KVCommon || {};
+  var sharedCreatePortalMap = Common.createPortalMap;
+
   var latestZoneResult = null;
   var findingsState = [];
   var evidenceState = [];
@@ -631,6 +634,7 @@
   var portalFeatureCache = {};
 
   function createPortalMap(el, layers, markerState) {
+    if (sharedCreatePortalMap) return sharedCreatePortalMap(el, layers, markerState);
     if (!el || !window.L) return Promise.resolve(null);
     var storageKey = 'kv-map-view:' + (el.id || 'map');
     var savedView = null;
@@ -966,12 +970,118 @@
         });
       }
     } catch (e) {}
+
+    function normalizeSelectionText(value) {
+      return String(value || '').toLowerCase().replace(/[_/]+/g, ' ').replace(/[–—-]+/g, ' ').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
+    }
+
+    var fisheryAliases = {
+      'hummer': ['hummer'],
+      'taskekrabbe': ['taskekrabbe'],
+      'torsk': ['torsk', 'kysttorsk', 'skrei'],
+      'kveite': ['kveite'],
+      'laks i sjø': ['laks i sjo', 'laks', 'laksefjord', 'laksefjorder'],
+      'sjøørret': ['sjoorret', 'sjorret'],
+      'makrell': ['makrell'],
+      'hyse': ['hyse'],
+      'sei': ['sei', 'seinot'],
+      'leppefisk': ['leppefisk'],
+      'sjøkreps': ['sjokreps'],
+      'kongekrabbe': ['kongekrabbe'],
+      'snøkrabbe': ['snokrabbe'],
+      'makrellstørje': ['makrellstorje', 'storje'],
+      'sild': ['sild', 'nvg sild', 'nvgsild'],
+      'nvg-sild': ['nvg sild', 'nvgsild'],
+      'reke': ['reke'],
+      'breiflabb': ['breiflabb'],
+      'blåkveite': ['blakveite'],
+      'lange': ['lange'],
+      'brosme': ['brosme'],
+      'kolmule': ['kolmule'],
+      'øyepål': ['oyepal'],
+      'hestmakrell': ['hestmakrell'],
+      'flatøsters': ['flatosters'],
+      'steinbit': ['steinbit']
+    };
+
+    var gearAliases = {
+      'line': ['line'],
+      'krokredskap': ['krokredskap', 'krokbegrensning'],
+      'trål': ['tral', 'stormasket tral'],
+      'pelagisk trål': ['pelagisk tral'],
+      'not': ['not', 'seinot'],
+      'ringnot': ['ringnot'],
+      'garn': ['garn']
+    };
+
+    function canonicalSelection(value, aliasMap) {
+      var normalized = normalizeSelectionText(value);
+      if (!normalized) return '';
+      var keys = Object.keys(aliasMap || {});
+      for (var i = 0; i < keys.length; i += 1) {
+        var canonical = keys[i];
+        var tokens = [normalizeSelectionText(canonical)].concat((aliasMap[canonical] || []).map(normalizeSelectionText));
+        for (var j = 0; j < tokens.length; j += 1) {
+          if (!tokens[j]) continue;
+          if (normalized === tokens[j] || normalized.indexOf(tokens[j]) !== -1) return canonical;
+        }
+      }
+      return normalized;
+    }
+
+    function currentFisherySelection() {
+      return canonicalSelection(species && species.value ? species.value : (fisheryType && fisheryType.value ? fisheryType.value : ''), fisheryAliases);
+    }
+
+    function currentGearSelection() {
+      return canonicalSelection(gearType && gearType.value ? gearType.value : '', gearAliases);
+    }
+
+    function currentControlSelection() {
+      var normalized = normalizeSelectionText(controlType && controlType.value ? controlType.value : '');
+      if (!normalized) return '';
+      if (normalized.indexOf('kom') === 0 || normalized.indexOf('yrkes') !== -1) return 'kommersiell';
+      return 'fritidsfiske';
+    }
+
+    function layerMatchesCurrentSelection(layer) {
+      var status = String(layer.status || '').trim().toLowerCase();
+      if (Object.prototype.hasOwnProperty.call(activeLayerStatuses, status) && !activeLayerStatuses[status]) return false;
+      var fisherySel = currentFisherySelection();
+      var gearSel = currentGearSelection();
+      var controlSel = currentControlSelection();
+      var fisheryTags = Array.isArray(layer.fishery_tags) ? layer.fishery_tags.map(function (item) { return canonicalSelection(item, fisheryAliases); }).filter(Boolean) : [];
+      var gearTags = Array.isArray(layer.gear_tags) ? layer.gear_tags.map(function (item) { return canonicalSelection(item, gearAliases); }).filter(Boolean) : [];
+      var controlTags = Array.isArray(layer.control_tags) ? layer.control_tags.map(function (item) {
+        var normalized = normalizeSelectionText(item);
+        if (!normalized) return '';
+        return normalized.indexOf('kom') === 0 ? 'kommersiell' : (normalized.indexOf('fritid') !== -1 ? 'fritidsfiske' : normalized);
+      }).filter(Boolean) : [];
+      if (controlSel && controlTags.length && controlTags.indexOf(controlSel) === -1) return false;
+      if (fisherySel && fisheryTags.length && fisheryTags.indexOf(fisherySel) === -1) return false;
+      if (gearSel && gearTags.length && gearTags.indexOf(gearSel) === -1) return false;
+      return true;
+    }
+
     function filteredMapCatalog() {
-      return (mapCatalog || []).filter(function (layer) {
-        var status = String(layer.status || '').trim().toLowerCase();
-        if (!Object.prototype.hasOwnProperty.call(activeLayerStatuses, status)) return true;
-        return !!activeLayerStatuses[status];
-      });
+      return (mapCatalog || []).filter(layerMatchesCurrentSelection);
+    }
+
+    function syncMapSelectionStatus() {
+      if (!mapSelectionStatus) return;
+      var layerCount = (mapState && typeof mapState.visibleLayerCount === 'number' && mapState.visibleLayerCount > 0) ? mapState.visibleLayerCount : filteredMapCatalog().length;
+      var fisherySel = species && species.value ? species.value : (fisheryType && fisheryType.value ? fisheryType.value : '');
+      var gearSel = gearType && gearType.value ? gearType.value : '';
+      var controlSel = controlType && controlType.value ? controlType.value : '';
+      var parts = [];
+      if (controlSel) parts.push(controlSel);
+      if (fisherySel) parts.push(fisherySel);
+      if (gearSel) parts.push(gearSel);
+      if (!parts.length) {
+        mapSelectionStatus.innerHTML = 'Velg kontrolltype, fiskeri og redskap for å snevre inn kartet til aktuelle soner. Nå vises alle relevante kartlag.';
+        return;
+      }
+      mapSelectionStatus.innerHTML = 'Kartet er filtrert til ' + layerCount + ' relevante kartlag for <strong>' + escapeHtml(parts.join(' / ')) + '</strong>.';
     }
     function syncLayerFiltersUi() {
       if (!mapFilterWrap) return;
@@ -994,6 +1104,7 @@
     var zoneResult = document.getElementById('zone-result');
     var areaStatusDetail = document.getElementById('area-status-detail');
     var manualPositionStatus = document.getElementById('manual-position-status');
+    var mapSelectionStatus = document.getElementById('map-selection-status');
     var registryResult = document.getElementById('registry-result');
     var registryCandidates = document.getElementById('registry-candidates');
     var hummerRegistryStatus = document.getElementById('hummer-registry-status');
@@ -1066,7 +1177,15 @@
     inlineEvidenceFeedback = '';
     resetOcrSelectedFile();
     var hasInitialCoords = Boolean(latitude.value && longitude.value);
-    var mapState = { lat: Number(latitude.value || 0), lng: Number(longitude.value || 0), layer: null, draggable: true, allowMapMove: true, radiusKm: 50, followAutoPosition: !hasInitialCoords, manualPosition: false, lastDeviceLat: null, lastDeviceLng: null, deviceLat: null, deviceLng: null, deviceAccuracy: null, recenterTo: '' };
+    var mapState = { lat: Number(latitude.value || 0), lng: Number(longitude.value || 0), layer: null, draggable: true, allowMapMove: true, radiusKm: 50, followAutoPosition: !hasInitialCoords, manualPosition: false, lastDeviceLat: null, lastDeviceLng: null, deviceLat: null, deviceLng: null, deviceAccuracy: null, recenterTo: '', visibleLayerCount: 0 };
+    mapState.onFeaturesRendered = function (payload) {
+      var seenLayers = {};
+      (payload && payload.features ? payload.features : []).forEach(function (feature) {
+        if (feature && feature.layerId !== undefined && feature.layerId !== null) seenLayers[String(feature.layerId)] = true;
+      });
+      mapState.visibleLayerCount = Object.keys(seenLayers).length;
+      syncMapSelectionStatus();
+    };
     var locationWatchId = null;
     var autoLocationAttempted = false;
     var mediaRecorder = null;
@@ -1672,7 +1791,8 @@
         lat: latitude.value,
         lng: longitude.value,
         species: species.value || fisheryType.value || '',
-        gear_type: gearType.value || ''
+        gear_type: gearType.value || '',
+        control_type: controlType.value || ''
       });
       if (zoneResult) zoneResult.innerHTML = 'Sjekker områdestatus ...';
       fetch(root.dataset.zonesUrl + '?' + params.toString())
@@ -1848,6 +1968,7 @@
           var key = String(input.getAttribute('data-layer-filter') || '').trim().toLowerCase();
           activeLayerStatuses[key] = !!input.checked;
           try { localStorage.setItem(mapFilterStorageKey, JSON.stringify(activeLayerStatuses)); } catch (e) {}
+          syncMapSelectionStatus();
           updateCaseMap();
         });
       });
@@ -2286,10 +2407,10 @@
       if (target.form === form || target.getAttribute('form') === 'case-form' || target.closest('#case-form')) scheduleAutosave('Skjemadata endret');
     });
 
-    controlType.addEventListener('change', function () { syncOptions(); loadRules(); loadGearSummary(); });
-    fisheryType.addEventListener('change', function () { if (!species.value || species.value === fisheryType.dataset.lastValue) species.value = fisheryType.value; fisheryType.dataset.lastValue = fisheryType.value; loadRules(); loadGearSummary(); });
-    gearType.addEventListener('change', function () { loadRules(); loadGearSummary(); });
-    species.addEventListener('change', function () { loadRules(); loadGearSummary(); });
+    controlType.addEventListener('change', function () { syncOptions(); syncMapSelectionStatus(); updateCaseMap(); if (latitude.value && longitude.value) checkZone(); loadRules(); loadGearSummary(); });
+    fisheryType.addEventListener('change', function () { if (!species.value || species.value === fisheryType.dataset.lastValue) species.value = fisheryType.value; fisheryType.dataset.lastValue = fisheryType.value; syncMapSelectionStatus(); updateCaseMap(); if (latitude.value && longitude.value) checkZone(); loadRules(); loadGearSummary(); });
+    gearType.addEventListener('change', function () { syncMapSelectionStatus(); updateCaseMap(); if (latitude.value && longitude.value) checkZone(); loadRules(); loadGearSummary(); });
+    species.addEventListener('change', function () { syncMapSelectionStatus(); updateCaseMap(); if (latitude.value && longitude.value) checkZone(); loadRules(); loadGearSummary(); });
     startTime.addEventListener('change', loadRules);
     suspectNameCommercial.addEventListener('input', function () { suspectName.value = suspectNameCommercial.value; lookupName.value = suspectNameCommercial.value; updateExternalSearchLinks(); loadGearSummary(); });
     suspectName.addEventListener('input', function () { suspectNameCommercial.value = suspectName.value; lookupName.value = suspectName.value; updateExternalSearchLinks(); loadGearSummary(); });

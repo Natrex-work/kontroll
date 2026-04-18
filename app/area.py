@@ -5,6 +5,8 @@ import math
 from pathlib import Path
 from typing import Any, Dict
 
+from . import map_relevance
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 ZONES_PATH = BASE_DIR / 'data' / 'zones.json'
 PLACES_PATH = BASE_DIR / 'data' / 'places.json'
@@ -94,7 +96,7 @@ def _zone_hit(zone: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def classify_position(lat: float, lng: float) -> Dict[str, Any]:
+def classify_position(lat: float, lng: float, species: str = '', gear_type: str = '', control_type: str = '') -> Dict[str, Any]:
     result = {
         'match': False,
         'status': 'normalt område',
@@ -113,10 +115,13 @@ def classify_position(lat: float, lng: float) -> Dict[str, Any]:
 
     matches: list[dict[str, Any]] = []
     for zone in ZONES:
+        zone_meta = map_relevance.decorate_zone_row(zone)
+        if not map_relevance.matches_selection(zone_meta, fishery=species, control_type=control_type, gear_type=gear_type):
+            continue
         polygon = zone.get('polygon') or []
         if polygon and point_in_polygon(lat, lng, polygon):
-            hit = _zone_hit(zone)
-            hit['_rank'] = _zone_rank(zone)
+            hit = _zone_hit(zone_meta)
+            hit['_rank'] = _zone_rank(zone_meta)
             matches.append(hit)
 
     if matches:
