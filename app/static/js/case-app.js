@@ -1694,8 +1694,8 @@
     }
 
     function manualPositionText() {
-      if (mapState.manualPosition) return 'Manuell posisjon er valgt. Trykk i kartet eller dra den røde nålen for å plassere kontrollposisjonen.';
-      if (mapState.deviceLat !== null && mapState.deviceLng !== null) return 'Blå prikk viser enhetens GPS-posisjon. Rød nål viser kontrollposisjonen som lagres i saken.';
+      if (mapState.manualPosition) return 'Manuell kontrollposisjon er valgt. Det er den røde nålen og koordinatene i saken som brukes når appen avgjør om kontrollen er i et forbudsområde, fredningsområde eller annen regulert sone.';
+      if (mapState.deviceLat !== null && mapState.deviceLng !== null) return 'Blå prikk viser enhetens GPS-posisjon. Rød nål viser kontrollposisjonen som lagres i saken og brukes i områdesjekken.';
       return 'Appen forsøker å starte GPS automatisk. Hvis GPS ikke virker, trykk «Sett manuelt i kart» og plasser nålen selv.';
     }
 
@@ -1708,9 +1708,10 @@
     function updateAreaStatusDetail(result) {
 
       if (!areaStatusDetail) return;
+      var sourceLine = '<div class="small muted">Posisjonsgrunnlag: ' + (mapState.manualPosition ? 'manuell kontrollposisjon (rød nål)' : 'lagret kontrollposisjon / GPS') + '</div>';
       if (!result || !result.match) {
         var nearestMiss = result && (result.location_name || result.nearest_place) ? '<div class="small muted">Nærmeste sted: ' + escapeHtml(result.location_name || result.nearest_place) + (result.distance_to_place_km ? ' (' + escapeHtml(result.distance_to_place_km + ' km') + ')' : '') + '</div>' : '';
-        areaStatusDetail.innerHTML = '<strong>Områdestatus:</strong> Ingen stengt eller regulert sone registrert for valgt posisjon.' + nearestMiss;
+        areaStatusDetail.innerHTML = '<strong>Områdestatus:</strong> Ingen stengt eller regulert sone registrert for valgt posisjon.' + sourceLine + nearestMiss;
         return;
       }
       var prefix = 'Aktivt område';
@@ -1726,6 +1727,7 @@
       if (result.recommended_violation && result.recommended_violation.message) {
         parts.push('<div class="small muted">Varsel: ' + escapeHtml(result.recommended_violation.message) + '</div>');
       }
+      parts.splice(1, 0, sourceLine);
       areaStatusDetail.innerHTML = parts.join('');
     }
 

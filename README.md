@@ -1,4 +1,4 @@
-# KV Kontroll v44 – feltklar kart- og posisjonspakke
+# KV Kontroll v45 – kartvisning og manuell posisjon forbedret
 
 Herdet PWA / webapp for fullskala feltutprøving av kontrollsaker, kart, regelverk, registeroppslag og dokumenteksport.
 

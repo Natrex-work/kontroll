@@ -1006,29 +1006,52 @@ def _portal_layer_def(layer_id: int) -> dict[str, Any] | None:
 
 def _local_zone_matches_layer(zone: dict[str, Any], layer_id: int, layer_def: dict[str, Any]) -> bool:
     raw_ids = zone.get('layer_ids') or zone.get('portal_layer_ids') or zone.get('layer_id') or zone.get('portal_layer_id')
+    zone_layer_name = str(zone.get('layer_name') or '').strip()
+    layer_name_candidates = _layer_name_candidates(layer_def)
+    normalized_ids: set[int] = set()
+    id_matched = False
     if raw_ids is not None and raw_ids != '':
         if not isinstance(raw_ids, (list, tuple, set)):
             raw_ids = [raw_ids]
-        normalized_ids: set[int] = set()
         for value in raw_ids:
             try:
                 normalized_ids.add(int(value))
             except Exception:
                 continue
-        if normalized_ids:
-            return int(layer_id) in normalized_ids
+        id_matched = bool(normalized_ids and (normalized_ids & _layer_id_candidates(layer_id, layer_def)))
 
-    zone_layer_name = _ascii_header(zone.get('layer_name') or '')
-    layer_name = _ascii_header(layer_def.get('name') or '')
-    if zone_layer_name and layer_name and zone_layer_name == layer_name:
+    name_matched = bool(zone_layer_name and _layer_name_matches(zone_layer_name, layer_name_candidates))
+    if id_matched and (not zone_layer_name or not layer_name_candidates or name_matched):
         return True
+    if name_matched:
+        return True
+    if zone_layer_name and normalized_ids:
+        return False
 
     zone_status = _ascii_header(zone.get('status') or '')
     layer_status = _ascii_header(layer_def.get('status') or '')
     if not zone_status or not layer_status:
         return False
+
     if zone_status == layer_status:
-        return True
+        zone_meta = map_relevance.decorate_zone_row(zone)
+        layer_meta = map_relevance.decorate_catalog_row(layer_def)
+        zone_fishery = {map_relevance.normalize_fishery(value) for value in list(zone_meta.get('fishery_tags') or []) if map_relevance.normalize_fishery(value)}
+        layer_fishery = {map_relevance.normalize_fishery(value) for value in list(layer_meta.get('fishery_tags') or []) if map_relevance.normalize_fishery(value)}
+        if zone_fishery and layer_fishery:
+            return bool(zone_fishery & layer_fishery)
+        zone_gear = {map_relevance.normalize_gear(value) for value in list(zone_meta.get('gear_tags') or []) if map_relevance.normalize_gear(value)}
+        layer_gear = {map_relevance.normalize_gear(value) for value in list(layer_meta.get('gear_tags') or []) if map_relevance.normalize_gear(value)}
+        if zone_gear and layer_gear:
+            return bool(zone_gear & layer_gear)
+        zone_blob = _ascii_header(zone_meta.get('selection_blob') or zone_layer_name or zone.get('name') or '')
+        layer_blob = _ascii_header(layer_meta.get('selection_blob') or layer_def.get('name') or '')
+        zone_tokens = _token_set(zone_blob) - _GENERIC_LAYER_TOKENS
+        layer_tokens = _token_set(layer_blob) - _GENERIC_LAYER_TOKENS
+        if zone_tokens and layer_tokens and (zone_tokens & layer_tokens):
+            return True
+        if not normalized_ids and not zone_layer_name and not zone_fishery and not zone_gear:
+            return True
     if layer_status == 'stengt omrade' and zone_status == 'nullfiskeomrade':
         return True
     return False
@@ -1450,38 +1473,105 @@ PORTAL_LAYER_CACHE_META = CACHE_DIR / 'portal_layer_catalog_meta.json'
 
 def _fallback_portal_layer_defs() -> list[dict[str, Any]]:
     return [
-        {'id': 78, 'name': 'J-melding stengte fiskefelt', 'status': 'stengt område', 'color': '#c1121f', 'description': 'Gjeldende J-melding stengte fiskefelt.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
-        {'id': 75, 'name': 'Høstingsforskriften forbudsområder', 'status': 'stengt område', 'color': '#b5171e', 'description': 'Forbudsområder etter høstingsforskriften.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
-        {'id': 76, 'name': 'Hummer - fredningsområder', 'status': 'fredningsområde', 'color': '#f4a261', 'description': 'Fredningsområder for hummer.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
-        {'id': 77, 'name': 'Hummer - maksimalmål område', 'status': 'maksimalmål område', 'color': '#bc4749', 'description': 'Område med særskilt maksimalmål for hummer.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
-        {'id': 73, 'name': 'Forbud mot høsting av flatøsters Sørlandsleia', 'status': 'stengt område', 'color': '#e76f51', 'description': 'Forbudsområde for flatøsters.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
-        {'id': 80, 'name': 'Korallrev - forbudsområde', 'status': 'stengt område', 'color': '#6d597a', 'description': 'Forbud mot fiske nær korallrev.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
-        {'id': 82, 'name': 'Kysttorsk - forbudsområde', 'status': 'stengt område', 'color': '#d62828', 'description': 'Forbudsområde for kysttorsk.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
-        {'id': 83, 'name': 'Kysttorsk - stengte gytefelt januar-april', 'status': 'stengt område', 'color': '#e63946', 'description': 'Stengte gytefelt for kysttorsk.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
-        {'id': 84, 'name': 'Leppefisk - forskningsområde', 'status': 'regulert område', 'color': '#3d5a80', 'description': 'Forsknings- og reguleringsområde for leppefisk.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
-        {'id': 87, 'name': 'Nasjonale laksefjorder', 'status': 'regulert område', 'color': '#457b9d', 'description': 'Nasjonale laksefjorder med særregler.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
-        {'id': 3, 'name': 'Oslofjorden - nullfiskeområder', 'status': 'stengt område', 'color': '#1d3557', 'description': 'Nullfiskeområder i Oslofjorden.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
-        {'id': 200, 'name': 'Saltstraumen - forbud steinbit', 'status': 'stengt område', 'color': '#577590', 'description': 'Forbud eller særregulering for steinbit i Saltstraumen.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
-        {'id': 208, 'name': 'Raet nasjonalpark - sonevern', 'status': 'regulert område', 'color': '#2a9d8f', 'description': 'Sonevern og fiskeriregler i Raet nasjonalpark.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
-        {'id': 88, 'name': 'Reguleringer stormasket trål inntil 12 nm', 'status': 'regulert område', 'color': '#4d908e', 'description': 'Reguleringsområder for stormasket trål.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
-        {'id': 89, 'name': 'Tare høstefelt', 'status': 'regulert område', 'color': '#7a9e7e', 'description': 'Tarehøstefelt.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
-        {'id': 90, 'name': 'Tare referanseområder', 'status': 'fredningsområde', 'color': '#84a98c', 'description': 'Referanseområder for tare med særskilt vern.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
-        {'id': 93, 'name': 'Tobis åpne områder', 'status': 'regulert område', 'color': '#8ecae6', 'description': 'Områder åpnet for tobisfiske.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
-        {'id': 94, 'name': 'Torsk - gyteområder forbudsområder', 'status': 'stengt område', 'color': '#b56576', 'description': 'Forbudsområder knyttet til torskens gyteområder.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
-        {'id': 85, 'name': 'Torsk - oppvekstområder forbudsområder', 'status': 'stengt område', 'color': '#8d5a97', 'description': 'Forbudsområder knyttet til torskens oppvekstområder.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
-        {'id': 91, 'name': 'Verneområder bunnhabitat', 'status': 'fredningsområde', 'color': '#6a4c93', 'description': 'Verneområder for sårbare bunnhabitater.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
-        {'id': 142, 'name': 'Fiskeforbud Borgundfjorden', 'status': 'stengt område', 'color': '#9d0208', 'description': 'Lokalt fiskeforbud i Borgundfjorden.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
-        {'id': 186, 'name': 'Breivikfjorden lokalregulering', 'status': 'regulert område', 'color': '#355070', 'description': 'Lokale fiskerireguleringer i Breivikfjorden.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
-        {'id': 197, 'name': 'Trålforbud Jenn egga / Malangsgrunnen', 'status': 'stengt område', 'color': '#7b2cbf', 'description': 'Trålforbudsområde ved Jenn egga / Malangsgrunnen.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
-        {'id': 198, 'name': 'Trålforbud Storegga', 'status': 'stengt område', 'color': '#9d4edd', 'description': 'Trålforbudsområde ved Storegga.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
-        {'id': 25, 'name': 'Svalbard - fiskeforbud sårbare økosystemer', 'status': 'stengt område', 'color': '#560bad', 'description': 'Fiskeforbud for sårbare økosystemer ved Svalbard.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
-        {'id': 26, 'name': 'Svalbard - forbud mot fiske i fiskevernsonen', 'status': 'stengt område', 'color': '#480ca8', 'description': 'Forbudsområde i fiskevernsonen ved Svalbard.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
-        {'id': 79, 'name': 'Kongekrabbe regulering', 'status': 'regulert område', 'color': '#0a9396', 'description': 'Regulering av fangst av kongekrabbe.', 'geometry_type': 'esriGeometryPolyline', 'alertable': False},
-        {'id': 81, 'name': 'Krokbegrensning line', 'status': 'regulert område', 'color': '#118ab2', 'description': 'Linjer som viser krokbegrensninger.', 'geometry_type': 'esriGeometryPolyline', 'alertable': False},
-        {'id': 71, 'name': 'Fjordlinjer - kysttorskregulering', 'status': 'regulert område', 'color': '#023047', 'description': 'Fjordlinjer brukt i kysttorskreguleringer.', 'geometry_type': 'esriGeometryPolyline', 'alertable': False},
-        {'id': 72, 'name': 'Fjordlinjer - seinot', 'status': 'regulert område', 'color': '#219ebc', 'description': 'Fjordlinjer for seinotregulering.', 'geometry_type': 'esriGeometryPolyline', 'alertable': False},
-        {'id': 70, 'name': 'Fjordlinjer - kysttorskregulering punkter', 'status': 'regulert område', 'color': '#8ecae6', 'description': 'Punkter knyttet til fjordlinjer for kysttorsk.', 'geometry_type': 'esriGeometryPoint', 'alertable': False},
+        {'id': 78, 'name': 'J-melding stengte fiskefelt', 'status': 'stengt område', 'color': '#c1121f', 'description': 'Gjeldende J-melding stengte fiskefelt.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'local_zone_aliases': ['J-melding stengte fiskefelt']},
+        {'id': 75, 'name': 'Høstingsforskriften forbudsområder', 'status': 'stengt område', 'color': '#b5171e', 'description': 'Forbudsområder etter høstingsforskriften.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'local_zone_aliases': ['Høstingsforskriften forbudsområder']},
+        {'id': 76, 'name': 'Hummer - fredningsområder', 'status': 'fredningsområde', 'color': '#f4a261', 'description': 'Fredningsområder for hummer.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'legacy_ids': [1], 'local_zone_aliases': ['Hummer - fredningsområder']},
+        {'id': 77, 'name': 'Hummer - maksimalmål område', 'status': 'maksimalmål område', 'color': '#bc4749', 'description': 'Område med særskilt maksimalmål for hummer.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'legacy_ids': [23], 'local_zone_aliases': ['Hummer - maksimalmål område']},
+        {'id': 73, 'name': 'Forbud mot høsting av flatøsters Sørlandsleia', 'status': 'stengt område', 'color': '#e76f51', 'description': 'Forbudsområde for flatøsters.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'legacy_ids': [0], 'local_zone_aliases': ['Flatøsters - forbudsområde']},
+        {'id': 80, 'name': 'Korallrev - forbudsområde', 'status': 'stengt område', 'color': '#6d597a', 'description': 'Forbud mot fiske nær korallrev.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'legacy_ids': [6], 'local_zone_aliases': ['Korallrev - forbudsområde']},
+        {'id': 82, 'name': 'Kysttorsk - forbudsområde', 'status': 'stengt område', 'color': '#d62828', 'description': 'Forbudsområde for kysttorsk.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'legacy_ids': [3], 'local_zone_aliases': ['Kysttorsk - forbudsområde']},
+        {'id': 83, 'name': 'Kysttorsk - stengte gytefelt januar-april', 'status': 'stengt område', 'color': '#e63946', 'description': 'Stengte gytefelt for kysttorsk.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'legacy_ids': [2], 'local_zone_aliases': ['Kysttorsk - stengte områder', 'Kysttorsk - stengte gytefelt januar-april']},
+        {'id': 84, 'name': 'Leppefisk - forskningsområde', 'status': 'regulert område', 'color': '#3d5a80', 'description': 'Forsknings- og reguleringsområde for leppefisk.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'local_zone_aliases': ['Leppefisk - forskningsområde']},
+        {'id': 87, 'name': 'Nasjonale laksefjorder', 'status': 'regulert område', 'color': '#457b9d', 'description': 'Nasjonale laksefjorder med særregler.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'local_zone_aliases': ['Nasjonale laksefjorder']},
+        {'id': 35, 'name': 'Oslofjorden - fritidsfiskeregler', 'status': 'regulert område', 'color': '#457b9d', 'description': 'Særregler for fritidsfiske i Oslofjorden.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'legacy_ids': [35], 'local_zone_aliases': ['Oslofjorden - fritidsfiskeregler']},
+        {'id': 37, 'name': 'Oslofjorden - nullfiskeområder', 'status': 'stengt område', 'color': '#1d3557', 'description': 'Nullfiskeområder i Oslofjorden.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'local_zone_aliases': ['Oslofjorden - nullfiskeområder']},
+        {'id': 200, 'name': 'Saltstraumen - forbud steinbit', 'status': 'stengt område', 'color': '#577590', 'description': 'Forbud eller særregulering for steinbit i Saltstraumen.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'legacy_ids': [34], 'local_zone_aliases': ['Saltstraumen - forbud steinbit']},
+        {'id': 208, 'name': 'Raet nasjonalpark - sonevern', 'status': 'regulert område', 'color': '#2a9d8f', 'description': 'Sonevern og fiskeriregler i Raet nasjonalpark.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'local_zone_aliases': ['Raet nasjonalpark - sonevern']},
+        {'id': 88, 'name': 'Reguleringer stormasket trål inntil 12 nm', 'status': 'regulert område', 'color': '#4d908e', 'description': 'Reguleringsområder for stormasket trål.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'local_zone_aliases': ['Reguleringer stormasket trål inntil 12 nm']},
+        {'id': 89, 'name': 'Tare høstefelt', 'status': 'regulert område', 'color': '#7a9e7e', 'description': 'Tarehøstefelt.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'local_zone_aliases': ['Tare høstefelt']},
+        {'id': 90, 'name': 'Tare referanseområder', 'status': 'fredningsområde', 'color': '#84a98c', 'description': 'Referanseområder for tare med særskilt vern.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'local_zone_aliases': ['Tare referanseområder']},
+        {'id': 93, 'name': 'Tobis åpne områder', 'status': 'regulert område', 'color': '#8ecae6', 'description': 'Områder åpnet for tobisfiske.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'local_zone_aliases': ['Tobis åpne områder']},
+        {'id': 94, 'name': 'Torsk - gyteområder forbudsområder', 'status': 'stengt område', 'color': '#b56576', 'description': 'Forbudsområder knyttet til torskens gyteområder.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'local_zone_aliases': ['Torsk - gyteområder forbudsområder']},
+        {'id': 85, 'name': 'Torsk - oppvekstområder forbudsområder', 'status': 'stengt område', 'color': '#8d5a97', 'description': 'Forbudsområder knyttet til torskens oppvekstområder.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'local_zone_aliases': ['Torsk - oppvekstområder forbudsområder']},
+        {'id': 91, 'name': 'Verneområder bunnhabitat', 'status': 'fredningsområde', 'color': '#6a4c93', 'description': 'Verneområder for sårbare bunnhabitater.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'local_zone_aliases': ['Verneområder bunnhabitat']},
+        {'id': 142, 'name': 'Fiskeforbud Borgundfjorden', 'status': 'stengt område', 'color': '#9d0208', 'description': 'Lokalt fiskeforbud i Borgundfjorden.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'local_zone_aliases': ['Fiskeforbud Borgundfjorden']},
+        {'id': 186, 'name': 'Breivikfjorden lokalregulering', 'status': 'regulert område', 'color': '#355070', 'description': 'Lokale fiskerireguleringer i Breivikfjorden.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'local_zone_aliases': ['Breivikfjorden lokalregulering']},
+        {'id': 197, 'name': 'Trålforbud Jenn egga / Malangsgrunnen', 'status': 'stengt område', 'color': '#7b2cbf', 'description': 'Trålforbudsområde ved Jenn egga / Malangsgrunnen.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'local_zone_aliases': ['Trålforbud Jenn egga / Malangsgrunnen']},
+        {'id': 198, 'name': 'Trålforbud Storegga', 'status': 'stengt område', 'color': '#9d4edd', 'description': 'Trålforbudsområde ved Storegga.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'local_zone_aliases': ['Trålforbud Storegga']},
+        {'id': 25, 'name': 'Svalbard - fiskeforbud sårbare økosystemer', 'status': 'stengt område', 'color': '#560bad', 'description': 'Fiskeforbud for sårbare økosystemer ved Svalbard.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'local_zone_aliases': ['Svalbard - fiskeforbud sårbare økosystemer']},
+        {'id': 26, 'name': 'Svalbard - forbud mot fiske i fiskevernsonen', 'status': 'stengt område', 'color': '#480ca8', 'description': 'Forbudsområde i fiskevernsonen ved Svalbard.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'local_zone_aliases': ['Svalbard - forbud mot fiske i fiskevernsonen']},
+        {'id': 79, 'name': 'Kongekrabbe regulering', 'status': 'regulert område', 'color': '#0a9396', 'description': 'Regulering av fangst av kongekrabbe.', 'geometry_type': 'esriGeometryPolyline', 'alertable': False, 'local_zone_aliases': ['Kongekrabbe regulering']},
+        {'id': 81, 'name': 'Krokbegrensning line', 'status': 'regulert område', 'color': '#118ab2', 'description': 'Linjer som viser krokbegrensninger.', 'geometry_type': 'esriGeometryPolyline', 'alertable': False, 'local_zone_aliases': ['Krokbegrensning line']},
+        {'id': 71, 'name': 'Fjordlinjer - kysttorskregulering', 'status': 'regulert område', 'color': '#023047', 'description': 'Fjordlinjer brukt i kysttorskreguleringer.', 'geometry_type': 'esriGeometryPolyline', 'alertable': False, 'local_zone_aliases': ['Fjordlinjer - kysttorskregulering']},
+        {'id': 72, 'name': 'Fjordlinjer - seinot', 'status': 'regulert område', 'color': '#219ebc', 'description': 'Fjordlinjer for seinotregulering.', 'geometry_type': 'esriGeometryPolyline', 'alertable': False, 'local_zone_aliases': ['Fjordlinjer - seinot']},
+        {'id': 70, 'name': 'Fjordlinjer - kysttorskregulering punkter', 'status': 'regulert område', 'color': '#8ecae6', 'description': 'Punkter knyttet til fjordlinjer for kysttorsk.', 'geometry_type': 'esriGeometryPoint', 'alertable': False, 'local_zone_aliases': ['Fjordlinjer - kysttorskregulering punkter']},
     ]
+
+
+def _layer_id_candidates(layer_id: int, layer_def: dict[str, Any]) -> set[int]:
+    ids: set[int] = set()
+    try:
+        ids.add(int(layer_id))
+    except Exception:
+        pass
+    for key in ('legacy_ids', 'local_zone_ids', 'portal_layer_ids'):
+        for value in list(layer_def.get(key) or []):
+            try:
+                ids.add(int(value))
+            except Exception:
+                continue
+    return ids
+
+
+def _layer_name_candidates(layer_def: dict[str, Any]) -> list[str]:
+    names: list[str] = []
+    for value in [layer_def.get('name'), layer_def.get('layer_name')]:
+        value = str(value or '').strip()
+        if value and value not in names:
+            names.append(value)
+    for value in list(layer_def.get('local_zone_aliases') or []):
+        value = str(value or '').strip()
+        if value and value not in names:
+            names.append(value)
+    return names
+
+
+def _token_set(value: str | None) -> set[str]:
+    tokens = set()
+    for token in re.split(r'[^a-z0-9]+', _ascii_header(value)):
+        if not token:
+            continue
+        if len(token) >= 4 or token.isdigit():
+            tokens.add(token)
+    return tokens
+
+
+_GENERIC_LAYER_TOKENS = {
+    'omrade', 'omrader', 'områder', 'stengt', 'fredning', 'fredningsomrade', 'forbud', 'forbudsomrade',
+    'regulering', 'regulert', 'nullfiske', 'fiskeforbud', 'maksimalmal', 'lokal', 'felt', 'sone', 'soner',
+    'fiske', 'fiskeri', 'kyst', 'januar', 'april', 'jmelding', 'melding'
+}
+
+
+def _layer_name_matches(zone_layer_name: str, candidate_names: list[str]) -> bool:
+    zone_norm = _ascii_header(zone_layer_name)
+    if not zone_norm:
+        return False
+    zone_tokens = _token_set(zone_layer_name)
+    for candidate in candidate_names:
+        cand_norm = _ascii_header(candidate)
+        if not cand_norm:
+            continue
+        if zone_norm == cand_norm:
+            return True
+        if zone_norm in cand_norm or cand_norm in zone_norm:
+            return True
+        cand_tokens = _token_set(candidate)
+        if zone_tokens and cand_tokens:
+            overlap = zone_tokens & cand_tokens
+            if len(overlap) >= max(2, min(len(zone_tokens), len(cand_tokens)) - 1):
+                return True
+    return False
 
 
 def _portal_color_for(status: str, name: str = '') -> str:
@@ -1590,9 +1680,17 @@ def refresh_portal_layer_catalog(force: bool = False, max_age_seconds: int = 6 *
                 'alertable': bool(fallback.get('alertable')) if 'alertable' in fallback else _portal_alertable(geometry_type, status, name),
                 'service_url': f'{YGG_BASE}/{int(layer_id)}',
                 'source_kind': 'live',
+                'legacy_ids': list(fallback.get('legacy_ids') or []),
+                'local_zone_aliases': list(fallback.get('local_zone_aliases') or []),
             }
             rows.append(row)
         if rows:
+            existing_names = {_ascii_header(item.get('name')) for item in rows if item.get('name')}
+            for fallback in _fallback_portal_layer_defs():
+                fallback_name = _ascii_header(fallback.get('name'))
+                if fallback_name and fallback_name in existing_names:
+                    continue
+                rows.append(dict(fallback, source_kind='fallback-extra'))
             rows = _enrich_catalog_rows(rows)
             rows.sort(key=lambda item: (_ascii_header(item.get('status')), _ascii_header(item.get('name'))))
             _write_portal_catalog_cache(rows, source_kind='live')
@@ -1607,8 +1705,56 @@ def refresh_portal_layer_catalog(force: bool = False, max_age_seconds: int = 6 *
     return fallback
 
 
+def _merge_catalog_with_fallback(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    fallback_rows = _fallback_portal_layer_defs()
+    merged: list[dict[str, Any]] = []
+    existing_names: set[str] = set()
+    for row in list(rows or []):
+        if not isinstance(row, dict):
+            continue
+        item = dict(row)
+        fallback_match = None
+        item_name = str(item.get('name') or '').strip()
+        for fallback in fallback_rows:
+            try:
+                if item.get('id') is not None and fallback.get('id') is not None and int(item.get('id')) == int(fallback.get('id')):
+                    fallback_match = fallback
+                    break
+            except Exception:
+                pass
+            if item_name and _layer_name_matches(item_name, _layer_name_candidates(fallback)):
+                fallback_match = fallback
+                break
+        if fallback_match:
+            item.setdefault('status', fallback_match.get('status') or '')
+            item.setdefault('color', fallback_match.get('color') or '')
+            item.setdefault('description', fallback_match.get('description') or '')
+            merged_legacy = list(item.get('legacy_ids') or [])
+            for value in list(fallback_match.get('legacy_ids') or []):
+                if value not in merged_legacy:
+                    merged_legacy.append(value)
+            if merged_legacy:
+                item['legacy_ids'] = merged_legacy
+            merged_aliases = list(item.get('local_zone_aliases') or [])
+            for value in _layer_name_candidates(fallback_match):
+                if value not in merged_aliases:
+                    merged_aliases.append(value)
+            if merged_aliases:
+                item['local_zone_aliases'] = merged_aliases
+        merged.append(item)
+        normalized_name = _ascii_header(item.get('name'))
+        if normalized_name:
+            existing_names.add(normalized_name)
+    for fallback in fallback_rows:
+        fallback_name = _ascii_header(fallback.get('name'))
+        if fallback_name and fallback_name in existing_names:
+            continue
+        merged.append(dict(fallback))
+    return merged
+
+
 def portal_layer_catalog(*, fishery: str = '', control_type: str = '', gear_type: str = '') -> list[dict[str, Any]]:
-    rows = _enrich_catalog_rows(refresh_portal_layer_catalog(force=False))
+    rows = _enrich_catalog_rows(_merge_catalog_with_fallback(refresh_portal_layer_catalog(force=False)))
     if fishery or control_type or gear_type:
         rows = [row for row in rows if map_relevance.matches_selection(row, fishery=fishery, control_type=control_type, gear_type=gear_type)]
     return rows

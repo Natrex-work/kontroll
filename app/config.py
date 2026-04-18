@@ -108,8 +108,8 @@ class Settings:
 
 settings = Settings(
     app_name=os.getenv('KV_APP_NAME', 'KV Kontroll'),
-    app_version=os.getenv('KV_APP_VERSION', '44.0.0'),
-    app_version_label=os.getenv('KV_APP_VERSION_LABEL', 'v44'),
+    app_version=os.getenv('KV_APP_VERSION', '45.0.0'),
+    app_version_label=os.getenv('KV_APP_VERSION_LABEL', 'v45'),
     base_dir=BASE_DIR,
     templates_dir=BASE_DIR / 'app' / 'templates',
     static_dir=BASE_DIR / 'app' / 'static',

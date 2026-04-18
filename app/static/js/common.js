@@ -202,8 +202,27 @@
           if (!data.features.length) return;
           var featureSummaries = [];
           var geo = L.geoJSON(data, {
-            style: function () {
-              return { color: layer.color || '#c1121f', weight: 2.5, fillColor: layer.color || '#c1121f', fillOpacity: 0.2 };
+            style: function (feature) {
+              var geometryType = String((feature && feature.geometry && feature.geometry.type) || layer.geometry_type || '').toLowerCase();
+              var isLine = geometryType.indexOf('line') !== -1;
+              var isPoint = geometryType.indexOf('point') !== -1;
+              return {
+                color: layer.color || '#c1121f',
+                weight: isLine ? 4 : 3,
+                opacity: isPoint ? 0.95 : 0.9,
+                fillColor: layer.color || '#c1121f',
+                fillOpacity: isPoint ? 0.8 : 0.28,
+                dashArray: isLine ? '8 6' : null
+              };
+            },
+            pointToLayer: function (feature, latlng) {
+              return L.circleMarker(latlng, {
+                radius: 7,
+                color: layer.color || '#c1121f',
+                weight: 2,
+                fillColor: layer.color || '#c1121f',
+                fillOpacity: 0.75
+              });
             },
             onEachFeature: function (feature, lyr) {
               var props = feature && feature.properties ? feature.properties : {};
