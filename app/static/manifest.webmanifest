@@ -1,13 +1,8 @@
 {
-  "id": "/",
-  "name": "Fiskerikontroll",
-  "short_name": "Fiskerikontroll",
+  "name": "Kontroll Og Oppsyn",
+  "short_name": "Oppsyn",
   "start_url": "/",
   "display": "standalone",
-  "display_override": [
-    "standalone",
-    "minimal-ui"
-  ],
   "background_color": "#f4f7fb",
   "theme_color": "#0f2740",
   "icons": [

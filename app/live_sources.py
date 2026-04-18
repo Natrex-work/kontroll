@@ -31,7 +31,7 @@ YGG_BASE = os.getenv('KV_YGG_BASE', os.getenv('KV_PORTAL_MAPSERVER', 'https://gi
 LOVDATA_TOPICS_PATH = DATA_DIR / 'lovdata_topics.json'
 FDIR_CACHE_JSON = CACHE_DIR / 'fdir_registry_cache.json'
 FDIR_CACHE_META = CACHE_DIR / 'fdir_registry_meta.json'
-UA = 'Kontroll-Og-Oppsyn/1.0 (+local secure app)'
+UA = 'KV-Kontroll-Demo-v18/1.0 (+local demo app)'
 HUMMER_REGISTER_URL = 'https://tableau.fiskeridir.no/t/Internet/views/Pmeldehummarfiskarargjeldander/Pmeldehummarfiskarar?:showVizHome=no'
 HUMMER_REGISTER_FALLBACK_URL = 'https://www.fiskeridir.no/statistikk-tall-og-analyse/data-og-statistikk-om-turist--og-fritidsfiske/registrerte-hummarfiskarar'
 HUMMER_CACHE_JSON = CACHE_DIR / 'hummer_registry_cache.json'
@@ -361,7 +361,7 @@ def classify_position_live(lat: float, lng: float, species: str = '', gear_type:
     hits: list[dict[str, Any]] = []
     status = 'normalt område'
     name = 'Ingen live-treff i Yggdrasil'
-    notes = 'Fant ingen treff i de live kartlagene som er koblet til appen.'
+    notes = 'Fant ingen treff i de live kartlagene som er koblet til demoen.'
 
     stengt = _ygg_query_point(LAYER_STENGT, lat, lng)
     if stengt:

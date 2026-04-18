@@ -7,7 +7,6 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, Optional
 
 from .config import settings
-from .security import decrypt_text, encrypt_text
 
 DB_PATH = settings.db_path
 
@@ -26,71 +25,6 @@ USER_PERMISSION_LABELS = {
 }
 DEFAULT_INVESTIGATOR_PERMISSIONS = list(INVESTIGATOR_PERMISSION_OPTIONS)
 DEFAULT_ADMIN_PERMISSIONS = list(ADMIN_PERMISSION_OPTIONS)
-
-USER_ENCRYPTED_FIELDS = {
-    'full_name', 'address', 'phone', 'vessel_affiliation', 'last_complainant_name', 'last_witness_name',
-}
-CASE_ENCRYPTED_FIELDS = {
-    'investigator_name', 'complainant_name', 'witness_name', 'basis_source_name', 'basis_details', 'location_name', 'area_status', 'area_name',
-    'suspect_name', 'suspect_phone', 'suspect_birthdate', 'suspect_address', 'suspect_post_place', 'lookup_text', 'vessel_name', 'vessel_reg',
-    'radio_call_sign', 'notes', 'hearing_text', 'seizure_notes', 'summary', 'findings_json', 'source_snapshot_json', 'crew_json', 'external_actors_json',
-    'interview_sessions_json', 'hummer_participant_no', 'hummer_last_registered', 'complaint_override', 'own_report_override',
-    'interview_report_override', 'seizure_report_override', 'complainant_signature', 'witness_signature', 'investigator_signature', 'suspect_signature',
-}
-EVIDENCE_ENCRYPTED_FIELDS = {'original_filename', 'caption', 'law_text', 'violation_reason', 'seizure_ref'}
-AUDIT_ENCRYPTED_FIELDS = {'details_json'}
-
-
-def _encrypt_selected(data: Dict[str, Any], encrypted_fields: set[str]) -> Dict[str, Any]:
-    clone = dict(data)
-    for field in encrypted_fields:
-        if field in clone and clone[field] is not None:
-            clone[field] = encrypt_text(str(clone[field]))
-    return clone
-
-
-def _decrypt_selected(data: Optional[Dict[str, Any]], encrypted_fields: set[str]) -> Optional[Dict[str, Any]]:
-    if data is None:
-        return None
-    clone = dict(data)
-    for field in encrypted_fields:
-        if field in clone and clone[field] is not None:
-            clone[field] = decrypt_text(str(clone[field]))
-    return clone
-
-
-def _decrypt_rows(rows: list[Dict[str, Any]], encrypted_fields: set[str]) -> list[Dict[str, Any]]:
-    return [(_decrypt_selected(row, encrypted_fields) or {}) for row in rows]
-
-
-def _migrate_encrypted_columns(conn: sqlite3.Connection, table_name: str, key_field: str, fields: set[str]) -> None:
-    if not fields:
-        return
-    field_list = ', '.join([key_field] + sorted(fields))
-    rows = conn.execute(f'SELECT {field_list} FROM {table_name}').fetchall()
-    for row in rows:
-        updates: dict[str, Any] = {}
-        for field in fields:
-            value = row.get(field)
-            if value is None or value == '':
-                continue
-            encrypted = encrypt_text(str(value))
-            if encrypted != value:
-                updates[field] = encrypted
-        if updates:
-            assignments = ', '.join(f'{name} = ?' for name in updates)
-            conn.execute(
-                f'UPDATE {table_name} SET {assignments} WHERE {key_field} = ?',
-                list(updates.values()) + [row[key_field]],
-            )
-
-
-def _user_search_blob(row: Dict[str, Any]) -> str:
-    return ' '.join(str(row.get(field) or '') for field in ('full_name', 'email', 'address', 'phone', 'vessel_affiliation')).lower()
-
-
-def _case_search_blob(row: Dict[str, Any]) -> str:
-    return ' '.join(str(row.get(field) or '') for field in ('case_number', 'investigator_name', 'complainant_name', 'suspect_name', 'vessel_name')).lower()
 
 
 def utcnow_iso() -> str:
@@ -354,11 +288,6 @@ def init_db() -> None:
         conn.execute("UPDATE cases SET status = 'Anmeldt' WHERE lower(status) = 'klar for anmeldelse'")
         conn.execute("UPDATE cases SET status = 'Anmeldt og sendt' WHERE lower(status) = 'ferdig eksportert'")
 
-        _migrate_encrypted_columns(conn, 'users', 'id', USER_ENCRYPTED_FIELDS)
-        _migrate_encrypted_columns(conn, 'cases', 'id', CASE_ENCRYPTED_FIELDS)
-        _migrate_encrypted_columns(conn, 'evidence', 'id', EVIDENCE_ENCRYPTED_FIELDS)
-        _migrate_encrypted_columns(conn, 'audit_log', 'id', AUDIT_ENCRYPTED_FIELDS)
-
 
 def record_audit(actor_user_id: int | None, action: str, entity_type: str, entity_id: str | int | None = None, details: Optional[Dict[str, Any]] = None) -> int:
     with get_conn() as conn:
@@ -372,7 +301,7 @@ def record_audit(actor_user_id: int | None, action: str, entity_type: str, entit
                 action.strip(),
                 entity_type.strip(),
                 None if entity_id is None else str(entity_id),
-                encrypt_text(json.dumps(details or {}, ensure_ascii=False)),
+                json.dumps(details or {}, ensure_ascii=False),
                 utcnow_iso(),
             ),
         )
@@ -391,8 +320,7 @@ def list_audit_logs(limit: int = 200) -> list[Dict[str, Any]]:
             ''',
             (limit,),
         )
-        rows = list(cur.fetchall())
-    return _decrypt_rows(rows, AUDIT_ENCRYPTED_FIELDS | {'actor_name'})
+        return list(cur.fetchall())
 
 
 def create_user(
@@ -419,16 +347,16 @@ def create_user(
             ''',
             (
                 email.strip().lower(),
-                encrypt_text(full_name.strip()),
+                full_name.strip(),
                 password_hash,
                 role,
-                encrypt_text((address or '').strip()) if (address or '').strip() else None,
-                encrypt_text((phone or '').strip()) if (phone or '').strip() else None,
-                encrypt_text((vessel_affiliation or '').strip()) if (vessel_affiliation or '').strip() else None,
+                (address or '').strip() or None,
+                (phone or '').strip() or None,
+                (vessel_affiliation or '').strip() or None,
                 permissions_json,
                 1 if active else 0,
-                encrypt_text((last_complainant_name or '').strip()) if (last_complainant_name or '').strip() else None,
-                encrypt_text((last_witness_name or '').strip()) if (last_witness_name or '').strip() else None,
+                last_complainant_name,
+                last_witness_name,
                 (case_prefix or '').strip().upper() or None,
                 now,
                 now,
@@ -459,15 +387,15 @@ def update_user(
             WHERE id = ?
             ''',
             (
-                encrypt_text(full_name.strip()),
+                full_name.strip(),
                 role,
                 1 if active else 0,
-                encrypt_text((address or '').strip()) if (address or '').strip() else None,
-                encrypt_text((phone or '').strip()) if (phone or '').strip() else None,
-                encrypt_text((vessel_affiliation or '').strip()) if (vessel_affiliation or '').strip() else None,
+                (address or '').strip() or None,
+                (phone or '').strip() or None,
+                (vessel_affiliation or '').strip() or None,
                 permissions_to_json(role, permissions),
-                encrypt_text((last_complainant_name or '').strip()) if (last_complainant_name or '').strip() else None,
-                encrypt_text((last_witness_name or '').strip()) if (last_witness_name or '').strip() else None,
+                (last_complainant_name or '').strip() or None,
+                (last_witness_name or '').strip() or None,
                 (case_prefix or '').strip().upper() or None,
                 utcnow_iso(),
                 user_id,
@@ -492,29 +420,19 @@ def set_user_password(user_id: int, password_hash: str) -> None:
 def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
     with get_conn() as conn:
         cur = conn.execute('SELECT * FROM users WHERE email = ?', (email.strip().lower(),))
-        row = cur.fetchone()
-    return _decrypt_selected(row, USER_ENCRYPTED_FIELDS)
+        return cur.fetchone()
 
 
 def get_user_by_id(user_id: int) -> Optional[Dict[str, Any]]:
     with get_conn() as conn:
         cur = conn.execute('SELECT * FROM users WHERE id = ?', (user_id,))
-        row = cur.fetchone()
-    return _decrypt_selected(row, USER_ENCRYPTED_FIELDS)
-
-
-def count_users() -> int:
-    with get_conn() as conn:
-        row = conn.execute('SELECT COUNT(*) AS n FROM users').fetchone()
-        return int(row['n'])
+        return cur.fetchone()
 
 
 def list_users() -> list[Dict[str, Any]]:
     with get_conn() as conn:
-        cur = conn.execute('SELECT * FROM users ORDER BY id DESC')
+        cur = conn.execute("SELECT * FROM users ORDER BY CASE WHEN role = 'admin' THEN 0 ELSE 1 END, active DESC, full_name ASC")
         rows = list(cur.fetchall())
-    rows = _decrypt_rows(rows, USER_ENCRYPTED_FIELDS)
-    rows.sort(key=lambda row: (0 if row.get('role') == 'admin' else 1, 0 if int(row.get('active', 1)) else 1, str(row.get('full_name') or '').lower()))
     for row in rows:
         row['permissions'] = get_user_permissions(row)
     return rows
@@ -529,8 +447,8 @@ def update_user_last_names(user_id: int, complainant_name: str | None, witness_n
             WHERE id = ?
             ''',
             (
-                encrypt_text((complainant_name or '').strip()) if (complainant_name or '').strip() else None,
-                encrypt_text((witness_name or '').strip()) if (witness_name or '').strip() else None,
+                (complainant_name or '').strip() or None,
+                (witness_name or '').strip() or None,
                 utcnow_iso(),
                 user_id,
             ),
@@ -579,12 +497,12 @@ def create_case(created_by: int, investigator_name: str, complainant_name: str |
             (
                 case_number,
                 created_by,
-                encrypt_text(investigator_name),
-                encrypt_text((complainant_name or '').strip()) if (complainant_name or '').strip() else None,
-                encrypt_text((witness_name or '').strip()) if (witness_name or '').strip() else None,
+                investigator_name,
+                complainant_name,
+                witness_name,
                 'patruljeobservasjon',
-                encrypt_text('Kystvakten lettbåt'),
-                encrypt_text('Det ble fra Kystvakten lettbåt gjennomført kontroll med fokus på faststående fiskeredskap. Kontrollgrunnlaget bygger på egen observasjon og planlagt kontrollvirksomhet.'),
+                'Kystvakten lettbåt',
+                'Det ble fra Kystvakten lettbåt gjennomført kontroll med fokus på faststående fiskeredskap. Kontrollgrunnlaget bygger på egen observasjon og planlagt kontrollvirksomhet.',
                 local_now,
                 None,
                 '[]',
@@ -593,7 +511,7 @@ def create_case(created_by: int, investigator_name: str, complainant_name: str |
                 '[]',
                 None,
                 None,
-                encrypt_text(investigator_name),
+                investigator_name,
                 None,
                 now,
                 now,
@@ -614,8 +532,7 @@ def get_case(case_id: int) -> Optional[Dict[str, Any]]:
             ''',
             (case_id,),
         )
-        row = cur.fetchone()
-    return _decrypt_selected(row, CASE_ENCRYPTED_FIELDS | {'created_by_name', 'deleted_by_name'})
+        return cur.fetchone()
 
 
 def list_cases(user: Dict[str, Any], status_filter: str | None = None, include_deleted: bool = False) -> list[Dict[str, Any]]:
@@ -642,8 +559,7 @@ def list_cases(user: Dict[str, Any], status_filter: str | None = None, include_d
             ''',
             params,
         )
-        rows = list(cur.fetchall())
-    return _decrypt_rows(rows, CASE_ENCRYPTED_FIELDS | {'created_by_name', 'deleted_by_name'})
+        return list(cur.fetchall())
 
 
 def list_cases_for_admin(deleted_filter: str = 'active', search: str = '') -> list[Dict[str, Any]]:
@@ -657,6 +573,11 @@ def list_cases_for_admin(deleted_filter: str = 'active', search: str = '') -> li
             pass
         else:
             clauses.append('c.deleted_at IS NULL')
+        search_value = str(search or '').strip()
+        if search_value:
+            like = f'%{search_value}%'
+            clauses.append('(c.case_number LIKE ? OR c.investigator_name LIKE ? OR COALESCE(c.complainant_name, "") LIKE ? OR COALESCE(c.suspect_name, "") LIKE ? OR COALESCE(c.vessel_name, "") LIKE ?)')
+            params.extend([like, like, like, like, like])
         where_sql = f"WHERE {' AND '.join(clauses)}" if clauses else ''
         cur = conn.execute(
             f'''
@@ -669,12 +590,7 @@ def list_cases_for_admin(deleted_filter: str = 'active', search: str = '') -> li
             ''',
             params,
         )
-        rows = list(cur.fetchall())
-    rows = _decrypt_rows(rows, CASE_ENCRYPTED_FIELDS | {'created_by_name', 'deleted_by_name'})
-    search_value = str(search or '').strip().lower()
-    if search_value:
-        rows = [row for row in rows if search_value in _case_search_blob(row)]
-    return rows
+        return list(cur.fetchall())
 
 
 def admin_case_counts() -> Dict[str, int]:
@@ -705,9 +621,21 @@ def case_counts(user: Dict[str, Any]) -> Dict[str, int]:
         }
 
 
+
+def case_number_exists(case_number: str, *, exclude_case_id: int | None = None) -> bool:
+    clean = str(case_number or '').strip()
+    if not clean:
+        return False
+    with get_conn() as conn:
+        if exclude_case_id is None:
+            row = conn.execute('SELECT id FROM cases WHERE case_number = ? LIMIT 1', (clean,)).fetchone()
+        else:
+            row = conn.execute('SELECT id FROM cases WHERE case_number = ? AND id != ? LIMIT 1', (clean, exclude_case_id)).fetchone()
+    return row is not None
+
 def save_case(case_id: int, data: Dict[str, Any]) -> None:
     allowed_keys = [
-        'investigator_name', 'complainant_name', 'witness_name', 'case_basis', 'basis_source_name', 'basis_details',
+        'case_number', 'investigator_name', 'complainant_name', 'witness_name', 'case_basis', 'basis_source_name', 'basis_details',
         'control_type', 'fishery_type', 'species', 'gear_type', 'start_time', 'end_time', 'location_name', 'latitude', 'longitude',
         'area_status', 'area_name', 'suspect_name', 'suspect_phone', 'suspect_birthdate', 'suspect_address', 'suspect_post_place', 'lookup_text', 'vessel_name',
         'vessel_reg', 'radio_call_sign', 'notes', 'hearing_text', 'seizure_notes', 'summary', 'findings_json', 'status', 'source_snapshot_json',
@@ -721,8 +649,6 @@ def save_case(case_id: int, data: Dict[str, Any]) -> None:
             value = data[key]
             if key in {'findings_json', 'source_snapshot_json', 'crew_json', 'external_actors_json', 'interview_sessions_json'} and not isinstance(value, str):
                 value = json.dumps(value, ensure_ascii=False)
-            if key in CASE_ENCRYPTED_FIELDS and value is not None:
-                value = encrypt_text(str(value))
             values.append(value)
     assignments.append('updated_at = ?')
     values.append(utcnow_iso())
@@ -760,7 +686,7 @@ def add_evidence(case_id: int, filename: str, original_filename: str, caption: s
             INSERT INTO evidence(case_id, filename, original_filename, caption, mime_type, finding_key, law_text, violation_reason, seizure_ref, created_at, created_by)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''',
-            (case_id, filename, encrypt_text(original_filename), encrypt_text(caption) if caption else None, mime_type, finding_key, encrypt_text(law_text) if law_text else None, encrypt_text(violation_reason) if violation_reason else None, encrypt_text(seizure_ref) if seizure_ref else None, utcnow_iso(), created_by),
+            (case_id, filename, original_filename, caption, mime_type, finding_key, law_text, violation_reason, seizure_ref, utcnow_iso(), created_by),
         )
         return int(cur.lastrowid)
 
@@ -768,15 +694,13 @@ def add_evidence(case_id: int, filename: str, original_filename: str, caption: s
 def list_evidence(case_id: int) -> list[Dict[str, Any]]:
     with get_conn() as conn:
         cur = conn.execute('SELECT * FROM evidence WHERE case_id = ? ORDER BY created_at DESC, id DESC', (case_id,))
-        rows = list(cur.fetchall())
-    return _decrypt_rows(rows, EVIDENCE_ENCRYPTED_FIELDS)
+        return list(cur.fetchall())
 
 
 def get_evidence_by_id(evidence_id: int) -> Optional[Dict[str, Any]]:
     with get_conn() as conn:
         cur = conn.execute('SELECT * FROM evidence WHERE id = ?', (evidence_id,))
-        row = cur.fetchone()
-    return _decrypt_selected(row, EVIDENCE_ENCRYPTED_FIELDS)
+        return cur.fetchone()
 
 
 def delete_evidence(evidence_id: int) -> Optional[Dict[str, Any]]:
@@ -786,7 +710,7 @@ def delete_evidence(evidence_id: int) -> Optional[Dict[str, Any]]:
         if not row:
             return None
         conn.execute('DELETE FROM evidence WHERE id = ?', (evidence_id,))
-    return _decrypt_selected(row, EVIDENCE_ENCRYPTED_FIELDS)
+        return row
 
 
 def case_to_findings(case_row: Dict[str, Any]) -> list[Dict[str, Any]]:
@@ -862,39 +786,44 @@ def list_cases_for_person_lookup(phone: str = '', name: str = '', address: str =
     vessel_reg = str(vessel_reg or '').strip().upper().replace(' ', '')
     radio_call_sign = str(radio_call_sign or '').strip().upper().replace(' ', '')
     hummer_participant_no = str(hummer_participant_no or '').strip().upper().replace(' ', '')
+    sql = "SELECT id, case_number, suspect_name, suspect_phone, suspect_address, suspect_post_place, vessel_name, vessel_reg, radio_call_sign, hummer_participant_no, species, gear_type, observed_gear_count, start_time, status FROM cases WHERE deleted_at IS NULL"
+    values: list[Any] = []
+    if exclude_case_id is not None:
+        sql += ' AND id != ?'
+        values.append(exclude_case_id)
+    if species:
+        sql += ' AND lower(COALESCE(species, "")) = ?'
+        values.append(species)
+    if gear_type:
+        sql += ' AND lower(COALESCE(gear_type, "")) = ?'
+        values.append(gear_type)
+    # require at least one identifying match
+    id_parts = []
+    if phone:
+        id_parts.append('replace(COALESCE(suspect_phone, ""), " ", "") = ?')
+        values.append(phone.replace(' ', ''))
+    if name:
+        id_parts.append('lower(COALESCE(suspect_name, "")) = ?')
+        values.append(name)
+    if address:
+        id_parts.append('lower(COALESCE(suspect_address, "")) = ?')
+        values.append(address)
+    if vessel_reg:
+        id_parts.append('replace(upper(COALESCE(vessel_reg, "")), " ", "") = ?')
+        values.append(vessel_reg)
+    if radio_call_sign:
+        id_parts.append('replace(upper(COALESCE(radio_call_sign, "")), " ", "") = ?')
+        values.append(radio_call_sign)
+    if hummer_participant_no:
+        id_parts.append('replace(upper(COALESCE(hummer_participant_no, "")), " ", "") = ?')
+        values.append(hummer_participant_no)
+    if not id_parts:
+        return []
+    sql += ' AND (' + ' OR '.join(id_parts) + ')'
+    sql += ' ORDER BY start_time DESC, id DESC LIMIT 50'
     with get_conn() as conn:
-        clauses = ['deleted_at IS NULL']
-        values: list[Any] = []
-        if exclude_case_id is not None:
-            clauses.append('id != ?')
-            values.append(exclude_case_id)
-        if species:
-            clauses.append('lower(COALESCE(species, "")) = ?')
-            values.append(species)
-        if gear_type:
-            clauses.append('lower(COALESCE(gear_type, "")) = ?')
-            values.append(gear_type)
-        sql = 'SELECT id, case_number, suspect_name, suspect_phone, suspect_address, suspect_post_place, vessel_name, vessel_reg, radio_call_sign, hummer_participant_no, species, gear_type, observed_gear_count, start_time, status FROM cases WHERE ' + ' AND '.join(clauses) + ' ORDER BY start_time DESC, id DESC LIMIT 200'
-        rows = list(conn.execute(sql, values).fetchall())
-    rows = _decrypt_rows(rows, CASE_ENCRYPTED_FIELDS)
-    out: list[Dict[str, Any]] = []
-    for row in rows:
-        matches = False
-        if phone and str(row.get('suspect_phone') or '').replace(' ', '') == phone.replace(' ', ''):
-            matches = True
-        if name and str(row.get('suspect_name') or '').strip().lower() == name:
-            matches = True
-        if address and str(row.get('suspect_address') or '').strip().lower() == address:
-            matches = True
-        if vessel_reg and str(row.get('vessel_reg') or '').strip().upper().replace(' ', '') == vessel_reg:
-            matches = True
-        if radio_call_sign and str(row.get('radio_call_sign') or '').strip().upper().replace(' ', '') == radio_call_sign:
-            matches = True
-        if hummer_participant_no and str(row.get('hummer_participant_no') or '').strip().upper().replace(' ', '') == hummer_participant_no:
-            matches = True
-        if matches:
-            out.append(row)
-    return out
+        cur = conn.execute(sql, values)
+        return list(cur.fetchall())
 
 
 

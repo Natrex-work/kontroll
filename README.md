@@ -1,138 +1,84 @@
-# Fiskerikontroll
+# KV Kontroll Demo v25
 
-Fiskerikontroll er en FastAPI-basert kontrollapp for kyst- og fiskerioppsyn. Denne pakken er gjort om fra demo til en **brukbar installasjonsklar web-app/PWA** med fokus på:
+Lokal demo/PWA for stegvis kontroll av fritidsfiske og kommersielt fiskeri.
 
-- sikker innlogging og modultilganger
-- kryptering av sensitive felt i databasen
-- beskyttet tilgang til vedlegg og eksporterte dokumenter
-- iPhone- og iPad-vennlig brukerflate
-- enkel administrasjon av brukere og kontroller
+## Hva som er gjort i v25
+- delt backend opp i **routers** for auth, sider, admin, saker og API
+- flyttet sakslogikk til **services** for bootstrap, saker, PDF, regelverk og registeroppslag
+- lagt til **miljøstyrt konfigurasjon** i `app/config.py`
+- lagt til enkel **logging** og tydelig varsel hvis `SESSION_SECRET` ikke er satt
+- strammet inn **validering** av e-post, passord, saksnummer-prefix, koordinater og filopplasting
+- flyttet frontend til **side-spesifikke scripts** (`common.js`, `map-overview.js`, `rules-overview.js`, `case-app.js`)
+- beholdt eksisterende demo-funksjoner og eksportflyt
 
-## Hva som er endret i produksjonspakken
+## Prosjektstruktur
+```text
+app/
+  main.py
+  config.py
+  logging_setup.py
+  dependencies.py
+  ui.py
+  validation.py
+  schemas.py
+  routers/
+    auth.py
+    pages.py
+    admin.py
+    cases.py
+    api.py
+  services/
+    bootstrap_service.py
+    case_service.py
+    pdf_service.py
+    rules_service.py
+    registry_service.py
+  static/js/
+    common.js
+    map-overview.js
+    rules-overview.js
+    case-app.js
+```
 
-Denne versjonen skiller seg fra demoen ved at den:
-
-- **ikke** oppretter demo-brukere eller demo-saker som standard
-- bruker **feltkryptering** for sensitive personopplysninger i databasen
-- beskytter vedlegg og dokumentforhåndsvisninger bak innlogging
-- legger på **CSRF-beskyttelse**, strammere cookies og sikkerhets-headere
-- rydder bort eksporterte PDF/ZIP-filer etter nedlasting
-- er tilpasset bruk på **iPhone og iPad** som installert hjemskjerm-app
-
-## Krav
-
-- Python 3.11+
-- HTTPS i faktisk produksjon
-- Egen `.env` med hemmeligheter
-
-## Hurtigstart
+## Miljøvariabler
+Kopier `.env.example` til `.env` og sett minst:
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env
+SESSION_SECRET=sett-en-lang-og-unik-hemmelig-verdi
 ```
 
-Rediger deretter `.env` og sett minst:
+Andre valgfrie innstillinger:
+- `KV_DB_PATH`
+- `KV_UPLOAD_DIR`
+- `KV_GENERATED_DIR`
+- `KV_LOG_LEVEL`
+- `KV_MAX_UPLOAD_MB`
+- `KV_LIVE_SOURCES`
 
-- `SESSION_SECRET`
-- `KV_DATA_ENCRYPTION_KEY`
-- `KV_ALLOWED_HOSTS`
-- eventuelt `KV_BOOTSTRAP_ADMIN_*`
+## Windows
+1. Pakk ut zip-filen.
+2. Åpne mappen `kv_kontroll_demo_v24`.
+3. Lag eventuelt en `.env` basert på `.env.example`.
+4. Dobbeltklikk `start_windows.bat`.
+5. Hvis nettleseren ikke åpnes automatisk, åpne `http://127.0.0.1:8000`.
 
-Start appen:
-
+## Manuell oppstart
 ```bash
-uvicorn app.main:app --host 0.0.0.0 --port 8000
+python -m pip install -r requirements.txt
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-## Opprett første administrator
+## Innlogging
+- Admin: `admin@kv.demo` / `Admin123!`
+- Kontrollør: `kontrollor@kv.demo` / `Demo123!`
 
-Anbefalt metode:
+## Teststatus
+- Python-syntakssjekk bestått
+- JavaScript-syntakssjekk bestått
+- backend smoke-test bestått
+- PDF-eksport bestått
+- ZIP-eksport bestått
+- eksport av kun avhørsrapport bestått
 
-```bash
-python manage.py create-admin \
-  --email admin@domene.no \
-  --name "Fullt Navn" \
-  --password "SterktPassord123!"
-```
-
-Alternativt kan første admin opprettes automatisk ved første oppstart ved å sette:
-
-- `KV_BOOTSTRAP_ADMIN_EMAIL`
-- `KV_BOOTSTRAP_ADMIN_NAME`
-- `KV_BOOTSTRAP_ADMIN_PASSWORD`
-
-
-## Native iOS-app for intern distribusjon
-
-Pakken inneholder også en egen mappe `ios_native/` med et **native iOS-prosjekt** for iPhone og iPad. Prosjektet er laget for intern distribusjon og kobler seg til den sikre HTTPS-instansen av Fiskerikontroll.
-
-Se:
-
-- `ios_native/README_IOS_NATIVE.md`
-- `ios_native/KontrollOgOppsynNative.xcodeproj`
-- `ios_native/export/`
-
-Den native iOS-appen legger til blant annet biometrisk gjenlåsing, domenesperre i webvisningen, dokumentnedlasting til deling/lagring og bedre iPhone/iPad-innpakning rundt samme sikre løsning.
-
-## Bruk på iPhone og iPad
-
-1. Åpne appen i Safari.
-2. Velg **Del**.
-3. Velg **Legg til på Hjem-skjerm**.
-4. Start appen fra ikonet på hjemskjermen.
-
-Pakken inneholder manifest, Apple-meta-tags og mobiltilpasset layout slik at appen åpnes mer som en vanlig app på iPhone og iPad.
-
-## Sikkerhetsoppsett
-
-For faktisk bruk bør du kjøre med:
-
-- `KV_PRODUCTION_MODE=1`
-- `KV_SESSION_HTTPS_ONLY=1`
-- sterk `SESSION_SECRET`
-- egen `KV_DATA_ENCRYPTION_KEY`
-- HTTPS via reverse proxy eller plattform
-
-### Hva som er kryptert
-
-Sensitive felt i bruker- og saksdata lagres kryptert i databasen, blant annet navn, adresse, telefon, patrulje-/forklaringstekster, mistenktopplysninger og andre tekstfelt som kan inneholde personopplysninger.
-
-### Hva som er tilgangsbeskyttet
-
-- vedlegg
-- lydfiler
-- kartforhåndsvisning i dokumentpakke
-- eksporterte PDF- og ZIP-dokumenter
-
-## Admin-funksjoner
-
-Admin er begrenset til:
-
-- slette og gjenopprette kontroller
-- legge til og deaktivere brukere
-- styre hvilke moduler hver bruker har tilgang til
-- registrere e-post, fullt navn, adresse, telefon, fartøystilhørighet, saksnummerprefix, standard anmelder og standard vitne
-
-## Demo-data
-
-Hvis du fortsatt ønsker demooppsett i et testmiljø, kan du sette:
-
-```env
-KV_BOOTSTRAP_DEMO_USERS=1
-KV_BOOTSTRAP_DEMO_CASES=1
-```
-
-Dette bør ikke brukes i produksjon.
-
-## Viktig anbefaling før produksjonssetting
-
-Denne pakken er betydelig mer robust enn demoen, men ved reell drift anbefales også:
-
-- drift bak HTTPS-reverse-proxy
-- sikkerhetskopi av database og opplastinger
-- kryptert disk på server/enhet
-- logging og tilgangskontroll på driftsmiljøet
-- egen sikkerhetstest før ordinær bruk
+## Merknad
+Dette er fortsatt en lokal testversjon. Live kartlag, hummerregister, fartøyregister og eventuelle katalogoppslag krever internett. Hvis en ekstern kilde ikke svarer, brukes lokale demo-data der det finnes fallback.

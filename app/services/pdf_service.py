@@ -71,12 +71,7 @@ def export_case_bundle(case_id: int, case_row: dict[str, Any], user: dict[str, A
                 continue
             mime = str(item.get('mime_type') or '')
             prefix = 'audio' if mime.startswith('audio/') else 'bilder'
-            arc_name = Path(str(item.get('original_filename') or Path(filename).name).strip() or Path(filename).name).name
-            zf.write(src, arcname=f'{prefix}/{arc_name}')
-    try:
-        pdf_path.unlink(missing_ok=True)
-    except Exception:
-        pass
+            zf.write(src, arcname=f'{prefix}/{Path(filename).name}')
     has_avvik = case_has_avvik(prepared_case)
     next_status = prepared_case.get('status') or 'Utkast'
     if next_status in {'Utkast', 'Anmeldt'}:

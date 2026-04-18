@@ -28,18 +28,10 @@ def validate_email(value: str | None) -> str:
     return email
 
 
-def validate_password(value: str | None, minimum_length: int = 12) -> str:
+def validate_password(value: str | None, minimum_length: int = 8) -> str:
     password = str(value or '').strip()
     if len(password) < minimum_length:
         raise HTTPException(status_code=400, detail=f'Passordet må være minst {minimum_length} tegn langt.')
-    if not re.search(r'[A-ZÆØÅ]', password):
-        raise HTTPException(status_code=400, detail='Passordet må inneholde minst én stor bokstav.')
-    if not re.search(r'[a-zæøå]', password):
-        raise HTTPException(status_code=400, detail='Passordet må inneholde minst én liten bokstav.')
-    if not re.search(r'\d', password):
-        raise HTTPException(status_code=400, detail='Passordet må inneholde minst ett tall.')
-    if not re.search(r'[^A-Za-zÆØÅæøå0-9]', password):
-        raise HTTPException(status_code=400, detail='Passordet må inneholde minst ett spesialtegn.')
     return password
 
 
@@ -63,10 +55,10 @@ def validate_upload_file(file: UploadFile) -> None:
         raise HTTPException(status_code=400, detail='Filen mangler filnavn.')
     suffix = Path(filename).suffix.lower()
     if suffix and suffix not in ALLOWED_UPLOAD_SUFFIXES:
-        raise HTTPException(status_code=400, detail='Filtypen støttes ikke i appen.')
+        raise HTTPException(status_code=400, detail='Filtypen støttes ikke i denne demoen.')
     content_type = str(file.content_type or '')
     if content_type and not any(content_type.startswith(prefix) for prefix in ALLOWED_UPLOAD_MIME_PREFIXES):
-        raise HTTPException(status_code=400, detail='MIME-type støttes ikke i appen.')
+        raise HTTPException(status_code=400, detail='MIME-type støttes ikke i denne demoen.')
 
 
 def validate_saved_file_size(size_bytes: int) -> None:

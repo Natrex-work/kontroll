@@ -1,7 +1,7 @@
 {
   "fritidsfiske:hummer:teine": {
     "title": "Hummerkontroll – fritidsfiske med teine",
-    "description": "Stegvis regelsett for hummerkontroll med kildehenvisning til forskrift, J-melding og kartlag.",
+    "description": "Stegvis demo-regelsett for hummerkontroll med kildehenvisning til forskrift, J-melding og kartlag.",
     "sources": [
       {"name": "Lovdata", "ref": "Forskrift om høsting av hummer § 9"},
       {"name": "Lovdata", "ref": "Forskrift om høsting av hummer § 12"},
@@ -19,7 +19,7 @@
   },
   "kommersiell:torsk:garn": {
     "title": "Kommersiell kontroll – torsk med garn",
-    "description": "Eksempelregelsett for kommersielt fiske med garn.",
+    "description": "Eksempel på demo-regelsett for kommersielt fiske med garn.",
     "sources": [
       {"name": "Lovdata", "ref": "Gjeldende forskrifter"},
       {"name": "Fiskeridirektoratet", "ref": "J-melding / reguleringer"}
@@ -33,7 +33,7 @@
   },
   "fritidsfiske:*:*": {
     "title": "Standard fritidskontroll",
-    "description": "Generisk sjekkliste for fritidsfiske.",
+    "description": "Generisk demo-sjekkliste for fritidsfiske.",
     "sources": [
       {"name": "Lovdata", "ref": "Gjeldende regelverk"},
       {"name": "Fiskeridirektoratet", "ref": "Fritidsregler"}
@@ -46,7 +46,7 @@
   },
   "*:*:*": {
     "title": "Standard kontroll",
-    "description": "Brukes når det ikke finnes en mer spesifikk mal.",
+    "description": "Brukes når det ikke finnes en mer spesifikk demomal.",
     "sources": [
       {"name": "Lovdata", "ref": "Gjeldende regelverk"}
     ],

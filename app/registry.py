@@ -7,7 +7,7 @@ from typing import Any, Iterable
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 PEOPLE_PATH = BASE_DIR / 'data' / 'people_registry.json'
-HUMMER_PATH = BASE_DIR / 'data' / 'hummer_participants_cache.json'
+HUMMER_PATH = BASE_DIR / 'data' / 'hummer_participants_demo.json'
 HUMMER_CACHE_PATH = BASE_DIR / 'data' / 'cache' / 'hummer_registry_cache.json'
 OFFICIAL_HUMMER_URL = 'https://www.fiskeridir.no/statistikk-tall-og-analyse/data-og-statistikk-om-turist--og-fritidsfiske/registrerte-hummarfiskarar'
 

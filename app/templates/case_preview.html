@@ -1,6 +1,11 @@
 {% extends 'base.html' %}
 {% block title %}Forhåndsvisning · {{ case.case_number }}{% endblock %}
 {% block content %}
+<section class="preview-sticky-bar">
+  <a class="btn btn-primary" href="/cases/{{ case.id }}/edit">Tilbake til sak</a>
+  <a class="btn btn-secondary" href="#doclist">Til toppen</a>
+</section>
+
 <section class="page-header">
   <div>
     <h1>Dokumentforhåndsvisning - {{ case.case_number }}</h1>
@@ -132,7 +137,7 @@
   <div class="evidence-grid">
     {% for item in packet.evidence %}
     <article class="evidence-card">
-      <img src="{{ item.preview_url }}" alt="{{ item.caption or item.original_filename }}" />
+      <img src="{{ item.preview_url or ('/uploads/' ~ item.filename) }}" alt="{{ item.caption or item.original_filename }}" />
       <div class="evidence-body">
         <strong>{{ packet.illustration_texts[loop.index0] }}</strong>
         <div class="muted small">{{ item.created_at }}</div>
@@ -166,5 +171,9 @@
     <label><span>Vitnets signatur</span><input form="preview-edit-form" name="witness_signature" value="{{ case.witness_signature or case.witness_name or '' }}" /></label>
     <label class="span-2"><span>Etterforskers signatur</span><input form="preview-edit-form" name="investigator_signature" value="{{ case.investigator_signature or case.investigator_name or '' }}" /></label>
   </div>
+</section>
+
+<section class="preview-bottom-bar">
+  <a class="btn btn-primary btn-full" href="/cases/{{ case.id }}/edit">Tilbake til sak</a>
 </section>
 {% endblock %}

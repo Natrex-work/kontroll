@@ -1,16 +1,20 @@
 {% extends 'base.html' %}
-{% block title %}{{ case.case_number }} · {{ app_name }} {{ app_version }}{% endblock %}
+{% block title %}{{ case.case_number }} · Kontroll Og Oppsyn {{ app_version }}{% endblock %}
 {% block content %}
 <section class="page-header page-header-soft">
   <div>
     <div class="eyebrow">Kontrollsak</div>
-    <h1>{{ case.case_number }}</h1>
+    <div class="case-header-line">
+      <h1>{{ case.case_number }}</h1>
+      <label class="case-number-edit"><span>Rediger løpenummer</span><input type="number" min="1" max="999" step="1" name="case_number_suffix" form="case-form" value="{{ case.case_number.split()[-1] if case.case_number else '' }}" /></label>
+    </div>
     <p class="muted">Stegvis føring av kontroll med automatisk posisjon, registeroppslag, kontrollpunkter, illustrasjonsrapport og dokumentpakke.</p>
+    <div class="small muted">Bare de tre siste sifrene endres. Prefix og år beholdes automatisk.</div>
   </div>
   <div class="actions-row wrap">
     <button class="btn btn-primary" id="btn-manual-save" type="button">Lagre manuelt</button>
     <span class="autosave-pill muted" id="autosave-status">Autosave ikke startet</span>
-    <a class="btn btn-secondary" href="/cases/{{ case.id }}/preview">Forhåndsvis dokumentpakke</a>
+    <a class="btn btn-secondary" href="/cases/{{ case.id }}/preview" target="_blank" rel="noopener">Forhåndsvis dokumentpakke</a>
     <a class="btn btn-secondary" href="/cases/{{ case.id }}/interview-pdf">Eksporter kun avhørsrapport</a>
     <a class="btn btn-secondary" href="/cases/{{ case.id }}/bundle">Eksporter PDF og filer (ZIP)</a>
     <a class="btn btn-secondary" href="/cases/{{ case.id }}/pdf">Avslutt og eksporter PDF</a>
@@ -21,6 +25,8 @@
 {% if request.query_params.get('saved') %}
 <div class="alert alert-success">Saken er lagret.</div>
 {% endif %}
+{% if case_number_saved %}<div class="alert alert-success">Saksnummeret er oppdatert.</div>{% endif %}
+{% if case_number_error == 'duplicate' %}<div class="alert alert-error">Det saksnummeret finnes allerede. Velg et annet tresifret løpenummer.</div>{% endif %}
 
 <div id="case-app"
      data-case-id="{{ case.id }}"
@@ -131,34 +137,21 @@
         <div class="subcard">
           <h3>Posisjon og område</h3>
           <div class="grid-two compact-grid-form margin-top-s">
-            <label><span>Sted / nærmeste sted</span><input name="location_name" id="location_name" value="{{ case.location_name or '' }}" /></label>
-            <div class="stack gap-s position-action-group">
-              <span>Handlinger</span>
-              <div class="actions-row wrap position-actions">
-                <button type="button" class="btn btn-primary" id="btn-use-location">Bruk automatisk posisjon</button>
-                <button type="button" class="btn btn-secondary" id="btn-enable-manual-position">Sett manuelt i kart</button>
-                <button type="button" class="btn btn-secondary" id="btn-check-zone">Oppdater områdestatus</button>
-              </div>
-            </div>
+            <label><span>Nærmeste sted</span><input name="location_name" id="location_name" value="{{ case.location_name or '' }}" /></label>
+            <div class="stack gap-s"><span>Handlinger</span><div class="actions-row wrap"><button type="button" class="btn btn-secondary" id="btn-use-location">Bruk min posisjon</button><button type="button" class="btn btn-secondary" id="btn-set-manual-position">Sett manuelt i kart</button><button type="button" class="btn btn-secondary" id="btn-check-zone">Oppdater områdestatus</button></div></div>
+            <label><span>Latitude</span><input name="latitude" id="latitude" value="{{ case.latitude or '' }}" /></label>
+            <label><span>Longitude</span><input name="longitude" id="longitude" value="{{ case.longitude or '' }}" /></label>
             <label><span>Områdestatus</span><input name="area_status" id="area_status" value="{{ case.area_status or '' }}" readonly /></label>
             <input type="hidden" name="area_name" id="area_name" value="{{ case.area_name or '' }}" />
           </div>
-          <div class="callout margin-top-s" id="position-guide">På iPhone: bruk automatisk posisjon først. Hvis enheten ikke deler posisjon, trykk «Sett manuelt i kart» og trykk i kartet for å plassere kontrollstedet.</div>
-          <div class="callout margin-top-s hidden" id="manual-position-status">Manuell posisjon er valgt.</div>
-          <details class="source-disclosure margin-top-s coordinate-disclosure">
-            <summary>Koordinater og manuell innskriving</summary>
-            <div class="grid-two compact-grid-form margin-top-s">
-              <label><span>Latitude</span><input name="latitude" id="latitude" value="{{ case.latitude or '' }}" placeholder="f.eks. 63.4305" /></label>
-              <label><span>Longitude</span><input name="longitude" id="longitude" value="{{ case.longitude or '' }}" placeholder="f.eks. 10.3951" /></label>
-            </div>
-          </details>
+          <div class="callout margin-top-s" id="manual-position-status">Automatisk posisjon fra enheten er aktiv når du trykker «Bruk min posisjon». Hvis GPS ikke virker, trykk «Sett manuelt i kart» og plasser nålen selv.</div>
           <div class="callout margin-top-s" id="area-status-detail">Områdestatus og nærmeste sted vises her når posisjonen er kontrollert.</div>
         </div>
       </div>
       <div class="subcard margin-top-m">
         <div class="subcard-head">
           <h3>Kartoversikt</h3>
-          <span class="muted small">Trykk i kartet eller dra nålen for å sette manuell posisjon. Fredningsområder, stengte områder og andre reguleringslag vises over kartet.</span>
+          <span class="muted small">Fredningsområder, forbudsområder, nullfiskeområder og relevante reguleringslag vises over kartet.</span>
         </div>
         <div id="case-position-map" class="leaflet-map case-map" data-portal-catalog='{{ portal_layers|tojson }}'></div>
       </div>
@@ -277,7 +270,7 @@
         {% for item in evidence %}
         {% if not item.mime_type or not item.mime_type.startswith('audio/') %}
         <article class="evidence-card">
-          <img src="{{ item.url }}" alt="{{ item.caption or item.original_filename }}" />
+          <img src="/uploads/{{ item.filename }}" alt="{{ item.caption or item.original_filename }}" />
           <div class="evidence-body">
             <strong>{{ item.caption or item.original_filename }}</strong>
             {% if item.finding_key %}<div class="muted small">Kontrollpunkt: {{ item.finding_key }}</div>{% endif %}
@@ -331,9 +324,9 @@
             {% if item.mime_type and item.mime_type.startswith('audio/') %}
             <article class="audio-item">
               <strong>{{ item.caption or item.original_filename }}</strong>
-              <audio controls preload="none" src="{{ item.url }}"></audio>
+              <audio controls preload="none" src="/uploads/{{ item.filename }}"></audio>
               <div class="actions-row wrap">
-                <a class="btn btn-secondary btn-small" href="{{ item.url }}" download>Last ned</a>
+                <a class="btn btn-secondary btn-small" href="/uploads/{{ item.filename }}" download>Last ned</a>
                 <form method="post" action="/evidence/{{ item.id }}/delete" onsubmit="return confirm('Slette lydfil?');">
                   <button class="btn btn-danger btn-small" type="submit">Slett</button>
                 </form>
@@ -377,7 +370,7 @@
     </div>
     <div class="actions-row wrap margin-top-s">
       <button class="btn btn-secondary" type="button" id="btn-generate-summary">Autogenerer tekst</button>
-      <a class="btn btn-secondary" href="/cases/{{ case.id }}/preview">Forhåndsvis dokumentpakke</a>
+      <a class="btn btn-secondary" href="/cases/{{ case.id }}/preview" target="_blank" rel="noopener">Forhåndsvis dokumentpakke</a>
       <a class="btn btn-secondary" href="/cases/{{ case.id }}/interview-pdf">Eksporter kun avhørsrapport</a>
       <a class="btn btn-secondary" href="/cases/{{ case.id }}/bundle">Eksporter PDF og filer (ZIP)</a>
       <a class="btn btn-primary" href="/cases/{{ case.id }}/pdf">Avslutt og eksporter PDF</a>

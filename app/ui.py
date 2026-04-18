@@ -10,7 +10,6 @@ from . import area, catalog, db, live_sources
 from .config import settings
 from .dependencies import current_user, first_allowed_path, has_permission, user_permissions
 from .pdf_export import CASE_BASIS_LABELS
-from .security import ensure_csrf_token
 
 templates = Jinja2Templates(directory=str(settings.templates_dir))
 
@@ -64,7 +63,6 @@ def render_template(request: Request, name: str, **context: Any) -> HTMLResponse
     user = current_user(request)
     base_context = {
         'request': request,
-        'csrf_token': ensure_csrf_token(request),
         'current_user': user,
         'current_permissions': user_permissions(user),
         'nav_links': build_nav_links(user),

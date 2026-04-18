@@ -31,22 +31,28 @@
     var layers = parseJson(el.dataset.portalCatalog, []);
     var statusEl = document.getElementById('overview-map-status');
     var btn = document.getElementById('btn-overview-location');
-    var state = { lat: null, lng: null, layer: null };
+    var state = { lat: null, lng: null, layer: null, deviceLat: null, deviceLng: null, deviceAccuracy: null, recenterTo: '' };
     var watchId = null;
     createPortalMap(el, layers, state);
 
     function refreshOverviewFromPosition(position) {
-      state.lat = Number(position.coords.latitude.toFixed(6));
-      state.lng = Number(position.coords.longitude.toFixed(6));
-      fetch('/api/zones/check?lat=' + encodeURIComponent(state.lat) + '&lng=' + encodeURIComponent(state.lng))
+      var lat = Number(position.coords.latitude.toFixed(6));
+      var lng = Number(position.coords.longitude.toFixed(6));
+      state.lat = null;
+      state.lng = null;
+      state.deviceLat = lat;
+      state.deviceLng = lng;
+      state.deviceAccuracy = Number(position.coords.accuracy || 12);
+      state.recenterTo = 'device';
+      fetch('/api/zones/check?lat=' + encodeURIComponent(lat) + '&lng=' + encodeURIComponent(lng))
         .then(function (r) { return r.json(); })
         .then(function (result) {
           statusEl.innerHTML = zoneResultHtml(result);
-          createPortalMap(el, layers, state);
+          createPortalMap(el, layers, state).then(function(){ state.recenterTo = ''; });
         })
         .catch(function () {
           statusEl.innerHTML = 'Kunne ikke sjekke områdestatus akkurat nå.';
-          createPortalMap(el, layers, state);
+          createPortalMap(el, layers, state).then(function(){ state.recenterTo = ''; });
         });
     }
 

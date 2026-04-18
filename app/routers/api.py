@@ -9,7 +9,6 @@ from ..pdf_export import build_text_drafts
 from ..schemas import SummarySuggestRequest, TextPolishRequest
 from ..services.registry_service import gear_summary, lookup_registry
 from ..services.rules_service import check_zone_status, get_rule_bundle_with_live_sources
-from ..security import verify_csrf
 
 router = APIRouter()
 
@@ -30,8 +29,7 @@ def _basis_opening_phrase(case_basis: str, source_name: str = '') -> str:
 
 
 @router.post('/api/text/polish')
-async def api_text_polish(request: Request, payload: TextPolishRequest):
-    await verify_csrf(request)
+def api_text_polish(request: Request, payload: TextPolishRequest):
     require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til KV Kontroll.')
     mode = str(payload.mode or 'generic').strip()
     text_in = str(payload.text or '').strip()
@@ -113,8 +111,7 @@ def api_gear_summary(request: Request, phone: str = '', name: str = '', address:
 
 
 @router.post('/api/summary/suggest')
-async def api_summary_suggest(request: Request, payload: SummarySuggestRequest):
-    await verify_csrf(request)
+def api_summary_suggest(request: Request, payload: SummarySuggestRequest):
     require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til KV Kontroll.')
     case_row = {'summary': '', 'case_basis': payload.case_basis or 'patruljeobservasjon', 'control_type': payload.control_type or '', 'species': payload.species or '', 'fishery_type': payload.fishery_type or payload.species or '', 'gear_type': payload.gear_type or '', 'location_name': payload.location_name or '', 'area_name': payload.area_name or '', 'area_status': payload.area_status or '', 'suspect_name': payload.suspect_name or '', 'basis_details': payload.basis_details or '', 'start_time': payload.start_time or '', 'latitude': payload.latitude, 'longitude': payload.longitude}
     drafts = build_text_drafts(case_row, payload.findings)

@@ -43,8 +43,8 @@ def _merge_directory_contact(person: dict[str, Any], *, phone_lookup: str = '', 
     source_name = str(item.get('source') or '').strip().lower()
     prefer_directory = source_name in {
         'hummerliste',
-        'lokalt register',
-        'lokal hummerdeltakerliste',
+        'demo',
+        'demo hummerdeltakerliste',
         'fiskeridirektoratet - registrerte hummarfiskarar',
     }
     if directory_person.get('address'):
@@ -113,12 +113,12 @@ def lookup_registry(*, phone: str = '', vessel_reg: str = '', radio_call_sign: s
     live_result: dict[str, Any] = {'found': False, 'message': '', 'candidates': []}
 
     person: dict[str, Any] | None = None
-    source = 'lokalt register'
+    source = 'demo'
     candidates: list[dict[str, Any]] = []
 
     if local_candidates:
         person = dict(local_candidates[0])
-        source = 'lokalt register'
+        source = 'demo'
         candidates.extend(local_candidates)
         candidates.extend(case_candidates)
     elif case_candidates:
@@ -139,7 +139,7 @@ def lookup_registry(*, phone: str = '', vessel_reg: str = '', radio_call_sign: s
             'hummer_participant_no': hummer_person.get('participant_no') or participant_lookup,
             'hummer_last_registered': hummer_person.get('last_registered_display') or hummer_person.get('last_registered_year') or '',
             'fisher_type': hummer_person.get('fisher_type') or '',
-            'source': hummer_person.get('source') or 'Fiskeridirektoratet hummerregister',
+            'source': hummer_person.get('source') or 'Hummerliste',
             'match_reason': 'hummerdeltakernummer / hummerliste',
             'source_url': hummer_person.get('source_url') or '',
         }

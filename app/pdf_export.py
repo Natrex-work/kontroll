@@ -196,7 +196,7 @@ def _generate_vector_overview_map_image(case_row: Dict[str, Any], output_dir: Pa
         'violation_reason': 'Automatisk generert kartoversikt med kontrollposisjon og nærliggende regulerte områder.',
         'created_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC'),
         'generated_path': str(outpath),
-        'preview_url': f"/cases/{int(case_row.get('id') or 0)}/overview-map",
+        'preview_url': '/generated/' + outpath.name,
     }
 
 
@@ -334,7 +334,7 @@ def _generate_tile_overview_map_image(case_row: Dict[str, Any], output_dir: Path
         'violation_reason': 'Automatisk generert kartoversikt med kontrollposisjon, stedsnavn og nærliggende regulerte områder.',
         'created_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC'),
         'generated_path': str(outpath),
-        'preview_url': f"/cases/{int(case_row.get('id') or 0)}/overview-map",
+        'preview_url': '/generated/' + outpath.name,
     }
 
 
@@ -1433,8 +1433,8 @@ def build_case_packet(case_row: Dict[str, Any], evidence_rows: Iterable[Dict[str
         'legal_refs': legal_refs,
         'findings': findings,
         'sources': sources,
-        'evidence': [dict(item, preview_url=item.get('preview_url') or (f"/evidence/{int(item.get('id') or 0)}/content" if item.get('id') else '')) for item in list(image_rows)],
-        'audio_files': [dict(item, preview_url=(f"/evidence/{int(item.get('id') or 0)}/content" if item.get('id') else '')) for item in list(audio_rows)],
+        'evidence': [dict(item, preview_url=item.get('preview_url') or ('/uploads/' + str(item.get('filename') or ''))) for item in list(image_rows)],
+        'audio_files': [dict(item, preview_url='/uploads/' + str(item.get('filename') or '')) for item in list(audio_rows)],
         'interview_entries': [entry for entry in _safe_list_json(case_row.get('interview_sessions_json')) if isinstance(entry, dict)],
         'notes': case_row.get('notes') or 'Ingen utfyllende egenrapport registrert.',
         'hearing_text': case_row.get('hearing_text') or 'Ingen avhørstekst registrert.',

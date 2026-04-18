@@ -1,1 +1,1 @@
-"""Service layer for Fiskerikontroll."""
+"""Service layer for KV Kontroll demo."""

@@ -9,7 +9,6 @@ from ..auth import hash_password
 from ..dependencies import require_control_admin, require_user_admin
 from ..ui import render_template
 from ..validation import validate_case_prefix, validate_email, validate_password, validate_role
-from ..security import verify_csrf
 
 router = APIRouter()
 
@@ -34,7 +33,6 @@ def admin_users(request: Request):
 
 @router.post('/admin/users')
 async def admin_create_user(request: Request):
-    await verify_csrf(request)
     admin = require_user_admin(request)
     form = await request.form()
     users = db.list_users()
@@ -76,7 +74,6 @@ async def admin_create_user(request: Request):
 
 @router.post('/admin/users/{user_id}/update')
 async def admin_update_user(request: Request, user_id: int):
-    await verify_csrf(request)
     admin = require_user_admin(request)
     user_row = db.get_user_by_id(user_id)
     if not user_row:
@@ -121,7 +118,6 @@ async def admin_update_user(request: Request, user_id: int):
 
 @router.post('/admin/users/{user_id}/reset-password')
 async def admin_reset_password(request: Request, user_id: int):
-    await verify_csrf(request)
     admin = require_user_admin(request)
     user_row = db.get_user_by_id(user_id)
     if not user_row:
@@ -138,8 +134,7 @@ async def admin_reset_password(request: Request, user_id: int):
 
 
 @router.post('/admin/users/{user_id}/remove')
-async def admin_remove_user(request: Request, user_id: int):
-    await verify_csrf(request)
+def admin_remove_user(request: Request, user_id: int):
     admin = require_user_admin(request)
     user_row = db.get_user_by_id(user_id)
     if not user_row:
@@ -160,8 +155,7 @@ def admin_controls(request: Request, state: str = 'active', q: str = ''):
 
 
 @router.post('/admin/controls/{case_id}/delete')
-async def admin_delete_control(request: Request, case_id: int):
-    await verify_csrf(request)
+def admin_delete_control(request: Request, case_id: int):
     admin = require_control_admin(request)
     case_row = db.get_case(case_id)
     if not case_row:
@@ -174,8 +168,7 @@ async def admin_delete_control(request: Request, case_id: int):
 
 
 @router.post('/admin/controls/{case_id}/restore')
-async def admin_restore_control(request: Request, case_id: int):
-    await verify_csrf(request)
+def admin_restore_control(request: Request, case_id: int):
     admin = require_control_admin(request)
     case_row = db.get_case(case_id)
     if not case_row:

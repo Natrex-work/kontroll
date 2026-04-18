@@ -2,14 +2,9 @@
 <html lang="no">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#0f2740" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="{{ app_name }}" />
-  <meta name="format-detection" content="telephone=no" />
-  <meta name="csrf-token" content="{{ csrf_token }}" />
-  <title>{% block title %}{{ app_name }} {{ app_version }}{% endblock %}</title>
+  <title>{% block title %}Kontroll Og Oppsyn {{ app_version }}{% endblock %}</title>
   <link rel="manifest" href="/static/manifest.webmanifest" />
   <link rel="apple-touch-icon" href="/static/icon-192.png" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
@@ -18,17 +13,14 @@
 <body>
   <div class="app-shell">
     {% if current_user %}
-    <aside class="sidebar" id="app-sidebar">
-      <div class="sidebar-main">
-        <div class="sidebar-topbar">
-          <div class="brand">
-            <div class="brand-badge">KV</div>
-            <div class="brand-meta">
-              <strong class="brand-title"><span class="brand-app-name">{{ app_name }}</span> <span class="brand-version">{{ app_version }}</span></strong>
-              <div class="muted sidebar-subtitle">Kart, regelverk, kontroll og administrasjon etter tilgang</div>
-            </div>
+    <aside class="sidebar">
+      <div>
+        <div class="brand">
+          <div class="brand-badge">KV</div>
+          <div>
+            <strong>Kontroll Og Oppsyn {{ app_version }}</strong>
+            <div class="muted sidebar-subtitle">Kart, regelverk, kontroll og administrasjon etter tilgang</div>
           </div>
-          <button class="sidebar-toggle" id="sidebar-toggle" type="button" aria-expanded="false" aria-controls="sidebar-footer">Profil</button>
         </div>
         <nav class="nav">
           {% for link in nav_links %}
@@ -36,7 +28,7 @@
           {% endfor %}
         </nav>
       </div>
-      <div class="sidebar-footer" id="sidebar-footer">
+      <div class="sidebar-footer">
         <div class="sidebar-user-card">
           <div><strong>{{ current_user.full_name }}</strong></div>
           <div class="muted">{{ current_user.email }}</div>

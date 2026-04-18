@@ -11,45 +11,13 @@ from ..logging_setup import get_logger
 logger = get_logger(__name__)
 
 
-def _validate_security_settings() -> None:
-    if settings.session_secret == 'dev-session-secret-change-me':
-        logger.warning('SESSION_SECRET bruker standard utviklingsverdi. Sett en unik verdi i .env før appen tas i bruk.')
-    if not settings.data_encryption_key:
-        logger.warning('KV_DATA_ENCRYPTION_KEY er ikke satt. Appen vil avlede krypteringsnøkkel fra SESSION_SECRET. Sett egen nøkkel i produksjon.')
-    if settings.production_mode and not settings.session_https_only:
-        logger.warning('KV_PRODUCTION_MODE er aktiv, men KV_SESSION_HTTPS_ONLY er ikke slått på. Slå på sikre cookies før produksjonsbruk.')
-
-
-
 def initialize_application_data() -> None:
     settings.ensure_runtime_dirs()
     db.init_db()
-    bootstrap_admin_if_configured()
-    if settings.bootstrap_demo_users:
-        seed_default_users()
-    if settings.bootstrap_demo_cases:
-        seed_demo_cases_if_empty()
-    _validate_security_settings()
-    if db.count_users() == 0:
-        logger.warning('Ingen brukere er opprettet ennå. Kjør manage.py create-admin eller sett KV_BOOTSTRAP_ADMIN_* i miljøet.')
-
-
-
-def bootstrap_admin_if_configured() -> None:
-    if db.count_users() > 0:
-        return
-    if not (settings.bootstrap_admin_email and settings.bootstrap_admin_name and settings.bootstrap_admin_password):
-        return
-    admin_id = db.create_user(
-        email=settings.bootstrap_admin_email,
-        full_name=settings.bootstrap_admin_name,
-        password_hash=hash_password(settings.bootstrap_admin_password),
-        role='admin',
-        case_prefix='LBHN',
-    )
-    db.record_audit(admin_id, 'bootstrap_admin', 'user', admin_id, {'email': settings.bootstrap_admin_email})
-    logger.info('Opprettet første administrator fra miljøvariabler.')
-
+    seed_default_users()
+    seed_demo_cases_if_empty()
+    if settings.session_secret == 'dev-session-secret-change-me':
+        logger.warning('SESSION_SECRET bruker standard utviklingsverdi. Sett en unik verdi i .env for produksjonsbruk.')
 
 
 def seed_default_users() -> None:
@@ -77,7 +45,6 @@ def seed_default_users() -> None:
         db.record_audit(user_id, 'seed_user', 'user', user_id, {'email': 'kontrollor@kv.demo'})
 
 
-
 def _bundle_findings(
     control_type: str,
     species: str,
@@ -100,7 +67,6 @@ def _bundle_findings(
         clone['notes'] = clone.get('notes') or ''
         findings.append(clone)
     return findings, list(bundle.get('sources') or [])
-
 
 
 def seed_demo_cases_if_empty() -> None:
@@ -143,9 +109,78 @@ def seed_demo_cases_if_empty() -> None:
                 'minstemal': {'status': 'avvik', 'notes': 'Tre hummer kontrollmålt til under minstemål ved kontroll på stedet.'},
                 'omradekontroll': {'status': 'avvik', 'notes': 'Kontrollpunktet og oppbevaring ble registrert i demo-fredningsområde.'},
             },
+            'attach_demo_image': True,
+        },
+        {
+            'title': 'Tips - fritidsfiske med garn i stengt område',
+            'case_basis': 'tips',
+            'basis_source_name': 'Anonym tipstelefon',
+            'basis_details': 'Det ble opplyst om mulig ulovlig garnsetting i et område som i demoen er merket som stengt.',
+            'control_type': 'Fritidsfiske',
+            'fishery_type': 'Torsk',
+            'species': 'Torsk',
+            'gear_type': 'Garn',
+            'start_time': '2026-03-19T08:20',
+            'end_time': '2026-03-19T09:05',
+            'location_name': 'Drøbak demo',
+            'latitude': 59.656000,
+            'longitude': 10.628000,
+            'area_status': 'stengt område',
+            'area_name': 'Stengt område demo - Drøbak',
+            'suspect_name': 'Per Garnsen',
+            'suspect_phone': '91500003',
+            'suspect_birthdate': '22.11.1968',
+            'suspect_address': 'Sjøgata 7, 8001 Demo',
+            'vessel_name': 'MS Nordhavet',
+            'vessel_reg': 'T-88-P',
+            'notes': 'Kontrollen ble iverksatt etter tips. Garnlenke ble funnet i demo-stengt område. Merking og områdekontroll ble dokumentert med foto og posisjon.',
+            'hearing_text': 'Avhørte opplyser at han ikke kjente til stengingen og at garnene var satt kvelden før.',
+            'seizure_notes': 'To bilder av garnsetting og posisjon ble sikret i saken. Ingen fysisk beslag i demoen.',
+            'summary': '',
+            'status': 'Anmeldt',
+            'finding_overrides': {
+                'omrade_generisk': {'status': 'avvik', 'notes': 'GPS-posisjon viste at garnene stod i demo-stengt område.'},
+                'fangst': {'status': 'avvik', 'notes': 'Kontroll av fangst og oppbevaring ga grunnlag for videre vurdering.'},
+            },
+            'attach_demo_image': False,
+        },
+        {
+            'title': 'Anmeldelse - kommersiell garnkontroll',
+            'case_basis': 'anmeldelse',
+            'basis_source_name': 'Innmeldt sak fra ekstern aktør',
+            'basis_details': 'Saken ble registrert etter melding om mulig mangelfull merking og dokumentasjon ved kommersielt garnfiske.',
+            'control_type': 'Kommersiell',
+            'fishery_type': 'Torsk',
+            'species': 'Torsk',
+            'gear_type': 'Garn',
+            'start_time': '2026-03-20T11:15',
+            'end_time': '2026-03-20T12:05',
+            'location_name': 'Nordhavet demo',
+            'latitude': 68.000100,
+            'longitude': 15.120100,
+            'area_status': 'normalt område',
+            'area_name': 'Ingen kjent demo-sone',
+            'suspect_name': 'Kari Kyst',
+            'suspect_phone': '91500002',
+            'suspect_birthdate': '02.09.1981',
+            'suspect_address': 'Naustvika 3, 8400 Demo',
+            'vessel_name': 'KV Teine',
+            'vessel_reg': 'NF-204-K',
+            'notes': 'Kontrollen ble gjennomført etter registrert anmeldelse. Det ble kontrollert fartøyopplysninger, merking og dokumentasjon om bord.',
+            'hearing_text': 'Avhørte forklarer at dokumentasjonen lå i annen mappe om bord og at merkingen skulle oppdateres før neste tur.',
+            'seizure_notes': 'Dokumentasjon og merking ble fotografert i demoen.',
+            'summary': '',
+            'status': 'Anmeldt',
+            'finding_overrides': {
+                'redskap_merket': {'status': 'avvik', 'notes': 'Merkingen på garnsettet var mangelfull ved kontrolltidspunktet.'},
+                'dokumentasjon': {'status': 'avvik', 'notes': 'Påkrevd dokumentasjon var ikke umiddelbart tilgjengelig for kontrollør.'},
+            },
             'attach_demo_image': False,
         },
     ]
+
+    demo_image = settings.upload_dir / 'demo_evidence_case1.png'
+    extra_image = settings.upload_dir / '4e6749af8fc3498e879dbc692632e6a8.png'
 
     for scenario in scenarios:
         case_id = db.create_case(
@@ -163,7 +198,12 @@ def seed_demo_cases_if_empty() -> None:
         payload['source_snapshot_json'] = json.dumps(sources, ensure_ascii=False)
         db.save_case(case_id, payload)
 
+        if scenario.get('attach_demo_image') and demo_image.exists():
+            db.add_evidence(case_id, demo_image.name, demo_image.name, 'Demo-bevis fra kontrollsted', 'image/png', demo_user['id'])
+        elif extra_image.exists():
+            db.add_evidence(case_id, extra_image.name, extra_image.name, 'Demo-bilde fra kontroll', 'image/png', demo_user['id'])
+
         case_row = db.get_case(case_id)
         db.record_audit(demo_user['id'], 'seed_case', 'case', case_id, {'title': scenario['title'], 'case_number': case_row['case_number'] if case_row else None})
 
-    logger.info('Seedet demo-saker fordi KV_BOOTSTRAP_DEMO_CASES=1.')
+    logger.info('Seedet demo-brukere og demo-saker for v25-oppsett.')
