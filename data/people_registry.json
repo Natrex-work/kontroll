@@ -1,0 +1,89 @@
+[
+  {
+    "name": "Ola Havfisker",
+    "birthdate": "12.04.1976",
+    "address": "Bryggeveien 12, 3480 Demo",
+    "phone": "91500001",
+    "vessel_name": "MS Demofjord",
+    "vessel_reg": "LF-100-D",
+    "aliases": [
+      "O Havfisker",
+      "Ola H"
+    ],
+    "tag_samples": [
+      "OLA HAVFISKER 91500001 LF-100-D",
+      "LF100D OLA HAVFISKER",
+      "H-2026-001"
+    ],
+    "hummer_participant_no": "H-2026-001",
+    "radio_call_sign": "LC001"
+  },
+  {
+    "name": "Kari Kyst",
+    "birthdate": "02.09.1981",
+    "address": "Naustvika 3, 8400 Demo",
+    "phone": "91500002",
+    "vessel_name": "KV Teine",
+    "vessel_reg": "NF-204-K",
+    "aliases": [
+      "Kari K",
+      "K Kyst"
+    ],
+    "tag_samples": [
+      "KARI KYST 91500002 NF-204-K",
+      "NF204K KARI KYST",
+      "H-2026-003"
+    ],
+    "hummer_participant_no": "H-2026-003",
+    "radio_call_sign": "LC002"
+  },
+  {
+    "name": "Per Garnsen",
+    "birthdate": "22.11.1968",
+    "address": "Sjogata 7, 8001 Demo",
+    "phone": "91500003",
+    "vessel_name": "MS Nordhavet",
+    "vessel_reg": "T-88-P",
+    "aliases": [
+      "Per G",
+      "Garnsen"
+    ],
+    "tag_samples": [
+      "PER GARNSEN 91500003 T-88-P",
+      "T88P PER GARNSEN",
+      "H-2026-002"
+    ],
+    "hummer_participant_no": "H-2026-002",
+    "radio_call_sign": "LC003"
+  },
+  {
+    "name": "Jan Teinevik",
+    "birthdate": "03.01.1974",
+    "address": "Baatstoa 4, 8402 Demo",
+    "phone": "91500004",
+    "vessel_name": "MS Skjaerbaat",
+    "vessel_reg": "N-55-JT",
+    "aliases": [
+      "J Teinevik"
+    ],
+    "tag_samples": [
+      "JAN TEINEVIK 91500004 N-55-JT"
+    ],
+    "radio_call_sign": "LC004"
+  },
+  {
+    "name": "Mari Fjord",
+    "birthdate": "14.08.1990",
+    "address": "Kai 8, 5003 Demo",
+    "phone": "91500005",
+    "vessel_name": "MS Fjordbris",
+    "vessel_reg": "H-712-MF",
+    "aliases": [
+      "Mari F"
+    ],
+    "tag_samples": [
+      "MARI FJORD 91500005 H-712-MF"
+    ],
+    "radio_call_sign": "LC005"
+  }
+]

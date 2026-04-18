@@ -1,0 +1,137 @@
+workflows:
+  ios-testflight-internal:
+    name: Fiskerikontroll - iOS TestFlight Internal
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    integrations:
+      app_store_connect: KOO_ASC
+    environment:
+      xcode: latest
+      vars:
+        XCODE_PROJECT: ios_native/KontrollOgOppsynNative.xcodeproj
+        XCODE_SCHEME: KontrollOgOppsynNative
+        DISPLAY_NAME: Fiskerikontroll
+        MARKETING_VERSION: 1.4.0
+        RELOCK_SECONDS: "30"
+        SUPPORT_EMAIL: it@example.no
+        # Set these in Codemagic App settings -> Environment variables
+        # SERVER_URL=https://kontroll.example.no
+        # BUNDLE_ID=no.virksomhet.kontrollogoppsyn
+        # APPLE_TEAM_ID=A1B2C3D4E5
+        # APP_STORE_APPLE_ID=1234567890
+        # ALLOWED_HOSTS=kontroll.example.no,api.kontroll.example.no
+        # PINNED_CERT_SHA256=<optional comma-separated pins>
+      ios_signing:
+        provisioning_profiles:
+          - profile: KOO_APPSTORE_PROFILE
+        certificates:
+          - certificate: KOO_DIST_CERT
+    triggering:
+      events:
+        - manual
+      cancel_previous_builds: true
+    scripts:
+      - name: Resolve build number
+        script: |
+          set -euo pipefail
+          if [[ -n "${APP_STORE_APPLE_ID:-}" ]]; then
+            LATEST_BUILD_NUMBER="$(app-store-connect get-latest-app-store-build-number "$APP_STORE_APPLE_ID" 2>/dev/null || true)"
+          else
+            LATEST_BUILD_NUMBER=""
+          fi
+          if [[ -n "$LATEST_BUILD_NUMBER" ]]; then
+            NEXT_BUILD_NUMBER="$((LATEST_BUILD_NUMBER + 1))"
+          else
+            NEXT_BUILD_NUMBER="$((BUILD_NUMBER + 1))"
+          fi
+          echo "Using build number: $NEXT_BUILD_NUMBER"
+          export BUILD_NUMBER_OVERRIDE="$NEXT_BUILD_NUMBER"
+          echo "BUILD_NUMBER_OVERRIDE=$BUILD_NUMBER_OVERRIDE" >> "$CM_ENV"
+      - name: Configure native wrapper for this environment
+        script: |
+          set -euo pipefail
+          bash "$CM_BUILD_DIR/ios_native/scripts/prepare_codemagic.sh"
+      - name: Apply provisioning profiles to Xcode project
+        script: |
+          set -euo pipefail
+          cd "$CM_BUILD_DIR/ios_native"
+          xcode-project use-profiles \
+            --project "$CM_BUILD_DIR/$XCODE_PROJECT" \
+            --scheme "$XCODE_SCHEME" \
+            --custom-export-options='{"testFlightInternalTestingOnly": true}'
+      - name: Build IPA for internal TestFlight
+        script: |
+          set -euo pipefail
+          xcode-project build-ipa \
+            --project "$CM_BUILD_DIR/$XCODE_PROJECT" \
+            --scheme "$XCODE_SCHEME"
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.app
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+
+  ios-adhoc-artifact:
+    name: Fiskerikontroll - iOS Ad Hoc IPA
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    integrations:
+      app_store_connect: KOO_ASC
+    environment:
+      xcode: latest
+      vars:
+        XCODE_PROJECT: ios_native/KontrollOgOppsynNative.xcodeproj
+        XCODE_SCHEME: KontrollOgOppsynNative
+        DISPLAY_NAME: Fiskerikontroll
+        MARKETING_VERSION: 1.4.0
+        RELOCK_SECONDS: "30"
+        SUPPORT_EMAIL: it@example.no
+        # Set these in Codemagic App settings -> Environment variables
+        # SERVER_URL=https://kontroll.example.no
+        # BUNDLE_ID=no.virksomhet.kontrollogoppsyn
+        # APPLE_TEAM_ID=A1B2C3D4E5
+        # ALLOWED_HOSTS=kontroll.example.no,api.kontroll.example.no
+        # PINNED_CERT_SHA256=<optional comma-separated pins>
+      ios_signing:
+        provisioning_profiles:
+          - profile: KOO_ADHOC_PROFILE
+        certificates:
+          - certificate: KOO_DIST_CERT
+    triggering:
+      events:
+        - manual
+      cancel_previous_builds: true
+    scripts:
+      - name: Resolve build number
+        script: |
+          set -euo pipefail
+          NEXT_BUILD_NUMBER="$((BUILD_NUMBER + 1))"
+          echo "Using build number: $NEXT_BUILD_NUMBER"
+          export BUILD_NUMBER_OVERRIDE="$NEXT_BUILD_NUMBER"
+          echo "BUILD_NUMBER_OVERRIDE=$BUILD_NUMBER_OVERRIDE" >> "$CM_ENV"
+      - name: Configure native wrapper for this environment
+        script: |
+          set -euo pipefail
+          bash "$CM_BUILD_DIR/ios_native/scripts/prepare_codemagic.sh"
+      - name: Apply provisioning profiles to Xcode project
+        script: |
+          set -euo pipefail
+          cd "$CM_BUILD_DIR/ios_native"
+          xcode-project use-profiles \
+            --project "$CM_BUILD_DIR/$XCODE_PROJECT" \
+            --scheme "$XCODE_SCHEME"
+      - name: Build ad hoc IPA
+        script: |
+          set -euo pipefail
+          xcode-project build-ipa \
+            --project "$CM_BUILD_DIR/$XCODE_PROJECT" \
+            --scheme "$XCODE_SCHEME"
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.app
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM

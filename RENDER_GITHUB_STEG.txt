@@ -1,0 +1,11 @@
+1. Pakk ut denne zip-filen.
+2. Last opp ALT innholdet i denne mappen til roten av GitHub-repoet ditt.
+3. Pass paa at Dockerfile ligger i repo-roten.
+4. Commit til samme branch som Render bruker.
+5. I Render, trykk Manual Deploy.
+6. Sett miljoevariablene i Render, spesielt:
+   KV_PRODUCTION_MODE=1
+   SESSION_SECRET=...
+   KV_DATA_ENCRYPTION_KEY=...
+   KV_ALLOWED_HOSTS=minfiskerikontroll.no,www.minfiskerikontroll.no,minfiskerikontroll.onrender.com
+   KV_SESSION_HTTPS_ONLY=1

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>ServerURL</key>
+    <string>https://kontroll.example.no</string>
+    <key>AllowedHosts</key>
+    <array>
+        <string>kontroll.example.no</string>
+        <string>api.kontroll.example.no</string>
+    </array>
+    <key>DisplayName</key>
+    <string>Fiskerikontroll</string>
+    <key>SupportEmail</key>
+    <string>it@example.no</string>
+    <key>BiometricRelockEnabled</key>
+    <true/>
+    <key>RelockAfterSeconds</key>
+    <integer>30</integer>
+    <key>PinnedCertificateSHA256</key>
+    <array>
+        <string>REPLACE_WITH_CERT_SHA256_HEX_OR_BASE64</string>
+    </array>
+</dict>
+</plist>

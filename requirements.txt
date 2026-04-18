@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+jinja2
+python-multipart
+argon2-cffi
+itsdangerous
+reportlab
+requests
+beautifulsoup4
+python-dotenv
+cryptography
+
+httpx

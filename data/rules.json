@@ -1,0 +1,57 @@
+{
+  "fritidsfiske:hummer:teine": {
+    "title": "Hummerkontroll – fritidsfiske med teine",
+    "description": "Stegvis regelsett for hummerkontroll med kildehenvisning til forskrift, J-melding og kartlag.",
+    "sources": [
+      {"name": "Lovdata", "ref": "Forskrift om høsting av hummer § 9"},
+      {"name": "Lovdata", "ref": "Forskrift om høsting av hummer § 12"},
+      {"name": "Fiskeridirektoratet", "ref": "J-melding / områderegler"},
+      {"name": "Fiskeridirektoratet", "ref": "Kartdata / Yggdrasil"}
+    ],
+    "items": [
+      {"key": "merking_redskap", "label": "Merking av redskap kontrollert", "source_name": "Fiskeridirektoratet", "source_ref": "J-melding / fritidsregler", "status": "godkjent", "notes": "Kontroller navn, telefon og merking på redskap."},
+      {"key": "fluktapning", "label": "Fluktåpninger kontrollert", "source_name": "Fiskeridirektoratet", "source_ref": "J-melding / hummer", "status": "godkjent", "notes": "Sjekk at teinen har korrekt fluktåpning."},
+      {"key": "bomullstrad", "label": "Bomullstråd / råtnetråd kontrollert", "source_name": "Fiskeridirektoratet", "source_ref": "J-melding / hummer", "status": "godkjent", "notes": "Kontroller at påkrevd råtnetråd er korrekt montert."},
+      {"key": "minstemal", "label": "Minstemål kontrollert (25 cm)", "source_name": "Lovdata", "source_ref": "§ 9", "status": "godkjent", "notes": "Måles fra spissen av pannehornet til bakre kant av midterste svømmelapp."},
+      {"key": "gjenutsetting", "label": "Hummer under minstemål gjenutsatt", "source_name": "Lovdata", "source_ref": "§ 12", "status": "godkjent", "notes": "Undermåls hummer skal straks slippes tilbake i sjøen."},
+      {"key": "omradekontroll", "label": "Posisjon kontrollert mot frednings- / stengt område", "source_name": "Fiskeridirektoratet", "source_ref": "Kartdata / Yggdrasil", "status": "godkjent", "notes": "Sjekk at kontroll og gjenutsetting skjer i korrekt område."}
+    ]
+  },
+  "kommersiell:torsk:garn": {
+    "title": "Kommersiell kontroll – torsk med garn",
+    "description": "Eksempelregelsett for kommersielt fiske med garn.",
+    "sources": [
+      {"name": "Lovdata", "ref": "Gjeldende forskrifter"},
+      {"name": "Fiskeridirektoratet", "ref": "J-melding / reguleringer"}
+    ],
+    "items": [
+      {"key": "fartoy_reg", "label": "Fartøy og eier registrert", "source_name": "Fiskeridirektoratet", "source_ref": "Fartøyregister", "status": "godkjent", "notes": "Bekreft fartøyopplysninger og ansvarlig eier."},
+      {"key": "redskap_merket", "label": "Garn merket iht. regelverk", "source_name": "Lovdata", "source_ref": "Forskrift / merking", "status": "godkjent", "notes": "Kontroller merking og identifikasjon."},
+      {"key": "omrade", "label": "Fiske i tillatt område", "source_name": "Fiskeridirektoratet", "source_ref": "Kartlag / stengte områder", "status": "godkjent", "notes": "Sammenhold GPS med gjeldende områdebegrensning."},
+      {"key": "dokumentasjon", "label": "Nødvendig dokumentasjon om bord", "source_name": "Lovdata", "source_ref": "Forskrift / dokumentasjonsplikt", "status": "godkjent", "notes": "Kontroller lisenser, papirer og annet kravgrunnlag."}
+    ]
+  },
+  "fritidsfiske:*:*": {
+    "title": "Standard fritidskontroll",
+    "description": "Generisk sjekkliste for fritidsfiske.",
+    "sources": [
+      {"name": "Lovdata", "ref": "Gjeldende regelverk"},
+      {"name": "Fiskeridirektoratet", "ref": "Fritidsregler"}
+    ],
+    "items": [
+      {"key": "merket_redskap", "label": "Redskap merket", "source_name": "Fiskeridirektoratet", "source_ref": "Fritidsregler", "status": "godkjent", "notes": "Kontroller navn/telefon eller annen påkrevd merking."},
+      {"key": "omrade_generisk", "label": "Område kontrollert", "source_name": "Fiskeridirektoratet", "source_ref": "Kartdata", "status": "godkjent", "notes": "Bekreft at fisket skjer i tillatt område."},
+      {"key": "fangst", "label": "Fangst og oppbevaring kontrollert", "source_name": "Lovdata", "source_ref": "Gjeldende forskrift", "status": "godkjent", "notes": "Registrer fangst, mengde og eventuelle avvik."}
+    ]
+  },
+  "*:*:*": {
+    "title": "Standard kontroll",
+    "description": "Brukes når det ikke finnes en mer spesifikk mal.",
+    "sources": [
+      {"name": "Lovdata", "ref": "Gjeldende regelverk"}
+    ],
+    "items": [
+      {"key": "grunnkontroll", "label": "Grunnkontroll gjennomført", "source_name": "Lovdata", "source_ref": "Gjeldende regelverk", "status": "godkjent", "notes": "Registrer observasjoner og avvik."}
+    ]
+  }
+}

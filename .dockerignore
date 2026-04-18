@@ -1,0 +1,13 @@
+.git
+.gitignore
+.venv
+__pycache__
+*.pyc
+*.pyo
+.env
+uploads/*
+!uploads/.gitkeep
+generated/*
+!generated/.gitkeep
+data/cache/
+ios_native/

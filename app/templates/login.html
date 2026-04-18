@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% block title %}Logg inn · {{ app_name }} {{ app_version }}{% endblock %}
+{% block content %}
+<section class="login-wrap">
+  <div class="login-card">
+    <div class="brand center">
+      <div class="brand-badge">KV</div>
+      <div>
+        <strong>{{ app_name }} {{ app_version }}</strong>
+        <div class="muted">Sikker kontrollapp for kontroll, kart, regelverk og dokumentasjon</div>
+      </div>
+    </div>
+    <h1>Logg inn</h1>
+    <p class="muted">Appen er klargjort for installasjon på iPhone og iPad som en nettskjerm-app, med modulstyrt tilgang, kryptering av sensitive felt og tilgangskontroll på vedlegg og dokumenter.</p>
+    {% if not has_users %}
+    <div class="callout stack gap-s">
+      <div><strong>Første oppstart:</strong> Det finnes ingen brukere ennå.</div>
+      <div class="small muted">Opprett første administrator med <code>python manage.py create-admin --email admin@domene.no --name "Fullt Navn" --password "SterktPassord123!"</code> eller ved å sette <code>KV_BOOTSTRAP_ADMIN_EMAIL</code>, <code>KV_BOOTSTRAP_ADMIN_NAME</code> og <code>KV_BOOTSTRAP_ADMIN_PASSWORD</code> i miljøet før oppstart.</div>
+    </div>
+    {% else %}
+    <div class="callout stack gap-s">
+      <div><strong>Tips:</strong> Legg appen til på hjemskjermen på iPhone eller iPad for fullskjermvisning og enklere bruk i felt.</div>
+      <div class="small muted">Bruk Safari og velg Del → Legg til på Hjem-skjerm.</div>
+    </div>
+    {% endif %}
+    {% if error %}
+      <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+    <form method="post" action="/login" class="stack gap-m">
+      <label>
+        <span>E-post</span>
+        <input name="email" type="email" placeholder="navn@kystvakt.no" autocomplete="username" required />
+      </label>
+      <label>
+        <span>Passord</span>
+        <input name="password" type="password" placeholder="••••••••••••" autocomplete="current-password" required />
+      </label>
+      <button class="btn btn-primary btn-full" type="submit">Logg inn</button>
+    </form>
+  </div>
+</section>
+{% endblock %}
