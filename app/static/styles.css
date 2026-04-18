@@ -41,6 +41,11 @@ button { cursor: pointer; }
   box-shadow: inset -1px 0 0 rgba(255,255,255,0.06);
 }
 .brand { display: flex; align-items: center; gap: 14px; }
+.sidebar-main { display: grid; gap: 24px; }
+.sidebar-topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.brand-meta { display: grid; gap: 4px; min-width: 0; }
+.brand-title { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; }
+.sidebar-toggle { display: none; border: none; border-radius: 999px; padding: 10px 14px; background: rgba(255,255,255,0.14); color: #fff; font-weight: 700; }
 .brand.center { justify-content: center; margin-bottom: 20px; }
 .brand-badge {
   width: 54px; height: 54px; border-radius: 16px;
@@ -809,13 +814,51 @@ input, select, textarea {
     position: sticky;
     top: 0;
     z-index: 20;
-    padding-top: calc(16px + var(--safe-top));
+    padding: calc(10px + var(--safe-top)) 12px 10px;
+    gap: 10px;
+  }
+  .brand {
+    gap: 10px;
+  }
+  .brand-badge {
+    width: 42px;
+    height: 42px;
+    border-radius: 14px;
+    font-size: 1.15rem;
+  }
+  .brand-title {
+    font-size: 1rem;
+  }
+  .brand-version,
+  .sidebar-subtitle {
+    display: none;
+  }
+  .sidebar-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    flex: 0 0 auto;
+  }
+  .sidebar-footer {
+    display: none;
+  }
+  .sidebar.sidebar-open .sidebar-footer {
+    display: grid;
   }
   .nav {
+    margin-top: 0;
     grid-auto-flow: column;
-    grid-auto-columns: minmax(140px, 1fr);
+    grid-auto-columns: minmax(132px, 1fr);
     overflow-x: auto;
     padding-bottom: 4px;
+    scrollbar-width: none;
+  }
+  .nav::-webkit-scrollbar {
+    display: none;
+  }
+  .nav-link {
+    padding: 10px 12px;
   }
   .main {
     padding: 14px;
@@ -838,6 +881,16 @@ input, select, textarea {
     flex-direction: column;
     align-items: stretch;
   }
+  .position-actions {
+    grid-template-columns: 1fr;
+  }
+  #case-position-map {
+    min-height: 460px;
+  }
+  .leaflet-legend-control {
+    min-width: 170px;
+    max-width: 220px;
+  }
   .step-actions {
     position: sticky;
     bottom: calc(var(--safe-bottom) + 8px);
@@ -849,4 +902,46 @@ input, select, textarea {
     padding: 16px;
     padding-bottom: calc(16px + var(--safe-bottom));
   }
+}
+
+
+.home-link-card-primary {
+  background: linear-gradient(180deg, #183a5b, #10273d);
+  color: #fff;
+  border-color: rgba(255,255,255,0.08);
+}
+.home-link-card-primary p,
+.home-link-card-primary .muted {
+  color: rgba(255,255,255,0.82);
+}
+.home-link-card-primary .home-card-icon {
+  background: rgba(255,255,255,0.14);
+  border-color: rgba(255,255,255,0.18);
+}
+.home-link-card-primary .home-card-icon svg {
+  stroke: #fff;
+}
+.position-action-group {
+  grid-column: 1 / -1;
+}
+.position-actions {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.position-actions .btn {
+  width: 100%;
+}
+.coordinate-disclosure summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+#position-guide,
+#manual-position-status,
+#area-status-detail {
+  line-height: 1.45;
+}
+#case-position-map {
+  min-height: 400px;
 }

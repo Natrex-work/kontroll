@@ -695,30 +695,49 @@
 
     return Promise.all(promises).then(function () {
       var circle = null;
-      if (markerState && markerState.lat && markerState.lng) {
-        markerState.layer = L.marker([markerState.lat, markerState.lng], { draggable: !!markerState.draggable }).addTo(map);
-        markerState.layer.bindPopup('Kontrollposisjon');
-        if (markerState.draggable && (typeof markerState.onMove === 'function' || typeof markerState.onManualMove === 'function')) {
-          markerState.layer.on('dragend', function (event) {
-            var ll = event.target.getLatLng();
-            if (typeof markerState.onManualMove === 'function') markerState.onManualMove(ll.lat, ll.lng);
-            else markerState.onMove(ll.lat, ll.lng);
-          });
-          if (markerState.allowMapMove) {
-            map.on('click', function (event) {
-              markerState.layer.setLatLng(event.latlng);
-              if (typeof markerState.onManualMove === 'function') markerState.onManualMove(event.latlng.lat, event.latlng.lng);
-              else markerState.onMove(event.latlng.lat, event.latlng.lng);
+
+      function ensureCircle(lat, lng) {
+        if (!markerState) return;
+        if (!circle) {
+          circle = L.circle([lat, lng], {
+            radius: (markerState.radiusKm || 50) * 1000,
+            color: '#24527b',
+            weight: 1,
+            fillColor: '#24527b',
+            fillOpacity: 0.06
+          }).addTo(map);
+          return;
+        }
+        circle.setLatLng([lat, lng]);
+      }
+
+      function syncMarker(lat, lng) {
+        if (!markerState) return;
+        if (!markerState.layer) {
+          markerState.layer = L.marker([lat, lng], { draggable: !!markerState.draggable }).addTo(map);
+          markerState.layer.bindPopup('Kontrollposisjon');
+          if (markerState.draggable && (typeof markerState.onMove === 'function' || typeof markerState.onManualMove === 'function')) {
+            markerState.layer.on('dragend', function (event) {
+              var ll = event.target.getLatLng();
+              if (typeof markerState.onManualMove === 'function') markerState.onManualMove(ll.lat, ll.lng);
+              else markerState.onMove(ll.lat, ll.lng);
             });
           }
+        } else {
+          markerState.layer.setLatLng([lat, lng]);
         }
-        circle = L.circle([markerState.lat, markerState.lng], {
-          radius: (markerState.radiusKm || 50) * 1000,
-          color: '#24527b',
-          weight: 1,
-          fillColor: '#24527b',
-          fillOpacity: 0.06
-        }).addTo(map);
+        ensureCircle(lat, lng);
+      }
+
+      if (markerState && markerState.lat && markerState.lng) {
+        syncMarker(markerState.lat, markerState.lng);
+      }
+      if (markerState && markerState.allowMapMove && (typeof markerState.onMove === 'function' || typeof markerState.onManualMove === 'function')) {
+        map.on('click', function (event) {
+          syncMarker(event.latlng.lat, event.latlng.lng);
+          if (typeof markerState.onManualMove === 'function') markerState.onManualMove(event.latlng.lat, event.latlng.lng);
+          else markerState.onMove(event.latlng.lat, event.latlng.lng);
+        });
       }
       var allLayers = geoLayers.concat(markerState && markerState.layer ? [markerState.layer] : []).concat(circle ? [circle] : []);
       var group = L.featureGroup(allLayers);
@@ -882,6 +901,7 @@
     var metaBox = document.getElementById('rule-bundle-meta');
     var zoneResult = document.getElementById('zone-result');
     var areaStatusDetail = document.getElementById('area-status-detail');
+    var positionGuide = document.getElementById('position-guide');
     var manualPositionStatus = document.getElementById('manual-position-status');
     var registryResult = document.getElementById('registry-result');
     var registryCandidates = document.getElementById('registry-candidates');
@@ -1464,10 +1484,21 @@
       return mapState.manualPosition ? 'Manuell posisjon er valgt. Trykk «Oppdater automatisk posisjon» for å gå tilbake til kontrollørens sanntidsposisjon.' : '';
     }
 
+    function setPositionGuideMessage(message) {
+      if (!positionGuide) return;
+      positionGuide.innerHTML = message;
+    }
+
     function syncManualPositionNotice() {
-      if (!manualPositionStatus) return;
-      manualPositionStatus.classList.toggle('hidden', !mapState.manualPosition);
-      manualPositionStatus.innerHTML = mapState.manualPosition ? 'Manuell posisjon er valgt. Kartnålen beholdes til du trykker «Oppdater automatisk posisjon».' : 'Automatisk posisjon fra enheten er aktiv.';
+      if (manualPositionStatus) {
+        manualPositionStatus.classList.toggle('hidden', !mapState.manualPosition);
+        manualPositionStatus.innerHTML = mapState.manualPosition ? 'Manuell posisjon er valgt. Kartnålen beholdes til du trykker «Bruk automatisk posisjon».' : 'Automatisk posisjon fra enheten er aktiv.';
+      }
+      if (mapState.manualPosition) {
+        setPositionGuideMessage('Manuell posisjon er aktiv. Trykk i kartet eller dra nålen for å plassere kontrollstedet. Du kan også skrive koordinater manuelt under «Koordinater og manuell innskriving».');
+      } else {
+        setPositionGuideMessage('Bruk automatisk posisjon først. Hvis punktet blir feil eller enheten ikke deler posisjon, trykk «Sett manuelt i kart» og velg punkt direkte i kartet.');
+      }
     }
 
     function updateAreaStatusDetail(result) {
@@ -1598,6 +1629,7 @@
 
     function applyAutoPosition(lat, lng) {
       mapState.manualPosition = false;
+      mapState.followAutoPosition = true;
       syncManualPositionNotice();
       latitude.value = Number(lat).toFixed(6);
       longitude.value = Number(lng).toFixed(6);
@@ -1605,18 +1637,44 @@
       mapState.lng = Number(longitude.value);
       updateCaseMap();
       checkZone();
+      setPositionGuideMessage('Automatisk posisjon er hentet fra enheten. Hvis punktet er feil, trykk «Sett manuelt i kart» og flytt nålen.');
       scheduleAutosave('Posisjon oppdatert');
+    }
+
+    function enableManualPosition(options) {
+      options = options || {};
+      mapState.followAutoPosition = false;
+      mapState.manualPosition = true;
+      syncManualPositionNotice();
+      updateCaseMap();
+      if (options.scroll !== false && caseMap && typeof caseMap.scrollIntoView === 'function') {
+        try { caseMap.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) {}
+      }
+    }
+
+    function handleGeoError(err) {
+      var message = 'Kunne ikke hente posisjon automatisk.';
+      if (err && err.message) message += ' ' + err.message;
+      if (zoneResult) zoneResult.innerHTML = escapeHtml(message) + ' Sett posisjon manuelt i kartet eller skriv koordinater manuelt.';
+      enableManualPosition({ scroll: false });
+      setPositionGuideMessage('Posisjon fra enheten er ikke tilgjengelig. Trykk «Sett manuelt i kart» og velg punkt i kartet, eller skriv koordinater manuelt under «Koordinater og manuell innskriving».');
     }
 
     function startLocationWatch() {
       if (!navigator.geolocation) {
-        if (zoneResult) zoneResult.innerHTML = 'Denne enheten støtter ikke geolokasjon i nettleseren.';
+        handleGeoError({ message: 'Denne enheten støtter ikke geolokasjon i nettleseren.' });
         return;
       }
       mapState.followAutoPosition = true;
+      setPositionGuideMessage('Ber om posisjon fra enheten ...');
       if (mapState.lastDeviceLat !== null && mapState.lastDeviceLng !== null) {
         applyAutoPosition(mapState.lastDeviceLat, mapState.lastDeviceLng);
       }
+      navigator.geolocation.getCurrentPosition(function (position) {
+        mapState.lastDeviceLat = Number(position.coords.latitude.toFixed(6));
+        mapState.lastDeviceLng = Number(position.coords.longitude.toFixed(6));
+        applyAutoPosition(mapState.lastDeviceLat, mapState.lastDeviceLng);
+      }, handleGeoError, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
       if (locationWatchId !== null) return;
       locationWatchId = navigator.geolocation.watchPosition(function (position) {
         mapState.lastDeviceLat = Number(position.coords.latitude.toFixed(6));
@@ -1624,12 +1682,19 @@
         if (mapState.followAutoPosition === false) return;
         applyAutoPosition(mapState.lastDeviceLat, mapState.lastDeviceLng);
       }, function (err) {
-        if (zoneResult) zoneResult.innerHTML = 'Kunne ikke hente posisjon: ' + escapeHtml(err.message || err);
+        if (mapState.followAutoPosition === false) return;
+        handleGeoError(err);
       }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
     }
 
     document.getElementById('btn-check-zone').addEventListener('click', checkZone);
     document.getElementById('btn-use-location').addEventListener('click', startLocationWatch);
+    var enableManualPositionBtn = document.getElementById('btn-enable-manual-position');
+    if (enableManualPositionBtn) {
+      enableManualPositionBtn.addEventListener('click', function () {
+        enableManualPosition();
+      });
+    }
     function applyManualCoordinateFields() {
       if (!latitude.value || !longitude.value) {
         updateCaseMap();

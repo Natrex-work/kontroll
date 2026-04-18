@@ -131,21 +131,34 @@
         <div class="subcard">
           <h3>Posisjon og område</h3>
           <div class="grid-two compact-grid-form margin-top-s">
-            <label><span>Nærmeste sted</span><input name="location_name" id="location_name" value="{{ case.location_name or '' }}" /></label>
-            <div class="stack gap-s"><span>Handlinger</span><div class="actions-row wrap"><button type="button" class="btn btn-secondary" id="btn-use-location">Oppdater automatisk posisjon</button><button type="button" class="btn btn-secondary" id="btn-check-zone">Oppdater områdestatus</button></div></div>
-            <label><span>Latitude</span><input name="latitude" id="latitude" value="{{ case.latitude or '' }}" /></label>
-            <label><span>Longitude</span><input name="longitude" id="longitude" value="{{ case.longitude or '' }}" /></label>
+            <label><span>Sted / nærmeste sted</span><input name="location_name" id="location_name" value="{{ case.location_name or '' }}" /></label>
+            <div class="stack gap-s position-action-group">
+              <span>Handlinger</span>
+              <div class="actions-row wrap position-actions">
+                <button type="button" class="btn btn-primary" id="btn-use-location">Bruk automatisk posisjon</button>
+                <button type="button" class="btn btn-secondary" id="btn-enable-manual-position">Sett manuelt i kart</button>
+                <button type="button" class="btn btn-secondary" id="btn-check-zone">Oppdater områdestatus</button>
+              </div>
+            </div>
             <label><span>Områdestatus</span><input name="area_status" id="area_status" value="{{ case.area_status or '' }}" readonly /></label>
             <input type="hidden" name="area_name" id="area_name" value="{{ case.area_name or '' }}" />
           </div>
+          <div class="callout margin-top-s" id="position-guide">På iPhone: bruk automatisk posisjon først. Hvis enheten ikke deler posisjon, trykk «Sett manuelt i kart» og trykk i kartet for å plassere kontrollstedet.</div>
           <div class="callout margin-top-s hidden" id="manual-position-status">Manuell posisjon er valgt.</div>
+          <details class="source-disclosure margin-top-s coordinate-disclosure">
+            <summary>Koordinater og manuell innskriving</summary>
+            <div class="grid-two compact-grid-form margin-top-s">
+              <label><span>Latitude</span><input name="latitude" id="latitude" value="{{ case.latitude or '' }}" placeholder="f.eks. 63.4305" /></label>
+              <label><span>Longitude</span><input name="longitude" id="longitude" value="{{ case.longitude or '' }}" placeholder="f.eks. 10.3951" /></label>
+            </div>
+          </details>
           <div class="callout margin-top-s" id="area-status-detail">Områdestatus og nærmeste sted vises her når posisjonen er kontrollert.</div>
         </div>
       </div>
       <div class="subcard margin-top-m">
         <div class="subcard-head">
           <h3>Kartoversikt</h3>
-          <span class="muted small">Fredningsområder, forbudsområder, nullfiskeområder og relevante reguleringslag vises over kartet.</span>
+          <span class="muted small">Trykk i kartet eller dra nålen for å sette manuell posisjon. Fredningsområder, stengte områder og andre reguleringslag vises over kartet.</span>
         </div>
         <div id="case-position-map" class="leaflet-map case-map" data-portal-catalog='{{ portal_layers|tojson }}'></div>
       </div>

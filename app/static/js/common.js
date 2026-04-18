@@ -182,30 +182,49 @@
 
     return Promise.all(promises).then(function () {
       var circle = null;
-      if (markerState && markerState.lat && markerState.lng) {
-        markerState.layer = L.marker([markerState.lat, markerState.lng], { draggable: !!markerState.draggable }).addTo(map);
-        markerState.layer.bindPopup('Kontrollposisjon');
-        if (markerState.draggable && (typeof markerState.onMove === 'function' || typeof markerState.onManualMove === 'function')) {
-          markerState.layer.on('dragend', function (event) {
-            var ll = event.target.getLatLng();
-            if (typeof markerState.onManualMove === 'function') markerState.onManualMove(ll.lat, ll.lng);
-            else markerState.onMove(ll.lat, ll.lng);
-          });
-          if (markerState.allowMapMove) {
-            map.on('click', function (event) {
-              markerState.layer.setLatLng(event.latlng);
-              if (typeof markerState.onManualMove === 'function') markerState.onManualMove(event.latlng.lat, event.latlng.lng);
-              else markerState.onMove(event.latlng.lat, event.latlng.lng);
+
+      function ensureCircle(lat, lng) {
+        if (!markerState) return;
+        if (!circle) {
+          circle = L.circle([lat, lng], {
+            radius: (markerState.radiusKm || 50) * 1000,
+            color: '#24527b',
+            weight: 1,
+            fillColor: '#24527b',
+            fillOpacity: 0.06
+          }).addTo(map);
+          return;
+        }
+        circle.setLatLng([lat, lng]);
+      }
+
+      function syncMarker(lat, lng) {
+        if (!markerState) return;
+        if (!markerState.layer) {
+          markerState.layer = L.marker([lat, lng], { draggable: !!markerState.draggable }).addTo(map);
+          markerState.layer.bindPopup('Kontrollposisjon');
+          if (markerState.draggable && (typeof markerState.onMove === 'function' || typeof markerState.onManualMove === 'function')) {
+            markerState.layer.on('dragend', function (event) {
+              var ll = event.target.getLatLng();
+              if (typeof markerState.onManualMove === 'function') markerState.onManualMove(ll.lat, ll.lng);
+              else markerState.onMove(ll.lat, ll.lng);
             });
           }
+        } else {
+          markerState.layer.setLatLng([lat, lng]);
         }
-        circle = L.circle([markerState.lat, markerState.lng], {
-          radius: (markerState.radiusKm || 50) * 1000,
-          color: '#24527b',
-          weight: 1,
-          fillColor: '#24527b',
-          fillOpacity: 0.06
-        }).addTo(map);
+        ensureCircle(lat, lng);
+      }
+
+      if (markerState && markerState.lat && markerState.lng) {
+        syncMarker(markerState.lat, markerState.lng);
+      }
+      if (markerState && markerState.allowMapMove && (typeof markerState.onMove === 'function' || typeof markerState.onManualMove === 'function')) {
+        map.on('click', function (event) {
+          syncMarker(event.latlng.lat, event.latlng.lng);
+          if (typeof markerState.onManualMove === 'function') markerState.onManualMove(event.latlng.lat, event.latlng.lng);
+          else markerState.onMove(event.latlng.lat, event.latlng.lng);
+        });
       }
       var allLayers = geoLayers.concat(markerState && markerState.layer ? [markerState.layer] : []).concat(circle ? [circle] : []);
       var group = L.featureGroup(allLayers);
@@ -236,9 +255,39 @@
     });
   }
 
+  function setupSidebarToggle() {
+    var sidebar = document.getElementById('app-sidebar');
+    var toggle = document.getElementById('sidebar-toggle');
+    if (!sidebar || !toggle) return;
+
+    function closeMobileSidebar() {
+      if (!window.matchMedia('(max-width: 960px)').matches) return;
+      sidebar.classList.remove('sidebar-open');
+      toggle.setAttribute('aria-expanded', 'false');
+    }
+
+    toggle.addEventListener('click', function () {
+      var willOpen = !sidebar.classList.contains('sidebar-open');
+      sidebar.classList.toggle('sidebar-open', willOpen);
+      toggle.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+    });
+
+    Array.prototype.forEach.call(sidebar.querySelectorAll('.nav-link'), function (link) {
+      link.addEventListener('click', closeMobileSidebar);
+    });
+
+    window.addEventListener('resize', function () {
+      if (!window.matchMedia('(max-width: 960px)').matches) {
+        sidebar.classList.remove('sidebar-open');
+        toggle.setAttribute('aria-expanded', 'false');
+      }
+    });
+  }
+
   ready(function () {
     ensureCsrfInputs();
     installCsrfFetchHook();
+    setupSidebarToggle();
   });
 
   window.KVCommon = { ready: ready, escapeHtml: escapeHtml, parseJson: parseJson, sourceChip: sourceChip, findingSource: findingSource, lawHelpCard: lawHelpCard, buildReadonlyFindingsHtml: buildReadonlyFindingsHtml, normalizeFeatureCollection: normalizeFeatureCollection, createPortalMap: createPortalMap, csrfToken: csrfToken };

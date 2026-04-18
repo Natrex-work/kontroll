@@ -18,14 +18,17 @@
 <body>
   <div class="app-shell">
     {% if current_user %}
-    <aside class="sidebar">
-      <div>
-        <div class="brand">
-          <div class="brand-badge">KV</div>
-          <div>
-            <strong>{{ app_name }} {{ app_version }}</strong>
-            <div class="muted sidebar-subtitle">Kart, regelverk, kontroll og administrasjon etter tilgang</div>
+    <aside class="sidebar" id="app-sidebar">
+      <div class="sidebar-main">
+        <div class="sidebar-topbar">
+          <div class="brand">
+            <div class="brand-badge">KV</div>
+            <div class="brand-meta">
+              <strong class="brand-title"><span class="brand-app-name">{{ app_name }}</span> <span class="brand-version">{{ app_version }}</span></strong>
+              <div class="muted sidebar-subtitle">Kart, regelverk, kontroll og administrasjon etter tilgang</div>
+            </div>
           </div>
+          <button class="sidebar-toggle" id="sidebar-toggle" type="button" aria-expanded="false" aria-controls="sidebar-footer">Profil</button>
         </div>
         <nav class="nav">
           {% for link in nav_links %}
@@ -33,7 +36,7 @@
           {% endfor %}
         </nav>
       </div>
-      <div class="sidebar-footer">
+      <div class="sidebar-footer" id="sidebar-footer">
         <div class="sidebar-user-card">
           <div><strong>{{ current_user.full_name }}</strong></div>
           <div class="muted">{{ current_user.email }}</div>
