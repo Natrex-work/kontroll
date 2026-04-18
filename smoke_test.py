@@ -63,6 +63,10 @@ def main() -> int:
 
             login_page = client.get('/login')
             assert login_page.status_code == 200
+            assert 'admin@kv.demo' not in login_page.text
+            assert 'kontrollor@kv.demo' not in login_page.text
+            assert 'Admin123!' not in login_page.text
+            assert 'Demo123!' not in login_page.text
             login_csrf = extract_csrf(login_page.text)
 
             login = client.post('/login', data={'email': 'admin@example.no', 'password': 'TestPass123!Test', 'csrf_token': login_csrf}, follow_redirects=False)
@@ -79,6 +83,13 @@ def main() -> int:
 
             kart = client.get('/kart')
             assert kart.status_code == 200
+            map_catalog = client.get('/api/map/catalog')
+            assert map_catalog.status_code == 200
+            map_catalog_json = map_catalog.json()
+            assert len(map_catalog_json.get('layers') or []) >= 20
+            layer_names = ' | '.join(item.get('name') or '' for item in map_catalog_json.get('layers') or [])
+            assert 'J-melding stengte fiskefelt' in layer_names
+            assert 'Hummer - fredningsområder' in layer_names
 
             regelverk = client.get('/regelverk')
             assert regelverk.status_code == 200
@@ -156,10 +167,12 @@ def main() -> int:
             assert export_pdf.status_code == 200
             assert export_pdf.headers['content-type'].startswith('application/pdf')
 
+            map_features = client.get('/api/map/features', params={'layer_id': 76, 'bbox': '10.0,59.0,11.0,60.0'})
+            assert map_features.status_code == 200
             zones = client.get('/api/zones/check', params={'lat': 59.5354, 'lng': 10.5366, 'species': 'Hummer', 'gear_type': 'Teine'})
             assert zones.status_code == 200
             zone_json = zones.json()
-            assert zone_json.get('status') in {'fredningsområde', 'ingen treff', 'regulert område'}
+            assert zone_json.get('status') in {'fredningsområde', 'ingen treff', 'regulert område', 'stengt område', 'maksimalmål område'}
 
         return 0
     finally:

@@ -1,4 +1,4 @@
-const CACHE = 'kv-kontroll-v42-secure';
+const CACHE = 'kv-kontroll-v43-feltklar';
 const STATIC_PREFIX = '/static/';
 const ASSETS = [
   '/static/styles.css',

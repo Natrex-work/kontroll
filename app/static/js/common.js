@@ -153,57 +153,69 @@
         overlaysById: {},
         legendControl: null,
         markerState: markerState || {},
-        clickBound: false
+        clickBound: false,
+        layerViewKeys: {},
+        currentLayers: []
       };
       map.on('moveend zoomend', function () {
         try {
           var center = map.getCenter();
           sessionStorage.setItem(storageKey, JSON.stringify({ lat: center.lat, lng: center.lng, zoom: map.getZoom() }));
         } catch (e) {}
+        if (typeof state.refreshLayers === 'function') {
+          clearTimeout(state._refreshTimer);
+          state._refreshTimer = setTimeout(function () { state.refreshLayers(); }, 140);
+        }
       });
       el._kvPortalState = state;
       el._kvLeafletMap = map;
     }
 
     state.markerState = markerState || {};
+    state.currentLayers = layers || [];
+    state.refreshLayers = function () { createPortalMap(el, state.currentLayers, state.markerState || {}); };
     var map = state.map;
     var activeLayerIds = {};
+    var bounds = map.getBounds ? map.getBounds() : null;
+    var bbox = bounds ? [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()] : null;
+    var bboxKey = bbox ? bbox.map(function (value) { return Number(value).toFixed(3); }).join(',') : '';
 
     var promises = (layers || []).map(function (layer) {
       var cacheKey = String(layer.id);
       activeLayerIds[cacheKey] = true;
-      if (state.overlaysById[cacheKey]) return Promise.resolve();
-      var dataPromise = portalFeatureCache[cacheKey]
-        ? Promise.resolve(portalFeatureCache[cacheKey])
-        : fetch('/api/map/features?layer_id=' + encodeURIComponent(layer.id))
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
-              var normalized = normalizeFeatureCollection(data);
-              if (normalized.features && normalized.features.length) portalFeatureCache[cacheKey] = normalized;
-              return normalized;
-            });
-      return dataPromise.then(function (data) {
-        data = normalizeFeatureCollection(data);
-        if (!data.features.length) return;
-        var geo = L.geoJSON(data, {
-          style: function () {
-            return { color: layer.color || '#c1121f', weight: 2.5, fillColor: layer.color || '#c1121f', fillOpacity: 0.2 };
-          },
-          onEachFeature: function (feature, lyr) {
-            var props = feature && feature.properties ? feature.properties : {};
-            var title = props.navn || props.omraade || layer.name;
-            var desc = props.info || props.beskrivelse || props.informasjon || props.omraade_stengt_text || props.vurderes_aapnet_text || layer.description || layer.status || '';
-            var law = props.jmelding_navn || props.url || '';
-            var html = '<strong>' + escapeHtml(title || layer.name) + '</strong>';
-            html += '<div class="small muted">' + escapeHtml(layer.status || '') + '</div>';
-            if (desc) html += '<div class="small" style="margin-top:6px">' + escapeHtml(desc) + '</div>';
-            if (law) html += '<div class="small muted" style="margin-top:6px">Kilde: ' + escapeHtml(law) + '</div>';
-            if (props.url) html += '<div class="small" style="margin-top:6px"><a href="' + escapeHtml(props.url) + '" target="_blank" rel="noopener">Åpne regelgrunnlag</a></div>';
-            lyr.bindPopup(html);
+      var viewKey = cacheKey + ':' + bboxKey;
+      if (state.overlaysById[cacheKey] && state.layerViewKeys[cacheKey] === viewKey) return Promise.resolve();
+      var url = '/api/map/features?layer_id=' + encodeURIComponent(layer.id);
+      if (bboxKey) url += '&bbox=' + encodeURIComponent(bbox.join(','));
+      return fetch(url)
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          data = normalizeFeatureCollection(data);
+          state.layerViewKeys[cacheKey] = viewKey;
+          if (state.overlaysById[cacheKey]) {
+            try { map.removeLayer(state.overlaysById[cacheKey]); } catch (e) {}
+            delete state.overlaysById[cacheKey];
           }
-        }).addTo(map);
-        state.overlaysById[cacheKey] = geo;
-      }).catch(function () {});
+          if (!data.features.length) return;
+          var geo = L.geoJSON(data, {
+            style: function () {
+              return { color: layer.color || '#c1121f', weight: 2.5, fillColor: layer.color || '#c1121f', fillOpacity: 0.2 };
+            },
+            onEachFeature: function (feature, lyr) {
+              var props = feature && feature.properties ? feature.properties : {};
+              var title = props.navn || props.omraade || layer.name;
+              var desc = props.info || props.beskrivelse || props.informasjon || props.omraade_stengt_text || props.vurderes_aapnet_text || layer.description || layer.status || '';
+              var law = props.jmelding_navn || props.url || '';
+              var html = '<strong>' + escapeHtml(title || layer.name) + '</strong>';
+              html += '<div class="small muted">' + escapeHtml(layer.status || '') + '</div>';
+              if (desc) html += '<div class="small" style="margin-top:6px">' + escapeHtml(desc) + '</div>';
+              if (law) html += '<div class="small muted" style="margin-top:6px">Kilde: ' + escapeHtml(law) + '</div>';
+              if (props.url) html += '<div class="small" style="margin-top:6px"><a href="' + escapeHtml(props.url) + '" target="_blank" rel="noopener">Åpne regelgrunnlag</a></div>';
+              lyr.bindPopup(html);
+            }
+          }).addTo(map);
+          state.overlaysById[cacheKey] = geo;
+        }).catch(function () {});
     });
 
     return Promise.all(promises).then(function () {

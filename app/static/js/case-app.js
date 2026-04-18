@@ -1065,8 +1065,10 @@
     selectedInlineEvidenceTarget = null;
     inlineEvidenceFeedback = '';
     resetOcrSelectedFile();
-    var mapState = { lat: Number(latitude.value || 0), lng: Number(longitude.value || 0), layer: null, draggable: true, allowMapMove: true, radiusKm: 50, followAutoPosition: true, manualPosition: false, lastDeviceLat: null, lastDeviceLng: null, deviceLat: null, deviceLng: null, deviceAccuracy: null, recenterTo: '' };
+    var hasInitialCoords = Boolean(latitude.value && longitude.value);
+    var mapState = { lat: Number(latitude.value || 0), lng: Number(longitude.value || 0), layer: null, draggable: true, allowMapMove: true, radiusKm: 50, followAutoPosition: !hasInitialCoords, manualPosition: false, lastDeviceLat: null, lastDeviceLng: null, deviceLat: null, deviceLng: null, deviceAccuracy: null, recenterTo: '' };
     var locationWatchId = null;
+    var autoLocationAttempted = false;
     var mediaRecorder = null;
     var mediaChunks = [];
     var selectedOcrFile = null;
@@ -1095,6 +1097,7 @@
       if (step === 2) {
         setTimeout(function () {
           updateCaseMap();
+          maybeAutoStartLocation();
           if (caseMap && caseMap._kvLeafletMap) {
             try { caseMap._kvLeafletMap.invalidateSize(); } catch (e) {}
           }
@@ -1574,7 +1577,7 @@
     function manualPositionText() {
       if (mapState.manualPosition) return 'Manuell posisjon er valgt. Trykk i kartet eller dra den røde nålen for å plassere kontrollposisjonen.';
       if (mapState.deviceLat !== null && mapState.deviceLng !== null) return 'Blå prikk viser enhetens GPS-posisjon. Rød nål viser kontrollposisjonen som lagres i saken.';
-      return 'Trykk «Bruk min posisjon» for GPS eller «Sett manuelt i kart» for å plassere nålen selv.';
+      return 'Appen forsøker å starte GPS automatisk. Hvis GPS ikke virker, trykk «Sett manuelt i kart» og plasser nålen selv.';
     }
 
     function syncManualPositionNotice() {
@@ -1758,46 +1761,84 @@
       scheduleAutosave('Manuell posisjon aktivert');
     }
 
-    function startLocationWatch() {
+    function startLocationWatch(options) {
+      options = options || {};
+      var deviceOnly = !!options.deviceOnly;
+      var recenter = !!options.recenter;
       if (!navigator.geolocation) {
         if (zoneResult) zoneResult.innerHTML = 'Denne enheten støtter ikke geolokasjon i nettleseren.';
         syncManualPositionNotice();
         return;
       }
-      mapState.followAutoPosition = true;
+      if (!deviceOnly) mapState.followAutoPosition = true;
+      else if (latitude.value && longitude.value) mapState.followAutoPosition = false;
+      function applyDevicePosition(lat, lng, accuracy, shouldRecenter) {
+        mapState.lastDeviceLat = Number(lat);
+        mapState.lastDeviceLng = Number(lng);
+        mapState.deviceLat = Number(lat);
+        mapState.deviceLng = Number(lng);
+        mapState.deviceAccuracy = Number(accuracy || mapState.deviceAccuracy || 12);
+        syncManualPositionNotice();
+        if (deviceOnly && latitude.value && longitude.value) {
+          updateCaseMap(shouldRecenter ? { recenterTo: 'device' } : {});
+          return;
+        }
+        applyAutoPosition(lat, lng, accuracy);
+      }
       if (mapState.lastDeviceLat !== null && mapState.lastDeviceLng !== null) {
-        applyAutoPosition(mapState.lastDeviceLat, mapState.lastDeviceLng, mapState.deviceAccuracy || 12);
+        applyDevicePosition(mapState.lastDeviceLat, mapState.lastDeviceLng, mapState.deviceAccuracy || 12, recenter);
       }
       navigator.geolocation.getCurrentPosition(function (position) {
-        mapState.lastDeviceLat = Number(position.coords.latitude.toFixed(6));
-        mapState.lastDeviceLng = Number(position.coords.longitude.toFixed(6));
-        mapState.deviceAccuracy = Number(position.coords.accuracy || 12);
-        applyAutoPosition(mapState.lastDeviceLat, mapState.lastDeviceLng, mapState.deviceAccuracy);
+        var currentLat = Number(position.coords.latitude.toFixed(6));
+        var currentLng = Number(position.coords.longitude.toFixed(6));
+        var currentAccuracy = Number(position.coords.accuracy || 12);
+        applyDevicePosition(currentLat, currentLng, currentAccuracy, recenter);
       }, function (err) {
         if (zoneResult) zoneResult.innerHTML = 'Kunne ikke hente posisjon: ' + escapeHtml(err.message || err) + '. Du kan fortsatt sette posisjon manuelt i kartet.';
         syncManualPositionNotice();
-      }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 });
+      }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 3000 });
       if (locationWatchId !== null) return;
       locationWatchId = navigator.geolocation.watchPosition(function (position) {
-        mapState.lastDeviceLat = Number(position.coords.latitude.toFixed(6));
-        mapState.lastDeviceLng = Number(position.coords.longitude.toFixed(6));
-        mapState.deviceAccuracy = Number(position.coords.accuracy || 12);
-        mapState.deviceLat = mapState.lastDeviceLat;
-        mapState.deviceLng = mapState.lastDeviceLng;
+        var currentLat = Number(position.coords.latitude.toFixed(6));
+        var currentLng = Number(position.coords.longitude.toFixed(6));
+        var currentAccuracy = Number(position.coords.accuracy || 12);
+        mapState.lastDeviceLat = currentLat;
+        mapState.lastDeviceLng = currentLng;
+        mapState.deviceAccuracy = currentAccuracy;
+        mapState.deviceLat = currentLat;
+        mapState.deviceLng = currentLng;
         if (mapState.followAutoPosition === false) {
           updateCaseMap();
           syncManualPositionNotice();
           return;
         }
-        applyAutoPosition(mapState.lastDeviceLat, mapState.lastDeviceLng, mapState.deviceAccuracy);
+        applyAutoPosition(currentLat, currentLng, currentAccuracy);
       }, function (err) {
         if (zoneResult) zoneResult.innerHTML = 'Kunne ikke hente posisjon: ' + escapeHtml(err.message || err) + '. Du kan fortsatt sette posisjon manuelt i kartet.';
         syncManualPositionNotice();
-      }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 });
+      }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 3000 });
+    }
+
+    function maybeAutoStartLocation() {
+      if (autoLocationAttempted || !navigator.geolocation) return;
+      autoLocationAttempted = true;
+      var hasSavedCoordinates = Boolean(latitude.value && longitude.value);
+      var start = function () { startLocationWatch({ deviceOnly: hasSavedCoordinates, recenter: !hasSavedCoordinates }); };
+      if (navigator.permissions && navigator.permissions.query) {
+        navigator.permissions.query({ name: 'geolocation' }).then(function (permission) {
+          if (!permission || permission.state === 'denied') {
+            syncManualPositionNotice();
+            return;
+          }
+          start();
+        }).catch(function () { start(); });
+      } else {
+        start();
+      }
     }
 
     document.getElementById('btn-check-zone').addEventListener('click', checkZone);
-    document.getElementById('btn-use-location').addEventListener('click', startLocationWatch);
+    document.getElementById('btn-use-location').addEventListener('click', function () { startLocationWatch({ deviceOnly: false, recenter: true }); });
     var btnSetManualPosition = document.getElementById('btn-set-manual-position');
     if (btnSetManualPosition) btnSetManualPosition.addEventListener('click', setManualPositionFromMapCenter);
     if (mapFilterWrap) {
@@ -2841,6 +2882,7 @@
 
     syncOptions();
     updateCaseMap();
+    setTimeout(maybeAutoStartLocation, 250);
     renderFindings();
     if (sourcesState.length) sourceList.innerHTML = sourcesState.map(sourceChip).join('');
     if (controlType.value && (species.value || fisheryType.value) && gearType.value) loadRules();

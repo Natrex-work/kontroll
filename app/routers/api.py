@@ -91,10 +91,19 @@ def api_map_catalog(request: Request):
 
 
 @router.get('/api/map/features')
-def api_map_features(request: Request, layer_id: int = Query(..., ge=0)):
+def api_map_features(request: Request, layer_id: int = Query(..., ge=0), bbox: str = ''):
     require_any_permission(request, ['kart', 'kv_kontroll'], detail='Brukeren har ikke tilgang til kart- og omradekontroll.')
+    parsed_bbox = None
+    if bbox:
+        try:
+            parts = [float(part) for part in str(bbox).split(',')]
+            if len(parts) == 4:
+                min_lng, min_lat, max_lng, max_lat = parts
+                parsed_bbox = (min_lng, min_lat, max_lng, max_lat)
+        except Exception:
+            parsed_bbox = None
     try:
-        data = live_sources.fetch_portal_geojson(layer_id)
+        data = live_sources.fetch_portal_geojson(layer_id, bbox=parsed_bbox)
         return JSONResponse(data)
     except Exception as exc:
         return JSONResponse({'type': 'FeatureCollection', 'features': [], 'error': str(exc)}, status_code=200)

@@ -1437,3 +1437,346 @@ def lookup_directory_candidates(phone: str = '', name: str = '', address: str = 
         'match_reason': '1881 / Gulesider',
     }
     return {'found': True, 'person': person, 'candidates': scored[:8], 'message': 'Treff i offentlig katalog.'}
+
+# -------------------------
+# v43 feltklar portal / kart-overstyringer
+# -------------------------
+
+MAP_PORTAL_URL = os.getenv('KV_PORTAL_MAP_URL', 'https://portal.fiskeridir.no/portal/apps/webappviewer/index.html?id=ea6c536f760548fe9f56e6edcc4825d8')
+YGG_BASE = os.getenv('KV_PORTAL_MAPSERVER', 'https://gis.fiskeridir.no/server/rest/services/fiskeridirWMS_fiskeri/MapServer')
+PORTAL_LAYER_CACHE_JSON = CACHE_DIR / 'portal_layer_catalog_cache.json'
+PORTAL_LAYER_CACHE_META = CACHE_DIR / 'portal_layer_catalog_meta.json'
+
+
+def _fallback_portal_layer_defs() -> list[dict[str, Any]]:
+    return [
+        {'id': 78, 'name': 'J-melding stengte fiskefelt', 'status': 'stengt område', 'color': '#c1121f', 'description': 'Gjeldende J-melding stengte fiskefelt.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
+        {'id': 75, 'name': 'Høstingsforskriften forbudsområder', 'status': 'stengt område', 'color': '#b5171e', 'description': 'Forbudsområder etter høstingsforskriften.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
+        {'id': 76, 'name': 'Hummer - fredningsområder', 'status': 'fredningsområde', 'color': '#f4a261', 'description': 'Fredningsområder for hummer.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
+        {'id': 77, 'name': 'Hummer - maksimalmål område', 'status': 'maksimalmål område', 'color': '#bc4749', 'description': 'Område med særskilt maksimalmål for hummer.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
+        {'id': 73, 'name': 'Forbud mot høsting av flatøsters Sørlandsleia', 'status': 'stengt område', 'color': '#e76f51', 'description': 'Forbudsområde for flatøsters.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
+        {'id': 80, 'name': 'Korallrev - forbudsområde', 'status': 'stengt område', 'color': '#6d597a', 'description': 'Forbud mot fiske nær korallrev.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
+        {'id': 82, 'name': 'Kysttorsk - forbudsområde', 'status': 'stengt område', 'color': '#d62828', 'description': 'Forbudsområde for kysttorsk.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
+        {'id': 83, 'name': 'Kysttorsk - stengte gytefelt januar-april', 'status': 'stengt område', 'color': '#e63946', 'description': 'Stengte gytefelt for kysttorsk.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
+        {'id': 84, 'name': 'Leppefisk - forskningsområde', 'status': 'regulert område', 'color': '#3d5a80', 'description': 'Forsknings- og reguleringsområde for leppefisk.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
+        {'id': 87, 'name': 'Nasjonale laksefjorder', 'status': 'regulert område', 'color': '#457b9d', 'description': 'Nasjonale laksefjorder med særregler.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
+        {'id': 3, 'name': 'Oslofjorden - nullfiskeområder', 'status': 'stengt område', 'color': '#1d3557', 'description': 'Nullfiskeområder i Oslofjorden.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
+        {'id': 200, 'name': 'Saltstraumen - forbud steinbit', 'status': 'stengt område', 'color': '#577590', 'description': 'Forbud eller særregulering for steinbit i Saltstraumen.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
+        {'id': 208, 'name': 'Raet nasjonalpark - sonevern', 'status': 'regulert område', 'color': '#2a9d8f', 'description': 'Sonevern og fiskeriregler i Raet nasjonalpark.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
+        {'id': 88, 'name': 'Reguleringer stormasket trål inntil 12 nm', 'status': 'regulert område', 'color': '#4d908e', 'description': 'Reguleringsområder for stormasket trål.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
+        {'id': 89, 'name': 'Tare høstefelt', 'status': 'regulert område', 'color': '#7a9e7e', 'description': 'Tarehøstefelt.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
+        {'id': 90, 'name': 'Tare referanseområder', 'status': 'fredningsområde', 'color': '#84a98c', 'description': 'Referanseområder for tare med særskilt vern.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
+        {'id': 93, 'name': 'Tobis åpne områder', 'status': 'regulert område', 'color': '#8ecae6', 'description': 'Områder åpnet for tobisfiske.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
+        {'id': 94, 'name': 'Torsk - gyteområder forbudsområder', 'status': 'stengt område', 'color': '#b56576', 'description': 'Forbudsområder knyttet til torskens gyteområder.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
+        {'id': 85, 'name': 'Torsk - oppvekstområder forbudsområder', 'status': 'stengt område', 'color': '#8d5a97', 'description': 'Forbudsområder knyttet til torskens oppvekstområder.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
+        {'id': 91, 'name': 'Verneområder bunnhabitat', 'status': 'fredningsområde', 'color': '#6a4c93', 'description': 'Verneområder for sårbare bunnhabitater.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
+        {'id': 142, 'name': 'Fiskeforbud Borgundfjorden', 'status': 'stengt område', 'color': '#9d0208', 'description': 'Lokalt fiskeforbud i Borgundfjorden.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
+        {'id': 186, 'name': 'Breivikfjorden lokalregulering', 'status': 'regulert område', 'color': '#355070', 'description': 'Lokale fiskerireguleringer i Breivikfjorden.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
+        {'id': 197, 'name': 'Trålforbud Jenn egga / Malangsgrunnen', 'status': 'stengt område', 'color': '#7b2cbf', 'description': 'Trålforbudsområde ved Jenn egga / Malangsgrunnen.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
+        {'id': 198, 'name': 'Trålforbud Storegga', 'status': 'stengt område', 'color': '#9d4edd', 'description': 'Trålforbudsområde ved Storegga.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
+        {'id': 25, 'name': 'Svalbard - fiskeforbud sårbare økosystemer', 'status': 'stengt område', 'color': '#560bad', 'description': 'Fiskeforbud for sårbare økosystemer ved Svalbard.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
+        {'id': 26, 'name': 'Svalbard - forbud mot fiske i fiskevernsonen', 'status': 'stengt område', 'color': '#480ca8', 'description': 'Forbudsområde i fiskevernsonen ved Svalbard.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True},
+        {'id': 79, 'name': 'Kongekrabbe regulering', 'status': 'regulert område', 'color': '#0a9396', 'description': 'Regulering av fangst av kongekrabbe.', 'geometry_type': 'esriGeometryPolyline', 'alertable': False},
+        {'id': 81, 'name': 'Krokbegrensning line', 'status': 'regulert område', 'color': '#118ab2', 'description': 'Linjer som viser krokbegrensninger.', 'geometry_type': 'esriGeometryPolyline', 'alertable': False},
+        {'id': 71, 'name': 'Fjordlinjer - kysttorskregulering', 'status': 'regulert område', 'color': '#023047', 'description': 'Fjordlinjer brukt i kysttorskreguleringer.', 'geometry_type': 'esriGeometryPolyline', 'alertable': False},
+        {'id': 72, 'name': 'Fjordlinjer - seinot', 'status': 'regulert område', 'color': '#219ebc', 'description': 'Fjordlinjer for seinotregulering.', 'geometry_type': 'esriGeometryPolyline', 'alertable': False},
+        {'id': 70, 'name': 'Fjordlinjer - kysttorskregulering punkter', 'status': 'regulert område', 'color': '#8ecae6', 'description': 'Punkter knyttet til fjordlinjer for kysttorsk.', 'geometry_type': 'esriGeometryPoint', 'alertable': False},
+    ]
+
+
+def _portal_color_for(status: str, name: str = '') -> str:
+    normalized_status = _ascii_header(status)
+    normalized_name = _ascii_header(name)
+    if 'maksimalmal' in normalized_status or 'maksimalmal' in normalized_name:
+        return '#bc4749'
+    if normalized_status == 'fredningsomrade':
+        return '#f4a261'
+    if normalized_status == 'stengt omrade':
+        return '#c1121f'
+    if normalized_status == 'regulert omrade':
+        if 'tare' in normalized_name:
+            return '#7a9e7e'
+        if 'laksefjord' in normalized_name:
+            return '#457b9d'
+        return '#3d5a80'
+    return '#c1121f'
+
+
+def _portal_status_from(name: str, description: str = '') -> str:
+    blob = _ascii_header(' '.join([name or '', description or '']))
+    if any(token in blob for token in ['nullfiske', 'stengt', 'forbud', 'tralf orbud'.replace(' ', ''), 'saarbare okosystemer']):
+        return 'stengt område'
+    if 'frednings' in blob or 'verneomraade' in blob or 'bevaringsomrade' in blob:
+        return 'fredningsområde'
+    if 'maksimalmal' in blob:
+        return 'maksimalmål område'
+    return 'regulert område'
+
+
+def _portal_alertable(geometry_type: str, status: str, name: str) -> bool:
+    geom = str(geometry_type or '')
+    if geom != 'esriGeometryPolygon':
+        return False
+    normalized_name = _ascii_header(name)
+    if 'apne omrader' in normalized_name or 'tillatt omrade' in normalized_name:
+        return False
+    return _ascii_header(status) in {'stengt omrade', 'fredningsomrade', 'maksimalmal omrade', 'regulert omrade'}
+
+
+def _load_portal_catalog_cache() -> list[dict[str, Any]]:
+    if not PORTAL_LAYER_CACHE_JSON.exists():
+        return []
+    try:
+        payload = json.loads(PORTAL_LAYER_CACHE_JSON.read_text(encoding='utf-8'))
+    except Exception:
+        return []
+    return payload if isinstance(payload, list) else []
+
+
+def _write_portal_catalog_cache(rows: list[dict[str, Any]], *, source_kind: str) -> None:
+    try:
+        PORTAL_LAYER_CACHE_JSON.write_text(json.dumps(rows, ensure_ascii=False), encoding='utf-8')
+        PORTAL_LAYER_CACHE_META.write_text(json.dumps({'refreshed_at_unix': time.time(), 'source_kind': source_kind}, ensure_ascii=False), encoding='utf-8')
+    except Exception:
+        pass
+
+
+def refresh_portal_layer_catalog(force: bool = False, max_age_seconds: int = 6 * 3600) -> list[dict[str, Any]]:
+    cached = _load_portal_catalog_cache()
+    if not force and cached and _cache_is_fresh(PORTAL_LAYER_CACHE_META, max_age_seconds):
+        return cached
+
+    fallback_index = {int(item['id']): item for item in _fallback_portal_layer_defs() if item.get('id') is not None}
+    try:
+        data = _safe_get(f'{YGG_BASE}/layers', params={'f': 'json'}).json()
+        layers = list(data.get('layers') or [])
+        relevant_parent_ids = {int(layer.get('id')) for layer in layers if _ascii_header(layer.get('name')) in {'fiskereguleringer_og_vern', 'fiskerireguleringer', 'vern'} and layer.get('subLayerIds')}
+        rows: list[dict[str, Any]] = []
+        for layer in layers:
+            layer_id = layer.get('id')
+            if layer_id is None:
+                continue
+            parent_id = layer.get('parentLayerId')
+            layer_type = str(layer.get('type') or '')
+            if relevant_parent_ids and int(parent_id or -1) not in relevant_parent_ids:
+                continue
+            if relevant_parent_ids and 'Feature Layer' not in layer_type:
+                continue
+            name = str(layer.get('name') or '').strip()
+            if not name:
+                continue
+            description = str(layer.get('description') or '').replace('\u200b', '').strip()
+            geometry_type = str(layer.get('geometryType') or 'esriGeometryPolygon')
+            fallback = fallback_index.get(int(layer_id)) or {}
+            status = fallback.get('status') or _portal_status_from(name, description)
+            row = {
+                'id': int(layer_id),
+                'name': name,
+                'status': status,
+                'color': fallback.get('color') or _portal_color_for(status, name),
+                'description': fallback.get('description') or description or name,
+                'geometry_type': geometry_type,
+                'alertable': bool(fallback.get('alertable')) if 'alertable' in fallback else _portal_alertable(geometry_type, status, name),
+                'service_url': f'{YGG_BASE}/{int(layer_id)}',
+                'source_kind': 'live',
+            }
+            rows.append(row)
+        if rows:
+            rows.sort(key=lambda item: (_ascii_header(item.get('status')), _ascii_header(item.get('name'))))
+            _write_portal_catalog_cache(rows, source_kind='live')
+            return rows
+    except Exception:
+        pass
+
+    if cached:
+        return cached
+    fallback = _fallback_portal_layer_defs()
+    _write_portal_catalog_cache(fallback, source_kind='fallback')
+    return fallback
+
+
+def portal_layer_catalog() -> list[dict[str, Any]]:
+    return refresh_portal_layer_catalog(force=False)
+
+
+def _portal_layer_defs() -> list[dict[str, Any]]:
+    rows = portal_layer_catalog()
+    return rows or _fallback_portal_layer_defs()
+
+
+def _portal_layer_def(layer_id: int) -> dict[str, Any] | None:
+    for item in _portal_layer_defs():
+        item_id = item.get('id')
+        if item_id is None:
+            continue
+        try:
+            if int(item_id) == int(layer_id):
+                return item
+        except Exception:
+            continue
+    return None
+
+
+def _iter_coords(value: Any):
+    if isinstance(value, (list, tuple)):
+        if len(value) >= 2 and isinstance(value[0], (int, float)) and isinstance(value[1], (int, float)):
+            yield float(value[0]), float(value[1])
+            return
+        for item in value:
+            yield from _iter_coords(item)
+
+
+def _feature_bbox(feature: dict[str, Any]) -> tuple[float, float, float, float] | None:
+    geometry = (feature or {}).get('geometry') or {}
+    coords = list(_iter_coords(geometry.get('coordinates')))
+    if not coords:
+        return None
+    xs = [coord[0] for coord in coords]
+    ys = [coord[1] for coord in coords]
+    return (min(xs), min(ys), max(xs), max(ys))
+
+
+def _bbox_intersects(a: tuple[float, float, float, float], b: tuple[float, float, float, float]) -> bool:
+    return not (a[2] < b[0] or a[0] > b[2] or a[3] < b[1] or a[1] > b[3])
+
+
+def _filter_feature_collection_by_bbox(payload: dict[str, Any], bbox: tuple[float, float, float, float]) -> dict[str, Any]:
+    if not bbox:
+        return payload
+    filtered: list[dict[str, Any]] = []
+    for feature in list((payload or {}).get('features') or []):
+        fb = _feature_bbox(feature)
+        if fb is None or _bbox_intersects(fb, bbox):
+            filtered.append(feature)
+    return {'type': 'FeatureCollection', 'features': filtered}
+
+
+def fetch_portal_geojson(layer_id: int, *, force: bool = False, max_age_seconds: int = 6 * 3600, bbox: tuple[float, float, float, float] | None = None) -> dict[str, Any]:
+    cache_path = PORTAL_LAYER_CACHE_DIR / f'layer_{layer_id}.geojson'
+    meta_path = PORTAL_LAYER_CACHE_DIR / f'layer_{layer_id}.meta.json'
+    local_fallback = _local_zone_geojson_for_layer(layer_id)
+    cached = _portal_cache_payload(cache_path)
+    cache_fresh = _cache_is_fresh(meta_path, max_age_seconds)
+
+    if bbox and LIVE_ENABLED:
+        params = {
+            'where': '1=1',
+            'outFields': '*',
+            'returnGeometry': 'true',
+            'f': 'geojson',
+            'outSR': '4326',
+            'geometry': ','.join(str(part) for part in bbox),
+            'geometryType': 'esriGeometryEnvelope',
+            'inSR': '4326',
+            'spatialRel': 'esriSpatialRelIntersects',
+        }
+        try:
+            data = _safe_get(f'{YGG_BASE}/{layer_id}/query', params=params).json()
+            normalized = normalize_geojson(data)
+            if normalized.get('features'):
+                return normalized
+        except Exception:
+            pass
+
+    if not force and cache_fresh and _portal_cache_has_features(cached):
+        return _filter_feature_collection_by_bbox(cached, bbox) if bbox else cached
+
+    if LIVE_ENABLED:
+        params = {
+            'where': '1=1',
+            'outFields': '*',
+            'returnGeometry': 'true',
+            'f': 'geojson',
+            'outSR': '4326',
+        }
+        try:
+            data = _safe_get(f'{YGG_BASE}/{layer_id}/query', params=params).json()
+            normalized = normalize_geojson(data)
+            if _portal_cache_has_features(normalized):
+                _write_portal_cache(cache_path, meta_path, normalized, source_kind='live')
+                return _filter_feature_collection_by_bbox(normalized, bbox) if bbox else normalized
+        except Exception:
+            pass
+
+    if _portal_cache_has_features(cached):
+        return _filter_feature_collection_by_bbox(cached, bbox) if bbox else cached
+
+    if _portal_cache_has_features(local_fallback):
+        _write_portal_cache(cache_path, meta_path, local_fallback, source_kind='fallback')
+        return _filter_feature_collection_by_bbox(local_fallback, bbox) if bbox else local_fallback
+
+    empty = {'type': 'FeatureCollection', 'features': []}
+    _write_portal_cache(cache_path, meta_path, empty, source_kind='empty')
+    return empty
+
+
+def normalize_geojson(data: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(data, dict) or data.get('type') != 'FeatureCollection':
+        return {'type': 'FeatureCollection', 'features': []}
+    return {'type': 'FeatureCollection', 'features': list(data.get('features') or [])}
+
+
+def _ygg_query_point(layer_id: int, lat: float, lng: float, *, geometry_type: str = 'esriGeometryPolygon') -> list[dict[str, Any]]:
+    if str(geometry_type or '') != 'esriGeometryPolygon':
+        return []
+    params = {
+        'f': 'json',
+        'geometry': f'{lng},{lat}',
+        'geometryType': 'esriGeometryPoint',
+        'inSR': '4326',
+        'spatialRel': 'esriSpatialRelIntersects',
+        'returnGeometry': 'false',
+        'outFields': '*',
+    }
+    data = _safe_get(f'{YGG_BASE}/{layer_id}/query', params=params).json()
+    return list(data.get('features') or [])
+
+
+def classify_position_live(lat: float, lng: float, species: str = '', gear_type: str = '') -> dict[str, Any]:
+    hits: list[dict[str, Any]] = []
+    highest = {
+        'rank': 0,
+        'status': 'ingen treff',
+        'name': '',
+        'notes': 'Ingen treff i Fiskeridirektoratets regulerings- og vernelag for denne posisjonen.',
+    }
+    priorities = {'stengt område': 4, 'fredningsområde': 3, 'maksimalmål område': 2, 'regulert område': 1}
+
+    for layer in _portal_layer_defs():
+        if not layer.get('alertable'):
+            continue
+        try:
+            features = _ygg_query_point(int(layer['id']), lat, lng, geometry_type=layer.get('geometry_type') or 'esriGeometryPolygon')
+        except Exception:
+            continue
+        if not features:
+            continue
+        feature = features[0]
+        name = _feature_attr(feature, 'navn', 'omraade', 'område', 'kat_ordning_text', 'regelverk', 'forskrift') or layer['name']
+        notes = _feature_attr(feature, 'info', 'beskrivelse', 'stengt_text', 'informasjon', 'regelverk', 'regler', 'forskrift') or layer.get('description') or layer['name']
+        url = _feature_attr(feature, 'url', 'url_lovtekst', 'lenke') or MAP_PORTAL_URL
+        hit = {
+            'layer': layer['name'],
+            'status': layer['status'],
+            'name': name,
+            'notes': notes,
+            'url': url,
+            'source': 'Fiskeridirektoratet kartportal',
+        }
+        hits.append(hit)
+        rank = priorities.get(layer['status'], 0)
+        if rank > highest['rank']:
+            highest = {'rank': rank, 'status': layer['status'], 'name': name, 'notes': notes}
+
+    hits.sort(key=lambda item: (-priorities.get(item.get('status') or '', 0), _ascii_header(item.get('name'))))
+    return {
+        'match': bool(hits),
+        'status': highest['status'],
+        'name': highest['name'],
+        'source': 'Fiskeridirektoratet kartportal',
+        'notes': highest['notes'],
+        'hits': hits,
+        'lat': lat,
+        'lng': lng,
+        'portal_url': MAP_PORTAL_URL,
+    }

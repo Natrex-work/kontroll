@@ -1,4 +1,4 @@
-# KV Kontroll v42 – sikker produksjonspakke
+# KV Kontroll v43 – feltklar kart- og posisjonspakke
 
 Herdet PWA / webapp for fullskala feltutprøving av kontrollsaker, kart, regelverk, registeroppslag og dokumenteksport.
 

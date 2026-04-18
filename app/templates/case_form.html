@@ -118,7 +118,7 @@
       <div class="card-header panel-header">
         <div>
           <h2>2. Posisjon / kontrolltype</h2>
-          <div class="muted small">Velg kontrolltype og fiskeri, hent posisjon fra enheten og vurder områdestatus mot kartgrunnlaget.</div>
+          <div class="muted small">Velg kontrolltype og fiskeri. GPS forsøkes startet automatisk, og områdestatus vurderes løpende mot kartgrunnlaget.</div>
         </div>
       </div>
       <div class="split-panel">
@@ -156,7 +156,7 @@
             <label><span>Områdestatus</span><input name="area_status" id="area_status" value="{{ case.area_status or '' }}" readonly /></label>
             <input type="hidden" name="area_name" id="area_name" value="{{ case.area_name or '' }}" />
           </div>
-          <div class="callout margin-top-s" id="manual-position-status">Automatisk posisjon fra enheten er aktiv når du trykker «Bruk min posisjon». Hvis GPS ikke virker, trykk «Sett manuelt i kart» og plasser nålen selv.</div>
+          <div class="callout margin-top-s" id="manual-position-status">Appen forsøker å hente GPS-posisjon automatisk. Hvis GPS ikke virker, trykk «Sett manuelt i kart» og plasser nålen selv.</div>
           <div class="callout margin-top-s" id="area-status-detail">Områdestatus og nærmeste sted vises her når posisjonen er kontrollert.</div>
         </div>
       </div>

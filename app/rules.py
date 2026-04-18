@@ -702,9 +702,6 @@ def recommend_area_violation(area_status: str = '', area_name: str = '', species
     if not status_n or status_n == 'normalt område':
         return None
 
-    if ('fredningsområde' in status_n or 'regulert område' in status_n) and species_n and species_n not in area_blob and not (species_n == 'hummer' and 'hummer' in area_blob):
-        return None
-
     if 'fredningsområde' in status_n and ('hummer' in _norm(area_name) or species_n == 'hummer'):
         item = _clone(HUMMER_FREDNING_AREA)
         if gear_n and gear_n not in ALLOWED_GEARS_HUMMER_FREDNING:

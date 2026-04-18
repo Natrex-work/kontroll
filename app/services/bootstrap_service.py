@@ -15,6 +15,7 @@ def initialize_application_data() -> None:
     settings.ensure_runtime_dirs()
     db.init_db()
     _validate_runtime_security()
+    disable_legacy_demo_users()
     ensure_bootstrap_admin()
     if settings.session_secret == 'dev-session-secret-change-me':
         logger.warning('SESSION_SECRET bruker standard utviklingsverdi. Sett en unik verdi i .env eller miljøet før ordinær bruk.')
@@ -31,6 +32,20 @@ def _validate_runtime_security() -> None:
         if not settings.allowed_hosts or '*' in settings.allowed_hosts:
             raise RuntimeError('KV_ALLOWED_HOSTS må settes eksplisitt i produksjon.')
 
+
+
+
+def disable_legacy_demo_users() -> None:
+    demo_emails = ['admin@kv.demo', 'kontrollor@kv.demo', 'demo@kv.demo']
+    for email in demo_emails:
+        existing = db.get_user_by_email(email)
+        if not existing:
+            continue
+        if not int(existing.get('active', 1)):
+            continue
+        db.remove_user(int(existing['id']))
+        db.record_audit(existing['id'], 'disable_legacy_demo_user', 'user', existing['id'], {'email': email})
+        logger.warning('Deaktiverte eldre demobruker %s under oppstart.', email)
 
 def ensure_bootstrap_admin() -> None:
     email = settings.bootstrap_admin_email
