@@ -21,14 +21,14 @@
     <aside class="sidebar" id="app-sidebar">
       <div class="sidebar-main">
         <div class="sidebar-topbar">
-          <div class="brand">
-            <div class="brand-badge">KV</div>
-            <div class="brand-meta">
+          <button class="brand brand-toggle" id="sidebar-toggle" type="button" aria-expanded="false" aria-controls="app-sidebar" aria-label="Åpne meny">
+            <span class="brand-badge">KV</span>
+            <span class="brand-meta">
               <strong class="brand-title"><span class="brand-app-name">{{ app_name }}</span> <span class="brand-version">{{ app_version }}</span></strong>
-              <div class="muted sidebar-subtitle">Kart, regelverk, kontroll og administrasjon etter tilgang</div>
-            </div>
-          </div>
-          <button class="sidebar-toggle" id="sidebar-toggle" type="button" aria-expanded="false" aria-controls="sidebar-footer">Profil</button>
+              <span class="muted sidebar-subtitle">Kart, regelverk, kontroll og administrasjon etter tilgang</span>
+            </span>
+            <span class="brand-toggle-label">Meny</span>
+          </button>
         </div>
         <nav class="nav">
           {% for link in nav_links %}

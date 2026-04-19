@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import JSONResponse
 
 from .. import live_sources
@@ -8,8 +8,10 @@ from ..dependencies import require_any_permission, require_permission
 from ..security import enforce_csrf
 from ..pdf_export import build_text_drafts
 from ..schemas import SummarySuggestRequest, TextPolishRequest
+from ..services.ocr_service import extract_text_from_image
 from ..services.registry_service import gear_summary, lookup_registry
 from ..services.rules_service import check_zone_status, get_rule_bundle_with_live_sources
+from ..validation import sanitize_original_filename, validate_saved_file_size
 
 router = APIRouter()
 
@@ -119,6 +121,25 @@ def api_registry_lookup(request: Request, phone: str = '', vessel_reg: str = '',
 def api_gear_summary(request: Request, phone: str = '', name: str = '', address: str = '', species: str = '', gear_type: str = '', area_name: str = '', control_type: str = '', area_status: str = '', vessel_reg: str = '', radio_call_sign: str = '', hummer_participant_no: str = '', case_id: int | None = None):
     require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til KV Kontroll.')
     return JSONResponse(gear_summary(phone=phone, name=name, address=address, species=species, gear_type=gear_type, area_name=area_name, control_type=control_type, area_status=area_status, vessel_reg=vessel_reg, radio_call_sign=radio_call_sign, hummer_participant_no=hummer_participant_no, case_id=case_id))
+
+
+@router.post('/api/ocr/extract')
+async def api_ocr_extract(request: Request, file: UploadFile = File(...)):
+    require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til KV Kontroll.')
+    enforce_csrf(request)
+    filename = sanitize_original_filename(file.filename or 'ocr-bilde.jpg')
+    content_type = str(file.content_type or '').strip().lower()
+    if content_type and not content_type.startswith('image/'):
+        raise HTTPException(status_code=400, detail='OCR støtter bare bildefiler.')
+    content = await file.read()
+    validate_saved_file_size(len(content or b''))
+    try:
+        result = extract_text_from_image(content or b'', filename=filename)
+    except ValueError as exc:
+        return JSONResponse({'ok': False, 'message': str(exc), 'text': ''}, status_code=422)
+    except RuntimeError as exc:
+        return JSONResponse({'ok': False, 'message': str(exc), 'text': ''}, status_code=503)
+    return JSONResponse({'ok': True, **result})
 
 
 @router.post('/api/summary/suggest')

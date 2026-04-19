@@ -1,4 +1,4 @@
-# KV Kontroll v45 – kartvisning og manuell posisjon forbedret
+# KV Kontroll v46 – mobilmeny, OCR og auto-GPS forbedret
 
 Herdet PWA / webapp for fullskala feltutprøving av kontrollsaker, kart, regelverk, registeroppslag og dokumenteksport.
 

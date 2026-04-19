@@ -1176,8 +1176,36 @@
     selectedInlineEvidenceTarget = null;
     inlineEvidenceFeedback = '';
     resetOcrSelectedFile();
+    var positionModeStorageKey = 'kv-case-position-mode:' + root.dataset.caseId;
+    var storedPositionMode = '';
+    try {
+      storedPositionMode = String(localStorage.getItem(positionModeStorageKey) || '').trim().toLowerCase();
+    } catch (e) {
+      storedPositionMode = '';
+    }
+    if (storedPositionMode !== 'manual' && storedPositionMode !== 'auto') storedPositionMode = '';
     var hasInitialCoords = Boolean(latitude.value && longitude.value);
-    var mapState = { lat: Number(latitude.value || 0), lng: Number(longitude.value || 0), layer: null, draggable: true, allowMapMove: true, radiusKm: 50, followAutoPosition: !hasInitialCoords, manualPosition: false, lastDeviceLat: null, lastDeviceLng: null, deviceLat: null, deviceLng: null, deviceAccuracy: null, recenterTo: '', visibleLayerCount: 0 };
+    var mapState = {
+      lat: Number(latitude.value || 0),
+      lng: Number(longitude.value || 0),
+      layer: null,
+      draggable: true,
+      allowMapMove: true,
+      radiusKm: 50,
+      followAutoPosition: storedPositionMode !== 'manual',
+      manualPosition: storedPositionMode === 'manual',
+      lastDeviceLat: null,
+      lastDeviceLng: null,
+      deviceLat: null,
+      deviceLng: null,
+      deviceAccuracy: null,
+      recenterTo: '',
+      visibleLayerCount: 0
+    };
+    if (mapState.manualPosition && !hasInitialCoords) {
+      mapState.manualPosition = false;
+      mapState.followAutoPosition = true;
+    }
     mapState.onFeaturesRendered = function (payload) {
       var seenLayers = {};
       (payload && payload.features ? payload.features : []).forEach(function (feature) {
@@ -1186,6 +1214,10 @@
       mapState.visibleLayerCount = Object.keys(seenLayers).length;
       syncMapSelectionStatus();
     };
+    function persistPositionMode(mode) {
+      var normalized = String(mode || '').trim().toLowerCase() === 'manual' ? 'manual' : 'auto';
+      try { localStorage.setItem(positionModeStorageKey, normalized); } catch (e) {}
+    }
     var locationWatchId = null;
     var autoLocationAttempted = false;
     var mediaRecorder = null;
@@ -1205,18 +1237,44 @@
 
     var panes = Array.prototype.slice.call(document.querySelectorAll('.step-pane'));
     var stepButtons = Array.prototype.slice.call(document.querySelectorAll('.step-btn'));
+    var mobilePrevStep = document.getElementById('mobile-prev-step');
+    var mobileNextStep = document.getElementById('mobile-next-step');
+    var mobileStepLabel = document.getElementById('mobile-step-label');
     var stepStorageKey = 'kv-case-step:' + root.dataset.caseId;
     var currentStep = 1;
+
+    function mapStepIsVisible() {
+      return currentStep === 2 && document.visibilityState === 'visible';
+    }
+
+    function syncMobileStepNavigation() {
+      if (!mobileStepLabel) return;
+      var total = panes.length || 1;
+      var activeButton = stepButtons.filter(function (btn) { return Number(btn.dataset.stepTarget) === currentStep; })[0] || null;
+      var activeLabel = activeButton ? String(activeButton.textContent || '').replace(/^\s*\d+\.\s*/, '').trim() : '';
+      mobileStepLabel.textContent = 'Steg ' + currentStep + ' av ' + total + (activeLabel ? ' · ' + activeLabel : '');
+      if (mobilePrevStep) {
+        mobilePrevStep.disabled = currentStep <= 1;
+        mobilePrevStep.classList.toggle('hidden', currentStep <= 1);
+      }
+      if (mobileNextStep) {
+        mobileNextStep.disabled = currentStep >= total;
+        mobileNextStep.classList.toggle('hidden', currentStep >= total);
+      }
+    }
+
     function showStep(step, options) {
       options = options || {};
       currentStep = step;
       try { sessionStorage.setItem(stepStorageKey, String(step)); } catch (e) {}
       panes.forEach(function (pane) { pane.classList.toggle('active', Number(pane.dataset.step) === step); });
       stepButtons.forEach(function (btn) { btn.classList.toggle('active', Number(btn.dataset.stepTarget) === step); });
+      syncMobileStepNavigation();
       if (step === 2) {
         setTimeout(function () {
           updateCaseMap();
-          maybeAutoStartLocation();
+          if (autoLocationAttempted) startLocationWatch({ deviceOnly: mapState.manualPosition === true, recenter: mapState.manualPosition !== true });
+          else maybeAutoStartLocation();
           if (caseMap && caseMap._kvLeafletMap) {
             try { caseMap._kvLeafletMap.invalidateSize(); } catch (e) {}
           }
@@ -1227,6 +1285,8 @@
     stepButtons.forEach(function (btn) { btn.addEventListener('click', function () { showStep(Number(btn.dataset.stepTarget)); }); });
     document.querySelectorAll('[data-next-step]').forEach(function (btn) { btn.addEventListener('click', function () { showStep(Math.min(currentStep + 1, panes.length)); }); });
     document.querySelectorAll('[data-prev-step]').forEach(function (btn) { btn.addEventListener('click', function () { showStep(Math.max(currentStep - 1, 1)); }); });
+    if (mobilePrevStep) mobilePrevStep.addEventListener('click', function () { showStep(Math.max(currentStep - 1, 1)); });
+    if (mobileNextStep) mobileNextStep.addEventListener('click', function () { showStep(Math.min(currentStep + 1, panes.length)); });
 
     function currentLawSection() {
       var key = String(controlType.value || '').toLowerCase().indexOf('kom') === 0 ? 'kommersiell' : 'fritidsfiske';
@@ -1526,62 +1586,189 @@
       ocrSelectedFileBox.innerHTML = '<strong>Valgt bildefil:</strong> ' + escapeHtml(file.name || 'kamerabilde.jpg') + '<div class="small muted">' + escapeHtml(label || 'Klar for OCR og automatisk søk.') + '</div>';
     }
 
+    function normalizeOcrText(value) {
+      return String(value || '')
+        .replace(/\r/g, '\n')
+        .replace(/[ \t]+\n/g, '\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .replace(/[ \t]{2,}/g, ' ')
+        .trim();
+    }
+
+    function scoreOcrText(value) {
+      var text = normalizeOcrText(value);
+      if (!text) return 0;
+      var alphaNum = (text.match(/[A-Za-zÆØÅæøå0-9]/g) || []).length;
+      var lines = text.split(/\n+/).filter(Boolean).length;
+      return alphaNum * 4 + Math.min(text.length, 400) + Math.min(lines, 8) * 6;
+    }
+
+    function shortOcrPreview(text) {
+      var clean = normalizeOcrText(text).replace(/\n+/g, ' • ');
+      if (clean.length > 220) return clean.slice(0, 217) + '...';
+      return clean;
+    }
+
+    function loadImageForOcr(file) {
+      return new Promise(function (resolve, reject) {
+        var url = URL.createObjectURL(file);
+        var image = new Image();
+        image.onload = function () {
+          URL.revokeObjectURL(url);
+          resolve(image);
+        };
+        image.onerror = function () {
+          URL.revokeObjectURL(url);
+          reject(new Error('Kunne ikke lese bildefilen i nettleseren.'));
+        };
+        image.src = url;
+      });
+    }
+
+    function preprocessImageForOcr(file, mode) {
+      return loadImageForOcr(file).then(function (image) {
+        var maxSide = 2200;
+        var longest = Math.max(image.naturalWidth || image.width || 1, image.naturalHeight || image.height || 1);
+        var scale = longest > maxSide ? maxSide / longest : 1;
+        var width = Math.max(1, Math.round((image.naturalWidth || image.width || 1) * scale));
+        var height = Math.max(1, Math.round((image.naturalHeight || image.height || 1) * scale));
+        var canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        var ctx = canvas.getContext('2d', { willReadFrequently: true });
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(image, 0, 0, width, height);
+        var imageData = ctx.getImageData(0, 0, width, height);
+        var data = imageData.data;
+        for (var i = 0; i < data.length; i += 4) {
+          var gray = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+          gray = (gray - 128) * 1.35 + 128;
+          if (mode === 'threshold') gray = gray > 162 ? 255 : 0;
+          else if (mode === 'document') gray = Math.max(0, Math.min(255, gray * 1.08));
+          gray = Math.max(0, Math.min(255, gray));
+          data[i] = gray;
+          data[i + 1] = gray;
+          data[i + 2] = gray;
+          data[i + 3] = 255;
+        }
+        ctx.putImageData(imageData, 0, 0);
+        return new Promise(function (resolve, reject) {
+          canvas.toBlob(function (blob) {
+            if (!blob) {
+              reject(new Error('Kunne ikke forberede bilde for OCR.'));
+              return;
+            }
+            resolve(blob);
+          }, 'image/jpeg', 0.92);
+        });
+      });
+    }
+
+    function runServerOcr(file) {
+      var formData = new FormData();
+      formData.append('file', file, file.name || ('ocr-' + Date.now() + '.jpg'));
+      if (registryResult) registryResult.innerHTML = 'Laster opp bilde til OCR ...';
+      return fetch('/api/ocr/extract', secureFetchOptions({ method: 'POST', body: formData }))
+        .then(function (response) {
+          return response.json().catch(function () { return {}; }).then(function (payload) {
+            return { ok: response.ok, payload: payload || {} };
+          });
+        })
+        .then(function (result) {
+          if (!result.ok || !result.payload || !normalizeOcrText(result.payload.text || '')) {
+            throw new Error((result.payload && (result.payload.detail || result.payload.message)) || 'Server-OCR ga ikke lesbar tekst.');
+          }
+          return {
+            text: normalizeOcrText(result.payload.text || ''),
+            strategy: result.payload.strategy || 'server',
+            source: 'server'
+          };
+        });
+    }
+
+    function runBrowserOcr(file) {
+      var attempts = [];
+      return Promise.allSettled([
+        preprocessImageForOcr(file, 'document'),
+        preprocessImageForOcr(file, 'threshold')
+      ]).then(function (variantResults) {
+        var preparedA = variantResults[0].status === 'fulfilled' ? variantResults[0].value : file;
+        var preparedB = variantResults[1].status === 'fulfilled' ? variantResults[1].value : preparedA;
+        return ensureTesseract().then(function (Tesseract) {
+          function recognizeAttempt(source, label, pageSegMode) {
+            if (registryResult) registryResult.innerHTML = 'Kjører lokal OCR (' + escapeHtml(label) + ') ...';
+            return Tesseract.recognize(source, 'nor+eng', {
+              tessedit_pageseg_mode: pageSegMode,
+              preserve_interword_spaces: '1',
+              logger: function (message) {
+                if (!registryResult || !message || message.status !== 'recognizing text') return;
+                var pct = typeof message.progress === 'number' ? Math.round(message.progress * 100) : null;
+                registryResult.innerHTML = 'Kjører lokal OCR (' + escapeHtml(label) + ') ...' + (pct !== null ? '<div class="small muted">' + pct + '%</div>' : '');
+              }
+            }).then(function (result) {
+              attempts.push({
+                text: normalizeOcrText(result && result.data ? result.data.text : ''),
+                strategy: label,
+                source: 'browser'
+              });
+            }).catch(function () {
+              attempts.push({ text: '', strategy: label, source: 'browser' });
+            });
+          }
+          return recognizeAttempt(preparedA, 'forbedret bilde', 6)
+            .then(function () { return recognizeAttempt(preparedB, 'høy kontrast', 11); })
+            .then(function () { return recognizeAttempt(file, 'originalfil', 6); });
+        });
+      }).then(function () {
+        var best = attempts.sort(function (a, b) { return scoreOcrText(b.text) - scoreOcrText(a.text); })[0] || null;
+        if (!best || scoreOcrText(best.text) < 18) throw new Error('Ingen tydelig tekst ble funnet i bildet.');
+        return best;
+      });
+    }
+
+    function applyOcrResult(result) {
+      var text = normalizeOcrText(result && result.text ? result.text : '');
+      if (!text) throw new Error('OCR ga ingen lesbar tekst.');
+      lookupText.value = text;
+      if (registryResult) {
+        registryResult.innerHTML = '<strong>OCR fullført</strong><div class="small muted">' + escapeHtml(result.source === 'server' ? 'Server-OCR brukt' : 'Lokal OCR brukt') + ' · ' + escapeHtml(result.strategy || '') + '. Søket kjøres automatisk videre.</div><div class="small muted">' + escapeHtml(shortOcrPreview(text)) + '</div>';
+      }
+      lookupRegistry();
+      return result;
+    }
+
     function runOcrFromFile(file) {
       if (!file) {
         registryResult.innerHTML = 'Velg eller ta et bilde først.';
         return Promise.resolve(null);
       }
       registryResult.innerHTML = 'Kjører OCR på bilde ...';
-      return ensureTesseract().then(function (Tesseract) {
-        return Tesseract.recognize(file, 'nor+eng', { tessedit_pageseg_mode: 6, preserve_interword_spaces: '1' });
-      }).then(function (result) {
-        lookupText.value = result.data.text || '';
-        registryResult.innerHTML = '<strong>OCR fullført</strong><div class="small muted">Tekst er hentet ut fra bildet og brukes nå i norsk register- og katalogsøk.</div>';
-        lookupRegistry();
-        return result;
-      }).catch(function (err) {
-        registryResult.innerHTML = 'OCR feilet: ' + escapeHtml(err.message || err);
-        throw err;
-      });
+      return runServerOcr(file)
+        .catch(function () {
+          return runBrowserOcr(file);
+        })
+        .then(applyOcrResult)
+        .catch(function (err) {
+          registryResult.innerHTML = 'OCR feilet: ' + escapeHtml(err.message || err);
+          throw err;
+        });
     }
 
-    function stopCameraCaptureStream() {
-      if (cameraCaptureState && cameraCaptureState.stream) {
-        try {
-          cameraCaptureState.stream.getTracks().forEach(function (track) { track.stop(); });
-        } catch (e) {}
-      }
-      if (cameraCaptureVideo) {
-        try { cameraCaptureVideo.pause(); } catch (e) {}
-        cameraCaptureVideo.srcObject = null;
-      }
-    }
-
-    function closeCameraCapture() {
-      stopCameraCaptureStream();
-      if (cameraCaptureModal) {
-        cameraCaptureModal.classList.add('hidden');
-        cameraCaptureModal.setAttribute('aria-hidden', 'true');
-      }
-      cameraCaptureState = null;
-    }
-
-    function setCameraCaptureStatus(message, isError) {
-      if (!cameraCaptureStatus) return;
-      if (!message) {
-        cameraCaptureStatus.classList.add('hidden');
-        cameraCaptureStatus.innerHTML = '';
-        return;
-      }
-      cameraCaptureStatus.classList.remove('hidden');
-      cameraCaptureStatus.innerHTML = message;
-      cameraCaptureStatus.classList.toggle('is-error', !!isError);
+    function prefersNativeCaptureInput() {
+      var ua = navigator.userAgent || '';
+      var touchPoints = Number(navigator.maxTouchPoints || 0);
+      return /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/i.test(ua) && touchPoints > 1);
     }
 
     function openCameraCapture(options) {
       options = options || {};
       stopCameraCaptureStream();
       var fallbackInput = options.fallbackInput || null;
+      if (prefersNativeCaptureInput() && fallbackInput) {
+        fallbackInput.click();
+        return;
+      }
       if (!cameraCaptureModal || !cameraCaptureVideo) {
         if (fallbackInput) fallbackInput.click();
         return;
@@ -1694,9 +1881,9 @@
     }
 
     function manualPositionText() {
-      if (mapState.manualPosition) return 'Manuell kontrollposisjon er valgt. Det er den røde nålen og koordinatene i saken som brukes når appen avgjør om kontrollen er i et forbudsområde, fredningsområde eller annen regulert sone.';
-      if (mapState.deviceLat !== null && mapState.deviceLng !== null) return 'Blå prikk viser enhetens GPS-posisjon. Rød nål viser kontrollposisjonen som lagres i saken og brukes i områdesjekken.';
-      return 'Appen forsøker å starte GPS automatisk. Hvis GPS ikke virker, trykk «Sett manuelt i kart» og plasser nålen selv.';
+      if (mapState.manualPosition) return 'Manuell kontrollposisjon er valgt. Den røde nålen og koordinatene i saken brukes når appen avgjør om kontrollen er i et forbudsområde, fredningsområde eller annen regulert sone. Blå prikk fortsetter bare som referanse for enheten.';
+      if (mapState.deviceLat !== null && mapState.deviceLng !== null) return 'GPS følger enheten automatisk så lenge manuell kontrollposisjon ikke er valgt. Blå prikk viser enheten, og rød nål oppdateres løpende og brukes i områdesjekken.';
+      return 'Appen forsøker å starte GPS automatisk og følger enheten så lenge manuell kontrollposisjon ikke er valgt. Hvis GPS ikke virker, trykk «Sett manuelt i kart» og plasser nålen selv.';
     }
 
     function syncManualPositionNotice() {
@@ -1767,6 +1954,7 @@
       mapState.onManualMove = function (lat, lng) {
         mapState.followAutoPosition = false;
         mapState.manualPosition = true;
+        persistPositionMode('manual');
         latitude.value = Number(lat).toFixed(6);
         longitude.value = Number(lng).toFixed(6);
         mapState.lat = Number(latitude.value);
@@ -1841,7 +2029,9 @@
     }
 
     function applyAutoPosition(lat, lng, accuracy) {
+      mapState.followAutoPosition = true;
       mapState.manualPosition = false;
+      persistPositionMode('auto');
       latitude.value = Number(lat).toFixed(6);
       longitude.value = Number(lng).toFixed(6);
       mapState.lat = Number(latitude.value);
@@ -1858,6 +2048,7 @@
     function setManualPositionFromMapCenter() {
       mapState.followAutoPosition = false;
       mapState.manualPosition = true;
+      persistPositionMode('manual');
       var chosenLat = Number(latitude.value || 0);
       var chosenLng = Number(longitude.value || 0);
       if (!(isFinite(chosenLat) && isFinite(chosenLng) && (chosenLat || chosenLng))) {
@@ -1885,15 +2076,14 @@
 
     function startLocationWatch(options) {
       options = options || {};
-      var deviceOnly = !!options.deviceOnly;
+      var deviceOnly = !!options.deviceOnly || mapState.manualPosition === true;
       var recenter = !!options.recenter;
       if (!navigator.geolocation) {
         if (zoneResult) zoneResult.innerHTML = 'Denne enheten støtter ikke geolokasjon i nettleseren.';
         syncManualPositionNotice();
         return;
       }
-      if (!deviceOnly) mapState.followAutoPosition = true;
-      else if (latitude.value && longitude.value) mapState.followAutoPosition = false;
+      mapState.followAutoPosition = !deviceOnly;
       function applyDevicePosition(lat, lng, accuracy, shouldRecenter) {
         mapState.lastDeviceLat = Number(lat);
         mapState.lastDeviceLng = Number(lng);
@@ -1901,8 +2091,8 @@
         mapState.deviceLng = Number(lng);
         mapState.deviceAccuracy = Number(accuracy || mapState.deviceAccuracy || 12);
         syncManualPositionNotice();
-        if (deviceOnly && latitude.value && longitude.value) {
-          updateCaseMap(shouldRecenter ? { recenterTo: 'device' } : {});
+        if (deviceOnly || !mapStepIsVisible()) {
+          updateCaseMap(deviceOnly && mapStepIsVisible() && shouldRecenter ? { recenterTo: 'device' } : {});
           return;
         }
         applyAutoPosition(lat, lng, accuracy);
@@ -1929,7 +2119,7 @@
         mapState.deviceAccuracy = currentAccuracy;
         mapState.deviceLat = currentLat;
         mapState.deviceLng = currentLng;
-        if (mapState.followAutoPosition === false) {
+        if (mapState.followAutoPosition === false || !mapStepIsVisible()) {
           updateCaseMap();
           syncManualPositionNotice();
           return;
@@ -1944,8 +2134,7 @@
     function maybeAutoStartLocation() {
       if (autoLocationAttempted || !navigator.geolocation) return;
       autoLocationAttempted = true;
-      var hasSavedCoordinates = Boolean(latitude.value && longitude.value);
-      var start = function () { startLocationWatch({ deviceOnly: hasSavedCoordinates, recenter: !hasSavedCoordinates }); };
+      var start = function () { startLocationWatch({ deviceOnly: mapState.manualPosition === true, recenter: mapState.manualPosition !== true }); };
       if (navigator.permissions && navigator.permissions.query) {
         navigator.permissions.query({ name: 'geolocation' }).then(function (permission) {
           if (!permission || permission.state === 'denied') {
@@ -1958,6 +2147,12 @@
         start();
       }
     }
+
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState !== 'visible') return;
+      if (currentStep !== 2) return;
+      startLocationWatch({ deviceOnly: mapState.manualPosition === true, recenter: mapState.manualPosition !== true });
+    });
 
     document.getElementById('btn-check-zone').addEventListener('click', checkZone);
     document.getElementById('btn-use-location').addEventListener('click', function () { startLocationWatch({ deviceOnly: false, recenter: true }); });
@@ -3005,10 +3200,11 @@
 
     syncOptions();
     updateCaseMap();
-    setTimeout(maybeAutoStartLocation, 250);
+    setTimeout(function () { if (currentStep === 2) maybeAutoStartLocation(); }, 250);
     renderFindings();
     if (sourcesState.length) sourceList.innerHTML = sourcesState.map(sourceChip).join('');
     if (controlType.value && (species.value || fisheryType.value) && gearType.value) loadRules();
+    syncMobileStepNavigation();
     try {
       var storedStep = Number(sessionStorage.getItem(stepStorageKey) || '1');
       if (storedStep >= 1 && storedStep <= panes.length) showStep(storedStep, { scroll: false });

@@ -118,7 +118,7 @@
       <div class="card-header panel-header">
         <div>
           <h2>2. Posisjon / kontrolltype</h2>
-          <div class="muted small">Velg kontrolltype og fiskeri. GPS forsøkes startet automatisk, og områdestatus vurderes løpende mot kartgrunnlaget.</div>
+          <div class="muted small">Velg kontrolltype og fiskeri. Når dette steget er åpent følger kartet GPS-posisjonen automatisk helt til manuell kontrollposisjon velges, og områdestatus vurderes løpende mot kartgrunnlaget.</div>
         </div>
       </div>
       <div class="split-panel">
@@ -156,7 +156,7 @@
             <label><span>Områdestatus</span><input name="area_status" id="area_status" value="{{ case.area_status or '' }}" readonly /></label>
             <input type="hidden" name="area_name" id="area_name" value="{{ case.area_name or '' }}" />
           </div>
-          <div class="callout margin-top-s" id="manual-position-status">Appen forsøker å hente GPS-posisjon automatisk. Hvis GPS ikke virker, trykk «Sett manuelt i kart» og plasser nålen selv.</div>
+          <div class="callout margin-top-s" id="manual-position-status">Når dette steget er åpent følger appen GPS-posisjonen automatisk. Hvis GPS ikke virker, trykk «Sett manuelt i kart» og plasser nålen selv.</div>
           <div class="callout margin-top-s" id="area-status-detail">Områdestatus og nærmeste sted vises her når posisjonen er kontrollert.</div>
         </div>
       </div>
@@ -227,10 +227,10 @@
             <button class="btn btn-secondary" type="button" id="btn-ocr-camera">Bruk kamera</button>
             <button class="btn btn-secondary" type="button" id="btn-ocr-file">Velg fil</button>
             <button class="btn btn-secondary" type="button" id="btn-run-ocr">Les bilde og autofyll</button>
-            <input type="file" id="ocr-image-camera" accept="image/*" capture="environment" class="hidden" />
-            <input type="file" id="ocr-image-file" accept="image/*" class="hidden" />
-            <input type="file" id="inline-evidence-camera-input" accept="image/*" capture="environment" class="hidden" />
-            <input type="file" id="inline-evidence-file-input" accept="image/*" class="hidden" />
+            <input type="file" id="ocr-image-camera" accept="image/*,.heic,.heif" capture="environment" class="hidden" />
+            <input type="file" id="ocr-image-file" accept="image/*,.heic,.heif" class="hidden" />
+            <input type="file" id="inline-evidence-camera-input" accept="image/*,.heic,.heif" capture="environment" class="hidden" />
+            <input type="file" id="inline-evidence-file-input" accept="image/*,.heic,.heif" class="hidden" />
           </div>
           <div class="callout margin-top-s hidden" id="ocr-selected-file">Ingen bildefil valgt ennå.</div>
           <div class="callout margin-top-s" id="registry-result">Søk på navn, mobilnummer, fiskerimerke, radiokallesignal, hummerdeltakernummer eller OCR-tekst. Navn fra hummerlisten kan søkes både som «Etternavn, Fornavn» og «Fornavn Etternavn». Ved treff blir relevante felt fylt ut automatisk.</div>
@@ -403,6 +403,12 @@
     <div class="callout margin-top-s" id="summary-preview">AI-støttet, punktvis utkast vises her når du trykker på knappen. Oppsummeringen bygger bare på registrerte avvik og lovbrudd i kontrollpunktene og viser forholdene per beslagnummer når dette finnes.</div>
     <div class="step-actions"><button type="button" class="btn btn-secondary" data-prev-step>Tilbake</button></div>
   </section>
+
+  <div class="mobile-step-nav" id="mobile-step-nav" aria-label="Stegnavigasjon for mobil">
+    <button type="button" class="btn btn-secondary" id="mobile-prev-step">Tilbake</button>
+    <div class="mobile-step-label" id="mobile-step-label">Steg 1 av 7</div>
+    <button type="button" class="btn btn-primary" id="mobile-next-step">Videre</button>
+  </div>
 
   <div class="camera-modal hidden" id="camera-capture-modal" aria-hidden="true">
     <div class="camera-modal-dialog">
