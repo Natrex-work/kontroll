@@ -118,6 +118,58 @@
   }
 
   var portalFeatureCache = {};
+  var portalFeatureInflight = {};
+  var PORTAL_FEATURE_CACHE_MS = 45000;
+  var PORTAL_FEATURE_CACHE_LIMIT = 240;
+  var PORTAL_FETCH_CONCURRENCY = 2;
+
+  function trimPortalFeatureCache() {
+    var keys = Object.keys(portalFeatureCache);
+    if (keys.length <= PORTAL_FEATURE_CACHE_LIMIT) return;
+    keys.sort(function (a, b) { return (portalFeatureCache[a].ts || 0) - (portalFeatureCache[b].ts || 0); });
+    while (keys.length > PORTAL_FEATURE_CACHE_LIMIT) {
+      delete portalFeatureCache[keys.shift()];
+    }
+  }
+
+  function fetchPortalFeatureCollection(viewKey, url) {
+    var now = Date.now();
+    var cached = portalFeatureCache[viewKey];
+    if (cached && (now - cached.ts) < PORTAL_FEATURE_CACHE_MS) return Promise.resolve(cached.data);
+    if (portalFeatureInflight[viewKey]) return portalFeatureInflight[viewKey];
+    var request = fetch(url)
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var normalized = normalizeFeatureCollection(data);
+        portalFeatureCache[viewKey] = { ts: Date.now(), data: normalized };
+        trimPortalFeatureCache();
+        return normalized;
+      })
+      .finally(function () { delete portalFeatureInflight[viewKey]; });
+    portalFeatureInflight[viewKey] = request;
+    return request;
+  }
+
+  function runLimited(tasks, limit) {
+    limit = Math.max(1, Number(limit) || 1);
+    return new Promise(function (resolve) {
+      if (!tasks.length) { resolve(); return; }
+      var index = 0;
+      var active = 0;
+      function launch() {
+        if (index >= tasks.length && active === 0) { resolve(); return; }
+        while (active < limit && index < tasks.length) {
+          var task = tasks[index++];
+          active += 1;
+          Promise.resolve().then(task).catch(function () {}).then(function () {
+            active -= 1;
+            launch();
+          });
+        }
+      }
+      launch();
+    });
+  }
 
   function createPortalMap(el, layers, markerState) {
     if (!el || !window.L) return Promise.resolve(null);
@@ -165,7 +217,7 @@
         } catch (e) {}
         if (typeof state.refreshLayers === 'function') {
           clearTimeout(state._refreshTimer);
-          state._refreshTimer = setTimeout(function () { state.refreshLayers(); }, 140);
+          state._refreshTimer = setTimeout(function () { state.refreshLayers(); }, 220);
         }
       });
       el._kvPortalState = state;
@@ -182,68 +234,69 @@
     var bbox = bounds ? [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()] : null;
     var bboxKey = bbox ? bbox.map(function (value) { return Number(value).toFixed(3); }).join(',') : '';
 
-    var promises = (layers || []).map(function (layer) {
-      var cacheKey = String(layer.id);
-      activeLayerIds[cacheKey] = true;
-      var viewKey = cacheKey + ':' + bboxKey;
-      if (state.overlaysById[cacheKey] && state.layerViewKeys[cacheKey] === viewKey) return Promise.resolve();
-      var url = '/api/map/features?layer_id=' + encodeURIComponent(layer.id);
-      if (bboxKey) url += '&bbox=' + encodeURIComponent(bbox.join(','));
-      return fetch(url)
-        .then(function (r) { return r.json(); })
-        .then(function (data) {
-          data = normalizeFeatureCollection(data);
-          state.layerViewKeys[cacheKey] = viewKey;
-          if (state.overlaysById[cacheKey]) {
-            try { map.removeLayer(state.overlaysById[cacheKey]); } catch (e) {}
-            delete state.overlaysById[cacheKey];
-          }
-          state.featureSummariesByLayer[cacheKey] = [];
-          if (!data.features.length) return;
-          var featureSummaries = [];
-          var geo = L.geoJSON(data, {
-            style: function (feature) {
-              var geometryType = String((feature && feature.geometry && feature.geometry.type) || layer.geometry_type || '').toLowerCase();
-              var isLine = geometryType.indexOf('line') !== -1;
-              var isPoint = geometryType.indexOf('point') !== -1;
-              return {
-                color: layer.color || '#c1121f',
-                weight: isLine ? 4 : 3,
-                opacity: isPoint ? 0.95 : 0.9,
-                fillColor: layer.color || '#c1121f',
-                fillOpacity: isPoint ? 0.8 : 0.28,
-                dashArray: isLine ? '8 6' : null
-              };
-            },
-            pointToLayer: function (feature, latlng) {
-              return L.circleMarker(latlng, {
-                radius: 7,
-                color: layer.color || '#c1121f',
-                weight: 2,
-                fillColor: layer.color || '#c1121f',
-                fillOpacity: 0.75
-              });
-            },
-            onEachFeature: function (feature, lyr) {
-              var props = feature && feature.properties ? feature.properties : {};
-              var title = props.navn || props.omraade || props.område || props.name || layer.name;
-              var desc = props.info || props.beskrivelse || props.informasjon || props.omraade_stengt_text || props.vurderes_aapnet_text || layer.description || layer.status || '';
-              var law = props.jmelding_navn || props.url || '';
-              var html = '<strong>' + escapeHtml(title || layer.name) + '</strong>';
-              html += '<div class="small muted">' + escapeHtml(layer.status || '') + '</div>';
-              if (desc) html += '<div class="small" style="margin-top:6px">' + escapeHtml(desc) + '</div>';
-              if (law) html += '<div class="small muted" style="margin-top:6px">Kilde: ' + escapeHtml(law) + '</div>';
-              if (props.url) html += '<div class="small" style="margin-top:6px"><a href="' + escapeHtml(props.url) + '" target="_blank" rel="noopener">Åpne regelgrunnlag</a></div>';
-              lyr.bindPopup(html);
-              featureSummaries.push({ layerId: layer.id, layer: layer.name, status: layer.status || '', name: title || layer.name, description: desc || '', url: props.url || '', source: law || '' });
+    var tasks = (layers || []).map(function (layer) {
+      return function () {
+        var cacheKey = String(layer.id);
+        activeLayerIds[cacheKey] = true;
+        var viewKey = cacheKey + ':' + bboxKey;
+        if (state.overlaysById[cacheKey] && state.layerViewKeys[cacheKey] === viewKey) return Promise.resolve();
+        var url = '/api/map/features?layer_id=' + encodeURIComponent(layer.id);
+        if (bboxKey) url += '&bbox=' + encodeURIComponent(bbox.join(','));
+        return fetchPortalFeatureCollection(viewKey, url)
+          .then(function (data) {
+            data = normalizeFeatureCollection(data);
+            state.layerViewKeys[cacheKey] = viewKey;
+            if (state.overlaysById[cacheKey]) {
+              try { map.removeLayer(state.overlaysById[cacheKey]); } catch (e) {}
+              delete state.overlaysById[cacheKey];
             }
-          }).addTo(map);
-          state.overlaysById[cacheKey] = geo;
-          state.featureSummariesByLayer[cacheKey] = featureSummaries;
-        }).catch(function () { state.featureSummariesByLayer[cacheKey] = []; });
+            state.featureSummariesByLayer[cacheKey] = [];
+            if (!data.features.length) return;
+            var featureSummaries = [];
+            var geo = L.geoJSON(data, {
+              style: function (feature) {
+                var geometryType = String((feature && feature.geometry && feature.geometry.type) || layer.geometry_type || '').toLowerCase();
+                var isLine = geometryType.indexOf('line') !== -1;
+                var isPoint = geometryType.indexOf('point') !== -1;
+                return {
+                  color: layer.color || '#c1121f',
+                  weight: isLine ? 4 : 3,
+                  opacity: isPoint ? 0.95 : 0.9,
+                  fillColor: layer.color || '#c1121f',
+                  fillOpacity: isPoint ? 0.8 : 0.28,
+                  dashArray: isLine ? '8 6' : null
+                };
+              },
+              pointToLayer: function (feature, latlng) {
+                return L.circleMarker(latlng, {
+                  radius: 7,
+                  color: layer.color || '#c1121f',
+                  weight: 2,
+                  fillColor: layer.color || '#c1121f',
+                  fillOpacity: 0.75
+                });
+              },
+              onEachFeature: function (feature, lyr) {
+                var props = feature && feature.properties ? feature.properties : {};
+                var title = props.navn || props.omraade || props.område || props.name || layer.name;
+                var desc = props.info || props.beskrivelse || props.informasjon || props.omraade_stengt_text || props.vurderes_aapnet_text || layer.description || layer.status || '';
+                var law = props.jmelding_navn || props.url || '';
+                var html = '<strong>' + escapeHtml(title || layer.name) + '</strong>';
+                html += '<div class="small muted">' + escapeHtml(layer.status || '') + '</div>';
+                if (desc) html += '<div class="small" style="margin-top:6px">' + escapeHtml(desc) + '</div>';
+                if (law) html += '<div class="small muted" style="margin-top:6px">Kilde: ' + escapeHtml(law) + '</div>';
+                if (props.url) html += '<div class="small" style="margin-top:6px"><a href="' + escapeHtml(props.url) + '" target="_blank" rel="noopener">Åpne regelgrunnlag</a></div>';
+                lyr.bindPopup(html);
+                featureSummaries.push({ layerId: layer.id, layer: layer.name, status: layer.status || '', name: title || layer.name, description: desc || '', url: props.url || '', source: law || '' });
+              }
+            }).addTo(map);
+            state.overlaysById[cacheKey] = geo;
+            state.featureSummariesByLayer[cacheKey] = featureSummaries;
+          }).catch(function () { state.featureSummariesByLayer[cacheKey] = []; });
+      };
     });
 
-    return Promise.all(promises).then(function () {
+    return runLimited(tasks, PORTAL_FETCH_CONCURRENCY).then(function () {
       Object.keys(state.overlaysById).forEach(function (key) {
         if (activeLayerIds[key]) return;
         try { map.removeLayer(state.overlaysById[key]); } catch (e) {}

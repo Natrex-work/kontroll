@@ -1,5 +1,12 @@
 {% extends 'base.html' %}
 {% block title %}{{ case.case_number }} · Kontroll Og Oppsyn {{ app_version }}{% endblock %}
+{% block topbar_extra %}
+<div class="top-step-nav" id="top-step-nav" aria-label="Stegnavigasjon for mobil">
+  <button type="button" class="btn btn-secondary btn-small top-step-btn" id="top-prev-step">Tilbake</button>
+  <div class="top-step-label" id="top-step-label">1 / 7</div>
+  <button type="button" class="btn btn-primary btn-small top-step-btn" id="top-next-step">Videre</button>
+</div>
+{% endblock %}
 {% block content %}
 <section class="page-header page-header-soft">
   <div>
@@ -404,11 +411,6 @@
     <div class="step-actions"><button type="button" class="btn btn-secondary" data-prev-step>Tilbake</button></div>
   </section>
 
-  <div class="mobile-step-nav" id="mobile-step-nav" aria-label="Stegnavigasjon for mobil">
-    <button type="button" class="btn btn-secondary" id="mobile-prev-step">Tilbake</button>
-    <div class="mobile-step-label" id="mobile-step-label">Steg 1 av 7</div>
-    <button type="button" class="btn btn-primary" id="mobile-next-step">Videre</button>
-  </div>
 
   <div class="camera-modal hidden" id="camera-capture-modal" aria-hidden="true">
     <div class="camera-modal-dialog">

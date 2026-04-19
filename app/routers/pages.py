@@ -4,7 +4,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.status import HTTP_303_SEE_OTHER
 
-from .. import catalog, db
+from .. import catalog, db, live_sources
 from ..dependencies import first_allowed_path, require_permission, require_user
 from ..ui import render_template
 
@@ -22,7 +22,7 @@ def dashboard(request: Request, status_filter: str = 'all'):
 @router.get('/kart', response_class=HTMLResponse)
 def map_overview(request: Request):
     require_permission(request, 'kart', detail='Brukeren har ikke tilgang til Kart og Område.')
-    return render_template(request, 'map_overview.html')
+    return render_template(request, 'map_overview.html', portal_layers=live_sources.portal_layer_catalog())
 
 
 @router.get('/regelverk', response_class=HTMLResponse)

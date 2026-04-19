@@ -83,7 +83,7 @@ def render_template(request: Request, name: str, **context: Any) -> HTMLResponse
         'external_actor_options': EXTERNAL_ACTOR_OPTIONS,
         'crew_role_options': CREW_ROLE_OPTIONS,
         'portal_map_url': live_sources.MAP_PORTAL_URL,
-        'portal_layers': live_sources.portal_layer_catalog(),
+        'portal_layers': context.get('portal_layers', []),
         'dashboard_zones': area.ZONES,
         'app_version': settings.app_version_label,
         'app_name': settings.app_name,

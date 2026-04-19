@@ -29,6 +29,7 @@
             </span>
             <span class="brand-toggle-label">Meny</span>
           </button>
+          {% block topbar_extra %}{% endblock %}
         </div>
         <nav class="nav">
           {% for link in nav_links %}

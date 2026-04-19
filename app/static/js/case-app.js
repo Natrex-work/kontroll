@@ -1200,7 +1200,13 @@
       deviceLng: null,
       deviceAccuracy: null,
       recenterTo: '',
-      visibleLayerCount: 0
+      visibleLayerCount: 0,
+      lastZoneCheckLat: null,
+      lastZoneCheckLng: null,
+      lastZoneCheckTs: 0,
+      lastAutoSaveLat: null,
+      lastAutoSaveLng: null,
+      lastAutoSaveTs: 0
     };
     if (mapState.manualPosition && !hasInitialCoords) {
       mapState.manualPosition = false;
@@ -1217,6 +1223,15 @@
     function persistPositionMode(mode) {
       var normalized = String(mode || '').trim().toLowerCase() === 'manual' ? 'manual' : 'auto';
       try { localStorage.setItem(positionModeStorageKey, normalized); } catch (e) {}
+    }
+
+    function distanceMeters(lat1, lng1, lat2, lng2) {
+      if (!isFinite(lat1) || !isFinite(lng1) || !isFinite(lat2) || !isFinite(lng2)) return Infinity;
+      var toRad = Math.PI / 180;
+      var dLat = (lat2 - lat1) * toRad;
+      var dLng = (lng2 - lng1) * toRad;
+      var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * toRad) * Math.cos(lat2 * toRad) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+      return 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     }
     var locationWatchId = null;
     var autoLocationAttempted = false;
@@ -1240,6 +1255,9 @@
     var mobilePrevStep = document.getElementById('mobile-prev-step');
     var mobileNextStep = document.getElementById('mobile-next-step');
     var mobileStepLabel = document.getElementById('mobile-step-label');
+    var topPrevStep = document.getElementById('top-prev-step');
+    var topNextStep = document.getElementById('top-next-step');
+    var topStepLabel = document.getElementById('top-step-label');
     var stepStorageKey = 'kv-case-step:' + root.dataset.caseId;
     var currentStep = 1;
 
@@ -1247,20 +1265,22 @@
       return currentStep === 2 && document.visibilityState === 'visible';
     }
 
-    function syncMobileStepNavigation() {
-      if (!mobileStepLabel) return;
+    function syncStepNavigation() {
       var total = panes.length || 1;
       var activeButton = stepButtons.filter(function (btn) { return Number(btn.dataset.stepTarget) === currentStep; })[0] || null;
       var activeLabel = activeButton ? String(activeButton.textContent || '').replace(/^\s*\d+\.\s*/, '').trim() : '';
-      mobileStepLabel.textContent = 'Steg ' + currentStep + ' av ' + total + (activeLabel ? ' · ' + activeLabel : '');
-      if (mobilePrevStep) {
-        mobilePrevStep.disabled = currentStep <= 1;
-        mobilePrevStep.classList.toggle('hidden', currentStep <= 1);
-      }
-      if (mobileNextStep) {
-        mobileNextStep.disabled = currentStep >= total;
-        mobileNextStep.classList.toggle('hidden', currentStep >= total);
-      }
+      if (mobileStepLabel) mobileStepLabel.textContent = 'Steg ' + currentStep + ' av ' + total + (activeLabel ? ' · ' + activeLabel : '');
+      if (topStepLabel) topStepLabel.textContent = currentStep + ' / ' + total;
+      [mobilePrevStep, topPrevStep].forEach(function (btn) {
+        if (!btn) return;
+        btn.disabled = currentStep <= 1;
+        btn.classList.toggle('hidden', currentStep <= 1);
+      });
+      [mobileNextStep, topNextStep].forEach(function (btn) {
+        if (!btn) return;
+        btn.disabled = currentStep >= total;
+        btn.classList.toggle('hidden', currentStep >= total);
+      });
     }
 
     function showStep(step, options) {
@@ -1269,7 +1289,7 @@
       try { sessionStorage.setItem(stepStorageKey, String(step)); } catch (e) {}
       panes.forEach(function (pane) { pane.classList.toggle('active', Number(pane.dataset.step) === step); });
       stepButtons.forEach(function (btn) { btn.classList.toggle('active', Number(btn.dataset.stepTarget) === step); });
-      syncMobileStepNavigation();
+      syncStepNavigation();
       if (step === 2) {
         setTimeout(function () {
           updateCaseMap();
@@ -1285,8 +1305,14 @@
     stepButtons.forEach(function (btn) { btn.addEventListener('click', function () { showStep(Number(btn.dataset.stepTarget)); }); });
     document.querySelectorAll('[data-next-step]').forEach(function (btn) { btn.addEventListener('click', function () { showStep(Math.min(currentStep + 1, panes.length)); }); });
     document.querySelectorAll('[data-prev-step]').forEach(function (btn) { btn.addEventListener('click', function () { showStep(Math.max(currentStep - 1, 1)); }); });
-    if (mobilePrevStep) mobilePrevStep.addEventListener('click', function () { showStep(Math.max(currentStep - 1, 1)); });
-    if (mobileNextStep) mobileNextStep.addEventListener('click', function () { showStep(Math.min(currentStep + 1, panes.length)); });
+    [mobilePrevStep, topPrevStep].forEach(function (btn) {
+      if (!btn) return;
+      btn.addEventListener('click', function () { showStep(Math.max(currentStep - 1, 1)); });
+    });
+    [mobileNextStep, topNextStep].forEach(function (btn) {
+      if (!btn) return;
+      btn.addEventListener('click', function () { showStep(Math.min(currentStep + 1, panes.length)); });
+    });
 
     function currentLawSection() {
       var key = String(controlType.value || '').toLowerCase().indexOf('kom') === 0 ? 'kommersiell' : 'fritidsfiske';
@@ -1761,6 +1787,36 @@
       return /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/i.test(ua) && touchPoints > 1);
     }
 
+    function setCameraCaptureStatus(message, isError) {
+      if (!cameraCaptureStatus) return;
+      cameraCaptureStatus.classList.remove('hidden');
+      cameraCaptureStatus.textContent = String(message || '');
+      cameraCaptureStatus.classList.toggle('alert', !!isError);
+      cameraCaptureStatus.classList.toggle('alert-error', !!isError);
+    }
+
+    function stopCameraCaptureStream() {
+      var stream = cameraCaptureState && cameraCaptureState.stream ? cameraCaptureState.stream : (cameraCaptureVideo && cameraCaptureVideo.srcObject ? cameraCaptureVideo.srcObject : null);
+      if (stream && stream.getTracks) {
+        try { stream.getTracks().forEach(function (track) { track.stop(); }); } catch (e) {}
+      }
+      if (cameraCaptureVideo) {
+        try { cameraCaptureVideo.pause(); } catch (e) {}
+        cameraCaptureVideo.srcObject = null;
+      }
+      if (cameraCaptureState) delete cameraCaptureState.stream;
+    }
+
+    function closeCameraCapture() {
+      stopCameraCaptureStream();
+      cameraCaptureState = null;
+      if (cameraCaptureModal) {
+        cameraCaptureModal.classList.add('hidden');
+        cameraCaptureModal.setAttribute('aria-hidden', 'true');
+      }
+      if (cameraCaptureStatus) cameraCaptureStatus.classList.add('hidden');
+    }
+
     function openCameraCapture(options) {
       options = options || {};
       stopCameraCaptureStream();
@@ -2041,8 +2097,21 @@
       mapState.deviceAccuracy = Number(accuracy || mapState.deviceAccuracy || 12);
       syncManualPositionNotice();
       updateCaseMap({ recenterTo: 'device' });
-      checkZone();
-      scheduleAutosave('Posisjon oppdatert');
+      var now = Date.now();
+      var shouldZoneCheck = !isFinite(mapState.lastZoneCheckLat) || !isFinite(mapState.lastZoneCheckLng) || (now - mapState.lastZoneCheckTs) > 8000 || distanceMeters(mapState.lastZoneCheckLat, mapState.lastZoneCheckLng, mapState.lat, mapState.lng) > Math.max(15, Number(mapState.deviceAccuracy || 0));
+      if (shouldZoneCheck) {
+        mapState.lastZoneCheckLat = mapState.lat;
+        mapState.lastZoneCheckLng = mapState.lng;
+        mapState.lastZoneCheckTs = now;
+        checkZone();
+      }
+      var shouldAutosave = !isFinite(mapState.lastAutoSaveLat) || !isFinite(mapState.lastAutoSaveLng) || (now - mapState.lastAutoSaveTs) > 30000 || distanceMeters(mapState.lastAutoSaveLat, mapState.lastAutoSaveLng, mapState.lat, mapState.lng) > 20;
+      if (shouldAutosave) {
+        mapState.lastAutoSaveLat = mapState.lat;
+        mapState.lastAutoSaveLng = mapState.lng;
+        mapState.lastAutoSaveTs = now;
+        scheduleAutosave('Posisjon oppdatert');
+      }
     }
 
     function setManualPositionFromMapCenter() {
@@ -2148,11 +2217,33 @@
       }
     }
 
+    function stopLocationWatch() {
+      if (locationWatchId === null || !navigator.geolocation) return;
+      try { navigator.geolocation.clearWatch(locationWatchId); } catch (e) {}
+      locationWatchId = null;
+    }
+
+    function cleanupCasePageResources() {
+      stopLocationWatch();
+      if (cameraCaptureVideo && cameraCaptureVideo.srcObject && cameraCaptureVideo.srcObject.getTracks) {
+        try { cameraCaptureVideo.srcObject.getTracks().forEach(function (track) { track.stop(); }); } catch (e) {}
+        cameraCaptureVideo.srcObject = null;
+      }
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        try { mediaRecorder.stop(); } catch (e) {}
+      }
+    }
+
     document.addEventListener('visibilitychange', function () {
-      if (document.visibilityState !== 'visible') return;
+      if (document.visibilityState === 'hidden') {
+        stopLocationWatch();
+        return;
+      }
       if (currentStep !== 2) return;
       startLocationWatch({ deviceOnly: mapState.manualPosition === true, recenter: mapState.manualPosition !== true });
     });
+    window.addEventListener('pagehide', cleanupCasePageResources);
+    window.addEventListener('beforeunload', cleanupCasePageResources);
 
     document.getElementById('btn-check-zone').addEventListener('click', checkZone);
     document.getElementById('btn-use-location').addEventListener('click', function () { startLocationWatch({ deviceOnly: false, recenter: true }); });

@@ -8,7 +8,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from starlette.status import HTTP_303_SEE_OTHER
 
-from .. import catalog, db
+from .. import catalog, db, live_sources
 from ..config import settings
 from ..dependencies import get_case_for_user, require_control_admin, require_permission
 from ..security import enforce_csrf
@@ -66,7 +66,7 @@ def edit_case(request: Request, case_id: int):
     crew = db.case_to_crew(case_row)
     external_actors = db.case_to_external_actors(case_row)
     interviews = db.case_to_interviews(case_row)
-    return render_template(request, 'case_form.html', case=case_row, evidence=evidence, findings=findings, sources=sources, crew=crew, external_actors=external_actors, interviews=interviews, law_browser=catalog.law_browser_data(), leisure_fields=catalog.LEISURE_FIELDS, commercial_fields=catalog.COMMERCIAL_FIELDS, case_number_error=request.query_params.get('case_number_error'), case_number_saved=request.query_params.get('case_number_saved'))
+    return render_template(request, 'case_form.html', case=case_row, evidence=evidence, findings=findings, sources=sources, crew=crew, external_actors=external_actors, interviews=interviews, law_browser=catalog.law_browser_data(), leisure_fields=catalog.LEISURE_FIELDS, commercial_fields=catalog.COMMERCIAL_FIELDS, portal_layers=live_sources.portal_layer_catalog(), case_number_error=request.query_params.get('case_number_error'), case_number_saved=request.query_params.get('case_number_saved'))
 
 
 @router.post('/cases/{case_id}/save')

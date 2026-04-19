@@ -59,6 +59,7 @@
     var storageKey = 'kv-overview-layer-filter';
     var activeLayerStatuses = { 'fredningsområde': true, 'stengt område': true, 'maksimalmål område': true, 'regulert område': true };
     var watchId = null;
+    var lastZoneFetch = { lat: null, lng: null, ts: 0 };
     var state = {
       lat: null,
       lng: null,
@@ -78,6 +79,22 @@
         });
       }
     } catch (e) {}
+
+    function distanceMeters(lat1, lng1, lat2, lng2) {
+      if (!isFinite(lat1) || !isFinite(lng1) || !isFinite(lat2) || !isFinite(lng2)) return Infinity;
+      var toRad = Math.PI / 180;
+      var dLat = (lat2 - lat1) * toRad;
+      var dLng = (lng2 - lng1) * toRad;
+      var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * toRad) * Math.cos(lat2 * toRad) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+      return 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    function shouldRefreshZone(lat, lng, accuracy) {
+      var now = Date.now();
+      if (!isFinite(lastZoneFetch.lat) || !isFinite(lastZoneFetch.lng)) return true;
+      if ((now - lastZoneFetch.ts) > 8000) return true;
+      return distanceMeters(lastZoneFetch.lat, lastZoneFetch.lng, lat, lng) > Math.max(15, Number(accuracy || 0));
+    }
 
     function filteredLayers() {
       return (allLayers || []).filter(function (layer) {
@@ -134,12 +151,18 @@
     function refreshOverviewFromPosition(position) {
       var lat = Number(position.coords.latitude.toFixed(6));
       var lng = Number(position.coords.longitude.toFixed(6));
+      var accuracy = Number(position.coords.accuracy || 12);
       state.lat = null;
       state.lng = null;
       state.deviceLat = lat;
       state.deviceLng = lng;
-      state.deviceAccuracy = Number(position.coords.accuracy || 12);
+      state.deviceAccuracy = accuracy;
       state.recenterTo = 'device';
+      if (!shouldRefreshZone(lat, lng, accuracy)) {
+        redrawMap();
+        return;
+      }
+      lastZoneFetch = { lat: lat, lng: lng, ts: Date.now() };
       fetch('/api/zones/check?lat=' + encodeURIComponent(lat) + '&lng=' + encodeURIComponent(lng))
         .then(function (r) { return r.json(); })
         .then(function (result) {

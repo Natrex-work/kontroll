@@ -4,7 +4,7 @@ from fastapi import HTTPException
 
 from .. import db
 from ..auth import hash_password
-from ..config import settings
+from ..config import BASE_DIR, settings
 from ..logging_setup import get_logger
 from ..validation import validate_password
 
@@ -19,6 +19,8 @@ def initialize_application_data() -> None:
     ensure_bootstrap_admin()
     if settings.session_secret == 'dev-session-secret-change-me':
         logger.warning('SESSION_SECRET bruker standard utviklingsverdi. Sett en unik verdi i .env eller miljøet før ordinær bruk.')
+    if settings.production_mode and str(settings.db_path).startswith(str(BASE_DIR)):
+        logger.warning('KV_DB_PATH peker til lokal appmappe. Uten Render-disk kan brukere og saker forsvinne ved restart. Sett KV_DB_PATH/KV_UPLOAD_DIR/KV_GENERATED_DIR til /var/data/...')
     if not db.list_users():
         logger.warning('Ingen brukere finnes. Opprett første administrator med KV_BOOTSTRAP_ADMIN_* eller `python manage.py create-admin`.')
 

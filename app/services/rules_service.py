@@ -1,9 +1,38 @@
 from __future__ import annotations
 
+import copy
+import time
 from typing import Any
 
 from .. import area, live_sources, rules
 from .case_service import merge_source_rows
+
+_ZONE_STATUS_CACHE: dict[tuple[float, float, str, str, str], tuple[float, dict[str, Any]]] = {}
+_ZONE_STATUS_CACHE_SECONDS = 10.0
+
+
+def _zone_cache_key(lat: float, lng: float, species: str = '', gear_type: str = '', control_type: str = '') -> tuple[float, float, str, str, str]:
+    return (round(float(lat), 4), round(float(lng), 4), str(species or '').strip().lower(), str(gear_type or '').strip().lower(), str(control_type or '').strip().lower())
+
+
+def _zone_cache_get(lat: float, lng: float, species: str = '', gear_type: str = '', control_type: str = '') -> dict[str, Any] | None:
+    key = _zone_cache_key(lat, lng, species=species, gear_type=gear_type, control_type=control_type)
+    item = _ZONE_STATUS_CACHE.get(key)
+    if not item:
+        return None
+    ts, payload = item
+    if (time.time() - ts) > _ZONE_STATUS_CACHE_SECONDS:
+        _ZONE_STATUS_CACHE.pop(key, None)
+        return None
+    return copy.deepcopy(payload)
+
+
+def _zone_cache_put(lat: float, lng: float, payload: dict[str, Any], species: str = '', gear_type: str = '', control_type: str = '') -> None:
+    key = _zone_cache_key(lat, lng, species=species, gear_type=gear_type, control_type=control_type)
+    _ZONE_STATUS_CACHE[key] = (time.time(), copy.deepcopy(payload))
+    if len(_ZONE_STATUS_CACHE) > 256:
+        for stale_key, _ in sorted(_ZONE_STATUS_CACHE.items(), key=lambda item: item[1][0])[:64]:
+            _ZONE_STATUS_CACHE.pop(stale_key, None)
 
 
 def get_rule_bundle_with_live_sources(*, control_type: str, species: str, gear_type: str, area_status: str = '', control_date: str = '', area_name: str = '', area_notes: str = '', lat: float | None = None, lng: float | None = None) -> dict[str, Any]:
@@ -24,6 +53,9 @@ def get_rule_bundle_with_live_sources(*, control_type: str, species: str, gear_t
 
 
 def check_zone_status(lat: float, lng: float, species: str = '', gear_type: str = '', control_type: str = '') -> dict[str, Any]:
+    cached = _zone_cache_get(lat, lng, species=species, gear_type=gear_type, control_type=control_type)
+    if cached is not None:
+        return cached
     result = area.classify_position(lat, lng, species=species, gear_type=gear_type, control_type=control_type)
     local_is_fallback = str(result.get('source_kind') or '').lower() == 'fallback'
     try:
@@ -95,4 +127,5 @@ def check_zone_status(lat: float, lng: float, species: str = '', gear_type: str 
         rec = rules.recommend_area_violation(area_status=result.get('status') or '', area_name=result.get('name') or '', species=species, gear_type=gear_type, notes=result.get('notes') or '')
         if rec:
             result['recommended_violation'] = rec
+    _zone_cache_put(lat, lng, result, species=species, gear_type=gear_type, control_type=control_type)
     return result
