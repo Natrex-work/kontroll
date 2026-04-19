@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block title %}Kart · Kontroll Og Oppsyn {{ app_version }}{% endblock %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>Kart og Område</h1>
+    <p class="muted">Kartet bygger på Fiskeridirektoratets kartportal og viser fredningsområder, forbudsområder, nullfiske og andre fiskerirelaterte lag direkte i kartet.</p>
+  </div>
+  <div class="actions-row wrap">
+    <button class="btn btn-primary" type="button" id="btn-overview-location">Bruk min posisjon</button>
+    <a class="btn btn-secondary" href="{{ portal_map_url }}" target="_blank" rel="noopener">Åpne original kartportal</a>
+  </div>
+</section>
+
+<section class="stack gap-m">
+  <article class="card map-main-card">
+    <div class="map-filter-row" id="overview-layer-filters">
+      <label class="check-chip"><input type="checkbox" data-layer-filter="fredningsområde" checked /> Fredningsområder</label>
+      <label class="check-chip"><input type="checkbox" data-layer-filter="stengt område" checked /> Stengte felt / forbud</label>
+      <label class="check-chip"><input type="checkbox" data-layer-filter="maksimalmål område" checked /> Maksimalmål</label>
+      <label class="check-chip"><input type="checkbox" data-layer-filter="regulert område" checked /> Andre reguleringer</label>
+      <label class="check-chip"><input type="checkbox" data-layer-filter="fiskeriområde" checked /> Fiskeriområder / fiskeplasser</label>
+    </div>
+    <div class="map-symbol-legend">
+      <span class="map-symbol-chip"><span class="map-symbol user"></span> GPS-posisjon</span>
+      <span class="map-symbol-chip"><span class="map-symbol case"></span> Valgt kontrollposisjon</span>
+    </div>
+    <div class="callout margin-top-s">Trykk på et område i kartet for å se informasjon, regelgrunnlag og datakilde. Områdenavn listes ikke lenger ved siden av kartet.</div>
+    <div id="overview-map" class="leaflet-map large-map" data-portal-catalog='{{ portal_layers|tojson }}' data-portal-url="{{ portal_map_url }}" data-portal-mapserver="{{ portal_mapserver_url }}"></div>
+  </article>
+  <article class="card">
+    <h2>Områdestatus</h2>
+    <div id="overview-map-status" class="callout">Trykk «Bruk min posisjon» for å se om kontrollpunktet ligger i fredningsområde, stengt felt, nullfiskeområde eller annen regulert sone.</div>
+  </article>
+</section>
+{% endblock %}
+
+{% block page_scripts %}<script src="/static/js/map-overview.js"></script>{% endblock %}
