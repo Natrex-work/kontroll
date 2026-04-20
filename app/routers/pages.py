@@ -28,7 +28,7 @@ def map_overview(request: Request):
 @router.get('/regelverk', response_class=HTMLResponse)
 def rules_overview(request: Request):
     require_permission(request, 'regelverk', detail='Brukeren har ikke tilgang til Regelverk Fiskeri.')
-    return render_template(request, 'rules_overview.html', law_browser=catalog.law_browser_data())
+    return render_template(request, 'rules_overview.html', law_browser=catalog.law_browser_data(), control_types=catalog.control_labels())
 
 
 @router.get('/kontroller', response_class=HTMLResponse)

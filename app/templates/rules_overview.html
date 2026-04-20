@@ -4,7 +4,7 @@
 <section class="page-header">
   <div>
     <h1>Regelverk Fiskeri</h1>
-    <p class="muted">Velg kontrolltype, art og redskap. Appen viser kontrollpunkter og lovtekst for akkurat dette valget.</p>
+    <p class="muted">Velg kontrolltype, art/fiskeri og redskap. Siden viser relevant regelverk og kontrollpunkter på samme måte som i kontrollflyten.</p>
   </div>
 </section>
 
@@ -18,12 +18,16 @@
     <label><span>Redskap</span><select id="overview_gear_type"><option value="">Velg</option></select></label>
   </div>
   <div class="actions-row wrap">
-    <button class="btn btn-primary" type="button" id="overview_fetch_rules">Vis relevante kontrollpunkter</button>
+    <button class="btn btn-primary" type="button" id="overview_fetch_rules">Vis relevant regelverk</button>
     <form method="post" action="/cases/new" class="inline-form">
       <button class="btn btn-secondary" type="submit">Bruk i ny kontroll</button>
     </form>
   </div>
-  <div id="overview_rule_summary" class="stack gap-s"></div>
+  <div id="overview_rule_summary" class="stack gap-m">
+    <div id="rules-overview-meta" class="callout">Velg kontrolltype, art/fiskeri og redskap for å hente relevant regelverk og kontrollpunkter.</div>
+    <div id="rules-overview-findings" class="stack gap-m"></div>
+    <div id="rules-overview-sources" class="source-list"></div>
+  </div>
 </section>
 {% endblock %}
 {% block page_scripts %}<script src="/static/js/rules-overview.js"></script>{% endblock %}

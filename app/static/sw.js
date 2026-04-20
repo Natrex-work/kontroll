@@ -1,4 +1,4 @@
-const CACHE = 'kv-kontroll-v54-iphone-ocr-map';
+const CACHE = 'kv-kontroll-v55-homekart-regelverk';
 const STATIC_PREFIX = '/static/';
 const ASSETS = [
   '/static/styles.css',

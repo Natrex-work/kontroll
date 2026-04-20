@@ -207,10 +207,13 @@
   function createPortalMap(el, layers, markerState) {
     if (!el || !window.L) return Promise.resolve(null);
     var storageKey = 'kv-map-view:' + (el.id || 'map');
+    var persistView = !(markerState && markerState.persistView === false);
     var savedView = null;
-    try {
-      savedView = JSON.parse(sessionStorage.getItem(storageKey) || 'null');
-    } catch (e) { savedView = null; }
+    if (persistView) {
+      try {
+        savedView = JSON.parse(sessionStorage.getItem(storageKey) || 'null');
+      } catch (e) { savedView = null; }
+    }
 
     function validLatLng(lat, lng) {
       return isFinite(lat) && isFinite(lng) && Math.abs(Number(lat)) <= 90 && Math.abs(Number(lng)) <= 180 && !(Math.abs(Number(lat)) < 0.000001 && Math.abs(Number(lng)) < 0.000001);
@@ -342,10 +345,13 @@
         rasterKey: ''
       };
       map.on('moveend zoomend', function () {
-        try {
-          var center = map.getCenter();
-          sessionStorage.setItem(storageKey, JSON.stringify({ lat: center.lat, lng: center.lng, zoom: map.getZoom() }));
-        } catch (e) {}
+        var liveMarkerState = state.markerState || {};
+        if (liveMarkerState.persistView !== false) {
+          try {
+            var center = map.getCenter();
+            sessionStorage.setItem(storageKey, JSON.stringify({ lat: center.lat, lng: center.lng, zoom: map.getZoom() }));
+          } catch (e) {}
+        }
         if (typeof state.refreshLayers === 'function') {
           clearTimeout(state._refreshTimer);
           state._refreshTimer = setTimeout(function () { state.refreshLayers(); }, 420);
