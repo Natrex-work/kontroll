@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block title %}Kart · Kontroll Og Oppsyn {{ app_version }}{% endblock %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>Kart og Område</h1>
+    <p class="muted">Kartet viser alle fiskerirelaterte områder i hele landet uavhengig av brukerens posisjon, med stengte områder, fredningsområder og andre reguleringer direkte i kartet. Trykk på et område for informasjon, regelgrunnlag og datakilde.</p>
+  </div>
+  <div class="actions-row wrap">
+    <button class="btn btn-primary" type="button" id="btn-overview-location">Bruk min posisjon</button>
+    <button class="btn btn-secondary" type="button" id="btn-overview-national">Vis hele landet</button>
+    <button class="btn btn-secondary" type="button" id="btn-overview-download-offline">Last ned offline-kart</button>
+    <a class="btn btn-secondary" href="{{ portal_map_url }}" target="_blank" rel="noopener">Åpne original kartportal</a>
+  </div>
+</section>
+
+<section class="stack gap-m">
+  <article class="card map-main-card">
+    <div class="map-filter-row" id="overview-layer-filters">
+      <label class="check-chip"><input type="checkbox" data-layer-filter="fredningsområde" checked /> Fredningsområder</label>
+      <label class="check-chip"><input type="checkbox" data-layer-filter="stengt område" checked /> Stengte felt / forbud</label>
+      <label class="check-chip"><input type="checkbox" data-layer-filter="maksimalmål område" checked /> Maksimalmål</label>
+      <label class="check-chip"><input type="checkbox" data-layer-filter="regulert område" checked /> Andre reguleringer</label>
+      <label class="check-chip"><input type="checkbox" data-layer-filter="fiskeriområde" checked /> Fiskeriområder / fiskeplasser</label>
+    </div>
+    <div class="map-symbol-legend">
+      <span class="map-symbol-chip"><span class="map-symbol user"></span> GPS-posisjon</span>
+      <span class="map-symbol-chip"><span class="map-symbol case"></span> Valgt kontrollposisjon</span>
+    </div>
+    <div class="callout margin-top-s">Områdenavn listes ikke ved siden av kartet. Kartet er satt opp til å vise alle fiskerirelaterte områder direkte i visningen. Trykk direkte i kartet på et område for å få opp informasjon og datakilde.</div>
+    <div class="offline-packages-panel margin-top-s">
+      <div class="offline-packages-head">
+        <div>
+          <strong>Offline-kartpakker</strong>
+          <div class="muted small">Lagrede pakker kan brukes videre i appen også når dekningen er dårlig.</div>
+        </div>
+        <button class="btn btn-secondary btn-small" type="button" id="btn-overview-refresh-packages">Oppdater lagrede pakker</button>
+      </div>
+      <div class="callout margin-top-s" id="overview-offline-packages-summary">Ingen offline-kartpakker er lagret på denne enheten ennå.</div>
+      <div class="offline-packages-list" id="overview-offline-packages-list"></div>
+    </div>
+    <div id="overview-map" class="leaflet-map large-map" data-portal-catalog='{{ portal_layers|tojson }}' data-portal-url="{{ portal_map_url }}" data-portal-mapserver="{{ portal_mapserver_url }}"></div>
+  </article>
+  <article class="card">
+    <h2>Områdestatus</h2>
+    <div id="overview-map-status" class="callout">Kartet viser alle fiskerirelaterte områder uavhengig av din posisjon. Stengte områder, fredningsområder og andre reguleringer skal være synlige direkte i kartet. Bruk «Bruk min posisjon» bare når du vil kontrollere et konkret punkt mot områdene.</div>
+  </article>
+</section>
+{% endblock %}
+
+{% block page_scripts %}<script src="/static/js/map-overview.js"></script>{% endblock %}
