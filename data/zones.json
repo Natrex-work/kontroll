@@ -1,0 +1,332 @@
+[
+  {
+    "id": "hummer_fredning_tofte",
+    "name": "Hummer - fredningsområde Tofte",
+    "layer_name": "Hummer - fredningsområder",
+    "layer_ids": [
+      1
+    ],
+    "status": "fredningsområde",
+    "source": "Lokal reserveflate for Fiskeridirektoratets kartportal",
+    "source_url": "https://portal.fiskeridir.no/portal/apps/webappviewer/index.html?id=ea6c536f760548fe9f56e6edcc4825d8",
+    "notes": "Operativ reserveflate for hummerfredning ved Tofte. Brukes når offisielt kartlag ikke kan lastes, og skal kontrolleres mot original kartportal ved nettdekning.",
+    "polygon": [
+      [
+        59.53,
+        10.526
+      ],
+      [
+        59.53,
+        10.545
+      ],
+      [
+        59.5405,
+        10.545
+      ],
+      [
+        59.5405,
+        10.526
+      ]
+    ]
+  },
+  {
+    "id": "hummer_fredning_hvaler",
+    "name": "Hummer - fredningsområde Hvaler",
+    "layer_name": "Hummer - fredningsområder",
+    "layer_ids": [
+      1
+    ],
+    "status": "fredningsområde",
+    "source": "Lokal reserveflate for Fiskeridirektoratets kartportal",
+    "source_url": "https://portal.fiskeridir.no/portal/apps/webappviewer/index.html?id=ea6c536f760548fe9f56e6edcc4825d8",
+    "notes": "Operativ reserveflate for hummerfredning i Hvaler-området.",
+    "polygon": [
+      [
+        59.0,
+        10.83
+      ],
+      [
+        59.0,
+        11.09
+      ],
+      [
+        59.12,
+        11.09
+      ],
+      [
+        59.12,
+        10.83
+      ]
+    ]
+  },
+  {
+    "id": "hummer_maksimalmal_skagerrak",
+    "name": "Hummer - maksimalmålområde Skagerrakkysten",
+    "layer_name": "Hummer - maksimalmål område",
+    "layer_ids": [
+      23
+    ],
+    "status": "maksimalmål område",
+    "source": "Lokal reserveflate for Fiskeridirektoratets kartportal",
+    "source_url": "https://portal.fiskeridir.no/portal/apps/webappviewer/index.html?id=ea6c536f760548fe9f56e6edcc4825d8",
+    "notes": "Operativ reserveflate for kyststrekningen der maksimalmål for hummer gjelder på Skagerrakkysten.",
+    "polygon": [
+      [
+        57.92,
+        7.3
+      ],
+      [
+        57.92,
+        11.4
+      ],
+      [
+        59.35,
+        11.4
+      ],
+      [
+        59.35,
+        7.3
+      ]
+    ]
+  },
+  {
+    "id": "kysttorsk_stengt_ytterfjord",
+    "name": "Kysttorsk - stengt område Ytre Oslofjord",
+    "layer_name": "Kysttorsk - stengte områder",
+    "layer_ids": [
+      2
+    ],
+    "status": "stengt område",
+    "source": "Lokal reserveflate for Fiskeridirektoratets kartportal",
+    "source_url": "https://portal.fiskeridir.no/portal/apps/webappviewer/index.html?id=ea6c536f760548fe9f56e6edcc4825d8",
+    "notes": "Operativ reserveflate for stengte gytefelt for kysttorsk i ytre Oslofjord.",
+    "polygon": [
+      [
+        59.02,
+        10.55
+      ],
+      [
+        59.02,
+        11.05
+      ],
+      [
+        59.2,
+        11.05
+      ],
+      [
+        59.2,
+        10.55
+      ]
+    ]
+  },
+  {
+    "id": "kysttorsk_forbud_skagerrak",
+    "name": "Kysttorsk - forbudsområde Telemark til svenskegrensa",
+    "layer_name": "Kysttorsk - forbudsområde",
+    "layer_ids": [
+      3
+    ],
+    "status": "stengt område",
+    "source": "Lokal reserveflate for Fiskeridirektoratets kartportal",
+    "source_url": "https://portal.fiskeridir.no/portal/apps/webappviewer/index.html?id=ea6c536f760548fe9f56e6edcc4825d8",
+    "notes": "Operativ reserveflate for kysttorskforbud på strekningen fra Telemark til svenskegrensen.",
+    "polygon": [
+      [
+        58.72,
+        8.95
+      ],
+      [
+        58.72,
+        11.4
+      ],
+      [
+        59.4,
+        11.4
+      ],
+      [
+        59.4,
+        8.95
+      ]
+    ]
+  },
+  {
+    "id": "oslofjorden_fritid",
+    "name": "Oslofjorden - fritidsfiskeregler",
+    "layer_name": "Oslofjorden - fritidsfiskeregler",
+    "layer_ids": [
+      35
+    ],
+    "status": "regulert område",
+    "source": "Lokal reserveflate for Fiskeridirektoratets kartportal",
+    "source_url": "https://portal.fiskeridir.no/portal/apps/webappviewer/index.html?id=ea6c536f760548fe9f56e6edcc4825d8",
+    "notes": "Operativ reserveflate for Oslofjordens fritidsfiskeregler, inkludert redskapsbegrensninger for fisk, skalldyr og hummer.",
+    "polygon": [
+      [
+        58.66,
+        9.2
+      ],
+      [
+        58.66,
+        11.3
+      ],
+      [
+        59.78,
+        11.3
+      ],
+      [
+        59.78,
+        9.2
+      ]
+    ]
+  },
+  {
+    "id": "oslofjorden_nullfiske_drobak",
+    "name": "Oslofjorden - nullfiskeområde Drøbak",
+    "layer_name": "Oslofjorden - nullfiskeområder",
+    "layer_ids": [
+      37
+    ],
+    "status": "stengt område",
+    "source": "Lokal reserveflate for Fiskeridirektoratets kartportal",
+    "source_url": "https://portal.fiskeridir.no/portal/apps/webappviewer/index.html?id=ea6c536f760548fe9f56e6edcc4825d8",
+    "notes": "Operativ reserveflate for nullfiskeområde ved Drøbak og Oscarsborg.",
+    "polygon": [
+      [
+        59.62,
+        10.6
+      ],
+      [
+        59.62,
+        10.75
+      ],
+      [
+        59.7,
+        10.75
+      ],
+      [
+        59.7,
+        10.6
+      ]
+    ]
+  },
+  {
+    "id": "oslofjorden_nullfiske_hvaler",
+    "name": "Oslofjorden - nullfiskeområde Hvaler",
+    "layer_name": "Oslofjorden - nullfiskeområder",
+    "layer_ids": [
+      37
+    ],
+    "status": "stengt område",
+    "source": "Lokal reserveflate for Fiskeridirektoratets kartportal",
+    "source_url": "https://portal.fiskeridir.no/portal/apps/webappviewer/index.html?id=ea6c536f760548fe9f56e6edcc4825d8",
+    "notes": "Operativ reserveflate for nullfiskeområde i ytre Oslofjord/Hvaler.",
+    "polygon": [
+      [
+        58.94,
+        10.9
+      ],
+      [
+        58.94,
+        11.25
+      ],
+      [
+        59.08,
+        11.25
+      ],
+      [
+        59.08,
+        10.9
+      ]
+    ]
+  },
+  {
+    "id": "flatosters_sorlandsleia",
+    "name": "Flatøsters - forbudsområde Sørlandsleia",
+    "layer_name": "Flatøsters - forbudsområde",
+    "layer_ids": [
+      0
+    ],
+    "status": "stengt område",
+    "source": "Lokal reserveflate for Fiskeridirektoratets kartportal",
+    "source_url": "https://portal.fiskeridir.no/portal/apps/webappviewer/index.html?id=ea6c536f760548fe9f56e6edcc4825d8",
+    "notes": "Operativ reserveflate for forbudsområde mot høsting av flatøsters i Sørlandsleia.",
+    "polygon": [
+      [
+        58.05,
+        7.95
+      ],
+      [
+        58.05,
+        8.7
+      ],
+      [
+        58.27,
+        8.7
+      ],
+      [
+        58.27,
+        7.95
+      ]
+    ]
+  },
+  {
+    "id": "korallrev_nordland",
+    "name": "Korallrev - forbudsområde Nordland",
+    "layer_name": "Korallrev - forbudsområde",
+    "layer_ids": [
+      6
+    ],
+    "status": "stengt område",
+    "source": "Lokal reserveflate for Fiskeridirektoratets kartportal",
+    "source_url": "https://portal.fiskeridir.no/portal/apps/webappviewer/index.html?id=ea6c536f760548fe9f56e6edcc4825d8",
+    "notes": "Operativ reserveflate for forbudsområde ved korallrev i Nordland.",
+    "polygon": [
+      [
+        66.85,
+        10.7
+      ],
+      [
+        66.85,
+        12.1
+      ],
+      [
+        67.55,
+        12.1
+      ],
+      [
+        67.55,
+        10.7
+      ]
+    ]
+  },
+  {
+    "id": "saltstraumen_steinbit",
+    "name": "Saltstraumen - forbud steinbit",
+    "layer_name": "Saltstraumen - forbud steinbit",
+    "layer_ids": [
+      34
+    ],
+    "status": "stengt område",
+    "source": "Lokal reserveflate for Fiskeridirektoratets kartportal",
+    "source_url": "https://portal.fiskeridir.no/portal/apps/webappviewer/index.html?id=ea6c536f760548fe9f56e6edcc4825d8",
+    "notes": "Operativ reserveflate for steinbitrestriksjoner ved Saltstraumen.",
+    "polygon": [
+      [
+        67.2,
+        14.45
+      ],
+      [
+        67.2,
+        14.82
+      ],
+      [
+        67.34,
+        14.82
+      ],
+      [
+        67.34,
+        14.45
+      ]
+    ]
+  }
+]
