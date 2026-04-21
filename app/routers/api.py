@@ -11,6 +11,7 @@ from ..pdf_export import build_text_drafts
 from ..schemas import SummarySuggestRequest, TextPolishRequest
 from ..services.ocr_service import extract_text_from_image
 from ..services.registry_service import gear_summary, lookup_registry
+from .. import registry
 from ..services.rules_service import check_zone_status, get_rule_bundle_with_live_sources
 from ..validation import sanitize_original_filename, validate_saved_file_size
 
@@ -233,7 +234,7 @@ async def api_ocr_extract(request: Request, file: UploadFile = File(...)):
         return JSONResponse({'ok': False, 'message': str(exc), 'text': ''}, status_code=422)
     except RuntimeError as exc:
         return JSONResponse({'ok': False, 'message': str(exc), 'text': ''}, status_code=503)
-    return JSONResponse({'ok': True, **result})
+    return JSONResponse({'ok': True, **result, 'hints': result.get('hints') or registry.extract_tag_hints(result.get('text') or '')})
 
 
 @router.post('/api/summary/suggest')

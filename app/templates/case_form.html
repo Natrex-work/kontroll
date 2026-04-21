@@ -249,8 +249,11 @@
           <div class="grid-two compact-grid-form margin-top-s">
             <label><span>Navn eller ansvarlig</span><input id="lookup_name" value="{{ case.suspect_name or '' }}" autocomplete="name" /></label>
             <label><span>Mobilnummer / fiskerimerke / radiokallesignal / deltakernummer</span><input id="lookup_identifier" value="{{ case.suspect_phone or case.vessel_reg or case.radio_call_sign or case.hummer_participant_no or '' }}" inputmode="text" /></label>
-            <label class="span-2"><span>OCR-tekst / merketøy</span><textarea name="lookup_text" id="lookup_text" rows="4" placeholder="Fylles automatisk når du tar bilde eller legger til fil. Du kan også lime inn eller rette teksten her.">{{ case.lookup_text or '' }}</textarea></label>
           </div>
+          <details class="source-disclosure margin-top-s">
+            <summary>Vis OCR-tekst ved behov</summary>
+            <label class="margin-top-s"><span>OCR-tekst / merketøy</span><textarea name="lookup_text" id="lookup_text" rows="4" placeholder="Fylles automatisk når du tar bilde eller legger til fil. Du kan også lime inn eller rette teksten her.">{{ case.lookup_text or '' }}</textarea></label>
+          </details>
           <div class="callout margin-top-s hidden" id="ocr-selected-file">Ingen bildefil valgt ennå.</div>
           <div class="callout margin-top-s hidden" id="local-media-status"><span id="local-media-status-text">Bilder og lyd lagres lokalt på enheten og synkes til saken i bakgrunnen når nettverket er klart.</span> <button class="btn btn-secondary btn-small" type="button" id="btn-sync-local-media">Synk nå</button></div>
           <div class="callout margin-top-s" id="registry-result">Når du tar bilde eller oppdaterer søkefeltene, kjøres OCR og registeroppslag automatisk. Treffer fra hummerregister og offentlige kataloger brukes fortløpende til å fylle inn opplysningene under.</div>

@@ -40,10 +40,6 @@
       var compactH = raw.replace(/-/g, '');
       return 'H-' + compactH.slice(1, 5) + '-' + compactH.slice(5);
     }
-    if (/^[A-ZÆØÅ]{2,5}-[A-ZÆØÅ]{2,5}-\d{3,4}$/.test(raw)) return raw;
-    var compact = raw.replace(/-/g, '');
-    var match = /^([A-ZÆØÅ]{2,5})([A-ZÆØÅ]{2,5})(\d{3,4})$/.exec(compact);
-    if (match) return match[1] + '-' + match[2] + '-' + match[3];
     return '';
   }
 
@@ -964,7 +960,7 @@
     var lawBrowser = parseJson(root.dataset.lawBrowser, []);
     var mapCatalog = parseJson(root.dataset.mapCatalog, []);
     var mapFilterWrap = document.getElementById('map-layer-filters');
-    var mapFilterStorageKey = 'kv-map-layer-filter-v68:' + root.dataset.caseId;
+    var mapFilterStorageKey = 'kv-map-layer-filter-v69:' + root.dataset.caseId;
     var activeLayerStatuses = { 'fredningsområde': true, 'stengt område': true, 'maksimalmål område': true, 'regulert område': true, 'fiskeriområde': true };
     try {
       localStorage.removeItem('kv-map-layer-filter:' + root.dataset.caseId);
@@ -1255,7 +1251,7 @@
         urls = urls.concat(collectTileUrls(layer, map, padding == null ? 2 : padding));
       });
       urls = uniqueUrls(urls);
-      return prefetchUrlsToCache(urls, 'kv-kontroll-v68-map-tiles').then(function (count) {
+      return prefetchUrlsToCache(urls, 'kv-kontroll-v69-map-tiles').then(function (count) {
         return { count: count, urls: urls };
       });
     }
@@ -3093,10 +3089,16 @@
       var text = normalizeOcrText(result && result.text ? result.text : '');
       if (!text) throw new Error('OCR ga ingen lesbar tekst.');
       lookupText.value = text;
+      if (result && result.hints) {
+        applyHints(result.hints);
+        if (result.hints.phone && !lookupIdentifier.value) lookupIdentifier.value = result.hints.phone;
+        if (result.hints.hummer_participant_no && !lookupIdentifier.value) lookupIdentifier.value = result.hints.hummer_participant_no;
+        if (result.hints.vessel_reg && !lookupIdentifier.value) lookupIdentifier.value = result.hints.vessel_reg;
+      }
       if (registryResult) {
         registryResult.innerHTML = '<strong>OCR fullført</strong><div class="small muted">' + escapeHtml(result.source === 'server' ? 'Server-OCR brukt' : 'Lokal OCR brukt') + ' · ' + escapeHtml(result.strategy || '') + '. Registeroppslag kjøres automatisk videre.</div><div class="small muted">' + escapeHtml(shortOcrPreview(text)) + '</div>';
       }
-      lookupRegistry();
+      lookupRegistry({ force: true, automatic: true });
       return result;
     }
 

@@ -13,3 +13,4 @@ Pillow
 pytesseract
 pillow-heif
 certifi
+opencv-python-headless

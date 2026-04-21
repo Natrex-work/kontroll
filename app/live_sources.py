@@ -1442,31 +1442,53 @@ def _score_directory_candidate(row: dict[str, str], phone: str = '', name: str =
 
 
 def lookup_directory_candidates(phone: str = '', name: str = '', address: str = '') -> dict[str, Any]:
-    query = ' '.join(part for part in [phone, name, address] if str(part or '').strip()).strip()
-    if not query:
-        return {'found': False, 'message': 'Ingen søkeverdi oppgitt for katalogsøk.', 'candidates': []}
-    searches = [
-        ('1881', [
-            f'https://www.1881.no/?query={quote_plus(query)}',
-            f'https://www.1881.no/sok/?query={quote_plus(query)}',
-            f'https://www.1881.no/search/?query={quote_plus(query)}',
-        ]),
-        ('Gulesider', [
-            f'https://www.gulesider.no/{quote(query)}/personer',
-            f'https://www.gulesider.no/person?query={quote_plus(query)}',
-            f'https://www.gulesider.no/personer?query={quote_plus(query)}',
-        ]),
-    ]
-    candidates: list[dict[str, str]] = []
-    for source_name, urls in searches:
-        used_url, html = _fetch_directory_html(urls)
-        if not html:
+    search_terms: list[str] = []
+    base_query = ' '.join(part for part in [phone, name, address] if str(part or '').strip()).strip()
+    if phone:
+        search_terms.append(str(phone).strip())
+    if name and address:
+        search_terms.append(' '.join([str(name).strip(), str(address).strip()]).strip())
+    if name:
+        search_terms.append(str(name).strip())
+    if address:
+        search_terms.append(str(address).strip())
+    if base_query:
+        search_terms.append(base_query)
+    ordered_terms: list[str] = []
+    seen_terms: set[str] = set()
+    for term in search_terms:
+        normalized = ' '.join(str(term or '').split()).strip()
+        if not normalized or normalized.lower() in seen_terms:
             continue
-        soup = BeautifulSoup(html, 'html.parser')
-        rows = _extract_directory_jsonld(soup, source_name, used_url)
-        if not rows:
-            rows = _extract_directory_text_candidates(html, source_name, used_url)
-        candidates.extend(rows[:8])
+        seen_terms.add(normalized.lower())
+        ordered_terms.append(normalized)
+    if not ordered_terms:
+        return {'found': False, 'message': 'Ingen søkeverdi oppgitt for katalogsøk.', 'candidates': []}
+
+    candidates: list[dict[str, str]] = []
+    for query in ordered_terms[:4]:
+        searches = [
+            ('1881', [
+                f'https://www.1881.no/?query={quote_plus(query)}',
+                f'https://www.1881.no/sok/?query={quote_plus(query)}',
+                f'https://www.1881.no/search/?query={quote_plus(query)}',
+            ]),
+            ('Gulesider', [
+                f'https://www.gulesider.no/{quote(query)}/personer',
+                f'https://www.gulesider.no/person?query={quote_plus(query)}',
+                f'https://www.gulesider.no/personer?query={quote_plus(query)}',
+            ]),
+        ]
+        for source_name, urls in searches:
+            used_url, html = _fetch_directory_html(urls)
+            if not html:
+                continue
+            soup = BeautifulSoup(html, 'html.parser')
+            rows = _extract_directory_jsonld(soup, source_name, used_url)
+            if not rows:
+                rows = _extract_directory_text_candidates(html, source_name, used_url)
+            candidates.extend(rows[:10])
+
     scored = []
     seen: set[tuple[str, str, str]] = set()
     for row in candidates:
@@ -1500,7 +1522,7 @@ def lookup_directory_candidates(phone: str = '', name: str = '', address: str = 
 MAP_PORTAL_URL = os.getenv('KV_PORTAL_MAP_URL', 'https://portal.fiskeridir.no/portal/apps/webappviewer/index.html?id=ea6c536f760548fe9f56e6edcc4825d8')
 YGG_BASE = os.getenv('KV_PORTAL_MAPSERVER', 'https://portal.fiskeridir.no/server/rest/services/fiskeridirWMS_fiskeri/MapServer')
 VERN_BASE = os.getenv('KV_PORTAL_VERN_MAPSERVER', 'https://portal.fiskeridir.no/server/rest/services/Fiskeridir_vern/MapServer')
-PORTAL_LAYER_SCHEMA_VERSION = os.getenv('KV_PORTAL_LAYER_SCHEMA_VERSION', 'v68')
+PORTAL_LAYER_SCHEMA_VERSION = os.getenv('KV_PORTAL_LAYER_SCHEMA_VERSION', 'v69')
 PORTAL_LAYER_CACHE_JSON = CACHE_DIR / f'portal_layer_catalog_cache_{PORTAL_LAYER_SCHEMA_VERSION}.json'
 PORTAL_LAYER_CACHE_META = CACHE_DIR / f'portal_layer_catalog_meta_{PORTAL_LAYER_SCHEMA_VERSION}.json'
 PORTAL_LAYER_CACHE_DIR = CACHE_DIR / f'portal_layers_{PORTAL_LAYER_SCHEMA_VERSION}'

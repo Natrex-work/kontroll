@@ -15,8 +15,9 @@ PHONE_RE = re.compile(r'(?<!\d)(?:\+?47\s*)?(\d{8})(?!\d)')
 VESSEL_RE = re.compile(r'\b([A-ZÆØÅ]{1,3}[- ]?\d{1,4}(?:[- ]?[A-ZÆØÅ]{1,2})?)\b', re.IGNORECASE)
 FISHERIMERKE_RE = re.compile(r'^([A-ZÆØÅ]{1,3}[- ]?[A-ZÆØÅ]{1,3}[- ]?\d{1,4})$', re.IGNORECASE)
 RADIO_RE = re.compile(r'\b([A-ZÆØÅ]{2,5}\d{0,3})\b', re.IGNORECASE)
-HUMMER_STRICT_RE = re.compile(r'\b(?:H[- ]?\d{4}[- ]?\d{3}|[A-ZÆØÅ]{2,5}[- ]?[A-ZÆØÅ]{2,5}[- ]?\d{3,4})\b', re.IGNORECASE)
-HUMMER_LABELED_RE = re.compile(r'(?:hummer\s*)?deltak(?:er|ar)(?:nr|nummer)?\s*[:#-]?\s*((?:H[- ]?\d{4}[- ]?\d{3})|(?:20\d{2}\d{3})|(?:[A-ZÆØÅ]{2,5}[- ]?[A-ZÆØÅ]{2,5}[- ]?\d{3,4}))\b', re.IGNORECASE)
+HUMMER_DIRECT_RE = re.compile(r'\b(?:H[- ]?\d{4}[- ]?\d{3}|20\d{5})\b', re.IGNORECASE)
+HUMMER_STRICT_RE = re.compile(r'\b(?:H[- ]?\d{4}[- ]?\d{3}|20\d{5}|[A-ZÆØÅ]{2,5}[- ]?[A-ZÆØÅ]{2,5}[- ]?\d{3,4})\b', re.IGNORECASE)
+HUMMER_LABELED_RE = re.compile(r'(?:hummer\s*)?deltak(?:er|ar)(?:nr|nummer)?\s*[:#-]?\s*((?:H[- ]?\d{4}[- ]?\d{3})|(?:20\d{5})|(?:[A-ZÆØÅ]{2,5}[- ]?[A-ZÆØÅ]{2,5}[- ]?\d{3,4}))\b', re.IGNORECASE)
 POSTCODE_RE = re.compile(r'\b(\d{4})\s+([A-ZÆØÅa-zæøå][A-Za-zÆØÅæøå\- ]{1,40})\b')
 POST_PLACE_ONLY_RE = re.compile(r'^\s*(\d{4}\s+[A-ZÆØÅa-zæøå][A-Za-zÆØÅæøå\- ]{1,40})\s*$')
 BIRTHDATE_RE = re.compile(r'\b(\d{2}[.\-/]\d{2}[.\-/]\d{4})\b')
@@ -90,7 +91,7 @@ def _normalize_lines(text: str) -> list[str]:
 
 
 def _normalize_address_line(line: str) -> str:
-    candidate = ' '.join(str(line or '').replace('|', ' ').split()).strip(' ,;|')
+    candidate = ' '.join(str(line or '').replace('|', ' ').split()).strip(' ,;|-')
     if not candidate:
         return ''
     upper_compact = candidate.upper().replace(' ', '')
@@ -137,8 +138,21 @@ def _normalize_hummer_no(value: str) -> str:
     return raw
 
 
+def _clean_name_candidate(value: str | None) -> str:
+    parts = [part for part in ' '.join(str(value or '').replace('|', ' ').split()).strip(' ,;|-').split() if part]
+    if not parts:
+        return ''
+    while len(parts) > 2 and len(parts[0]) == 1:
+        parts = parts[1:]
+    while len(parts) > 2 and len(parts[-1]) == 1:
+        parts = parts[:-1]
+    cleaned = ' '.join(parts)
+    cleaned = re.sub(r'\b([A-ZÆØÅ])$', '', cleaned).strip(' ,;|-')
+    return cleaned
+
+
 def normalize_person_name(value: str) -> str:
-    text = ' '.join(str(value or '').replace('|', ' ').split()).strip(' ,;|')
+    text = _clean_name_candidate(value)
     if not text:
         return ''
     if ',' in text:
@@ -149,6 +163,7 @@ def normalize_person_name(value: str) -> str:
 
 
 def _is_probable_name(line: str) -> bool:
+    line = _clean_name_candidate(line)
     if not NAME_LINE_RE.match(line):
         return False
     words = {w.lower() for w in line.split()}
@@ -209,14 +224,14 @@ def extract_tag_hints(tag_text: str) -> dict[str, str]:
     out['phone'] = _pick_phone(labeled_phone) or _pick_phone(joined)
 
     labeled_hummer = HUMMER_LABELED_RE.search(joined)
-    strict_hummer = HUMMER_STRICT_RE.search(joined.upper())
+    direct_hummer = HUMMER_DIRECT_RE.search(joined.upper())
     labeled_hummer_text = _extract_labeled_value(lines, (r'hummer\s*deltak(?:er|ar)(?:nr|nummer)?', 'deltak(?:er|ar)(?:nr|nummer)?'))
     if labeled_hummer:
         out['hummer_participant_no'] = _normalize_hummer_no(labeled_hummer.group(1))
     elif labeled_hummer_text:
         out['hummer_participant_no'] = _normalize_hummer_no(labeled_hummer_text)
-    elif strict_hummer:
-        out['hummer_participant_no'] = _normalize_hummer_no(strict_hummer.group(0))
+    elif direct_hummer:
+        out['hummer_participant_no'] = _normalize_hummer_no(direct_hummer.group(0))
 
     labeled_birthdate = _extract_labeled_value(lines, ('fødselsdato', 'fodselsdato', 'f[øo]dt'))
     birthdate_match = BIRTHDATE_RE.search(labeled_birthdate or joined)
@@ -255,8 +270,9 @@ def extract_tag_hints(tag_text: str) -> dict[str, str]:
         if not out['post_place'] and POST_PLACE_ONLY_RE.match(line):
             out['post_place'] = line
             continue
-        if not out['name'] and _is_probable_name(normalize_person_name(line)):
-            out['name'] = normalize_person_name(line)
+        cleaned_name = _clean_name_candidate(line)
+        if not out['name'] and _is_probable_name(cleaned_name):
+            out['name'] = normalize_person_name(cleaned_name)
             continue
         if not out['address'] and STREET_LINE_RE.match(line) and not (VESSEL_RE.fullmatch(line.upper()) or FISHERIMERKE_RE.fullmatch(line.upper())):
             addr, post = _split_address_post_place(line)
@@ -291,10 +307,11 @@ def extract_tag_hints(tag_text: str) -> dict[str, str]:
     if not out['name']:
         fragments = re.findall(r'([A-ZÆØÅ][A-Za-zÆØÅæøå\-]+(?:\s+[A-ZÆØÅ][A-Za-zÆØÅæøå\-]+){1,3})', joined)
         for frag in fragments:
-            if out['address'] and frag in out['address']:
+            candidate = _clean_name_candidate(frag)
+            if out['address'] and candidate in out['address']:
                 continue
-            if _is_probable_name(frag):
-                out['name'] = frag
+            if _is_probable_name(candidate):
+                out['name'] = candidate
                 break
 
     if out['address']:
