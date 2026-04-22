@@ -22,12 +22,12 @@
       <div class="sidebar-main">
         <div class="sidebar-topbar">
           <button class="brand brand-toggle" id="sidebar-toggle" type="button" aria-expanded="false" aria-controls="app-sidebar" aria-label="Åpne meny">
-            <span class="brand-badge">KV</span>
+            <span class="brand-badge">MK</span>
             <span class="brand-meta">
               <strong class="brand-title"><span class="brand-app-name">{{ app_name }}</span> <span class="brand-version">{{ app_version }}</span></strong>
               <span class="muted sidebar-subtitle">Kart, regelverk, kontroll og administrasjon etter tilgang</span>
             </span>
-            <span class="brand-toggle-label">Meny</span>
+            <span class="brand-toggle-label">Profil</span>
           </button>
           {% block topbar_extra %}{% endblock %}
         </div>
@@ -35,6 +35,7 @@
           {% for link in nav_links %}
             {% if link.method == 'post' %}
             <form method="post" action="{{ link.href }}" class="nav-form">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
               <button type="submit" class="nav-link nav-link-button {% if request.url.path == link.href or request.url.path.startswith(link.href ~ '/') %}active{% endif %}"><span class="nav-link-icon" aria-hidden="true">{{ link.icon }}</span><span>{{ link.label }}</span></button>
             </form>
             {% else %}
@@ -57,6 +58,7 @@
           Innlogget bruker brukes automatisk som etterforsker i nye saker.
         </div>
         <form method="post" action="/logout">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
           <button class="btn btn-secondary btn-full" type="submit">Logg ut</button>
         </form>
       </div>

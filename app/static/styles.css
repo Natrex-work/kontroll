@@ -1531,3 +1531,83 @@ input, select, textarea { font-size: 16px; }
     width: 100%;
   }
 }
+
+
+/* v73 MK-branding, toppmeny og kartforbedringer */
+body { overflow-x: hidden; }
+.app-shell,
+.main,
+.sidebar,
+.card,
+.subcard,
+.home-card-grid,
+.table-wrap,
+.page-header,
+.page-header-soft { min-width: 0; }
+.brand-badge {
+  letter-spacing: 0.06em;
+}
+.kv-arcgis-export-layer {
+  pointer-events: none !important;
+}
+.kv-temalag-panel {
+  pointer-events: none;
+}
+.kv-temalag-panel .kv-temalag-handle,
+.kv-temalag-panel .kv-temalag-card {
+  pointer-events: auto;
+}
+@media (max-width: 960px) {
+  .brand-toggle .brand-toggle-label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 56px;
+    font-size: 0.8rem;
+    opacity: 0.88;
+  }
+  .nav {
+    display: flex !important;
+    flex-wrap: nowrap;
+    gap: 8px;
+    margin-top: 10px;
+    padding: 2px 0 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    touch-action: pan-x pinch-zoom;
+    background: transparent;
+    border-radius: 0;
+    backdrop-filter: none;
+  }
+  .nav::-webkit-scrollbar { display: none; }
+  .nav-form {
+    flex: 0 0 auto;
+    display: block;
+  }
+  .nav-link,
+  .nav-link-button {
+    width: auto;
+    min-width: max-content;
+    white-space: nowrap;
+    flex: 0 0 auto;
+    padding: 10px 14px;
+  }
+  .main {
+    padding-bottom: calc(110px + var(--safe-bottom));
+  }
+  .kv-temalag-panel {
+    left: auto;
+    right: calc(10px + var(--safe-right));
+    top: calc(76px + var(--safe-top));
+    bottom: auto;
+    width: min(290px, calc(100vw - 20px - var(--safe-left) - var(--safe-right)));
+    max-width: calc(100vw - 20px - var(--safe-left) - var(--safe-right));
+  }
+  .kv-temalag-card {
+    max-height: min(58vh, 420px);
+    overflow: auto;
+  }
+}

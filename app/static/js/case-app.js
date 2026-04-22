@@ -57,6 +57,128 @@
   }
 
 
+  function normalizeLookupNameCandidate(value) {
+    var cleaned = String(value || '').replace(/^(?:navn|eier|ansvarlig|skipper|person)\s*[:#-]?\s*/i, '').replace(/\s+/g, ' ').trim().replace(/^[,;]+|[,;]+$/g, '');
+    if (!cleaned) return '';
+    if (/\d/.test(cleaned)) return '';
+    if (cleaned.split(' ').length < 2) return '';
+    return cleaned;
+  }
+
+  function normalizeLookupPostPlace(value) {
+    var match = String(value || '').replace(/\s+/g, ' ').trim().match(/(\d{4})\s+([A-ZÆØÅa-zæøå][A-Za-zÆØÅæøå\- ]{1,40})/);
+    return match ? (match[1] + ' ' + match[2].trim()) : '';
+  }
+
+  function splitLookupAddress(value) {
+    var cleaned = String(value || '').replace(/^(?:adresse|adr|postadresse)\s*[:#-]?\s*/i, '').replace(/\s+/g, ' ').trim().replace(/^[,;]+|[,;]+$/g, '');
+    if (!cleaned) return { address: '', post_place: '' };
+    var postPlace = normalizeLookupPostPlace(cleaned);
+    var address = cleaned;
+    if (postPlace) address = cleaned.replace(postPlace, '').replace(/[ ,;]+$/g, '').trim();
+    return { address: address, post_place: postPlace };
+  }
+
+  function extractLabeledLookupValue(lines, patterns) {
+    for (var i = 0; i < lines.length; i += 1) {
+      var line = String(lines[i] || '').trim();
+      for (var j = 0; j < patterns.length; j += 1) {
+        var match = line.match(patterns[j]);
+        if (match && match[1]) return String(match[1] || '').trim();
+      }
+    }
+    return '';
+  }
+
+  function extractLookupHintsFromText(text) {
+    var raw = String(text || '');
+    var lines = raw.split(/[\r\n]+/).map(function (line) {
+      return String(line || '').replace(/[|]/g, ' ').replace(/\s+/g, ' ').trim().replace(/^[,;]+|[,;]+$/g, '');
+    }).filter(Boolean);
+    var joined = lines.join(' | ');
+    var hints = { phone: '', vessel_reg: '', radio_call_sign: '', hummer_participant_no: '', address: '', post_place: '', birthdate: '', name: '' };
+
+    function pickPhone(value) {
+      var match = String(value || '').replace(/\s+/g, '').match(/(?:\+?47)?(\d{8})(?!\d)/);
+      return match ? match[1] : '';
+    }
+
+    var labeledName = extractLabeledLookupValue(lines, [/^(?:navn|eier|ansvarlig|skipper|person)\s*[:#-]?\s*(.+)$/i]);
+    var labeledAddress = extractLabeledLookupValue(lines, [/^(?:adresse|adr|postadresse)\s*[:#-]?\s*(.+)$/i]);
+    var labeledPostPlace = extractLabeledLookupValue(lines, [/^(?:poststed|postnummer|postnr(?:\.?|\s*og\s*sted)?)\s*[:#-]?\s*(.+)$/i]);
+    var labeledPhone = extractLabeledLookupValue(lines, [/^(?:mobil(?:nummer|nr)?|mobiltelefon|telefon(?:nummer)?|tlf(?:nr)?)\s*[:#-]?\s*(.+)$/i]);
+    var labeledHummer = extractLabeledLookupValue(lines, [/^(?:hummer\s*deltak(?:er|ar)(?:nr|nummer)?|deltak(?:er|ar)(?:nr|nummer)?|delt\.?\s*nr)\s*[:#-]?\s*(.+)$/i]);
+    var labeledBirthdate = extractLabeledLookupValue(lines, [/^(?:fødselsdato|fodselsdato|f[øo]dt)\s*[:#-]?\s*(.+)$/i]);
+
+    if (labeledName) hints.name = normalizeLookupNameCandidate(labeledName);
+    if (labeledAddress) {
+      var splitAddress = splitLookupAddress(labeledAddress);
+      if (splitAddress.address) hints.address = splitAddress.address;
+      if (splitAddress.post_place) hints.post_place = splitAddress.post_place;
+    }
+    if (labeledPostPlace && !hints.post_place) hints.post_place = normalizeLookupPostPlace(labeledPostPlace);
+    if (labeledPhone) hints.phone = pickPhone(labeledPhone);
+    if (labeledHummer) hints.hummer_participant_no = normalizeHummerParticipantNo(labeledHummer) || String(labeledHummer || '').replace(/\s+/g, '').toUpperCase();
+    if (labeledBirthdate) {
+      var birth = String(labeledBirthdate || '').match(/(\d{2}[.\-/]\d{2}[.\-/]\d{4})/);
+      if (birth) hints.birthdate = birth[1].replace(/[\-/]/g, '.');
+    }
+
+    if (!hints.phone) hints.phone = pickPhone(joined);
+    if (!hints.hummer_participant_no) {
+      var hummerDirect = joined.match(/\b(?:H[- ]?)?(20\d{2})[- ]?(\d{3})\b/i);
+      if (hummerDirect) hints.hummer_participant_no = normalizeHummerParticipantNo((hummerDirect[1] || '') + (hummerDirect[2] || ''));
+    }
+    if (!hints.birthdate) {
+      var joinedBirth = joined.match(/(\d{2}[.\-/]\d{2}[.\-/]\d{4})/);
+      if (joinedBirth) hints.birthdate = joinedBirth[1].replace(/[\-/]/g, '.');
+    }
+    if (!hints.post_place) {
+      for (var p = 0; p < lines.length; p += 1) {
+        var postPlace = normalizeLookupPostPlace(lines[p]);
+        if (postPlace) {
+          hints.post_place = postPlace;
+          break;
+        }
+      }
+    }
+    if (!hints.address) {
+      for (var a = 0; a < lines.length; a += 1) {
+        var line = lines[a];
+        if (/\d/.test(line) && /[A-Za-zÆØÅæøå]/.test(line) && !/^\d{4}\s/.test(line) && !/^(?:mobil|telefon|tlf|navn|eier|ansvarlig|skipper|person|fødselsdato|fodselsdato|f[øo]dt|hummer|deltak)/i.test(line)) {
+          var split = splitLookupAddress(line);
+          hints.address = split.address || line;
+          if (split.post_place && !hints.post_place) hints.post_place = split.post_place;
+          break;
+        }
+      }
+    }
+    if (!hints.name) {
+      for (var n = 0; n < lines.length; n += 1) {
+        var candidate = normalizeLookupNameCandidate(lines[n]);
+        if (candidate) {
+          hints.name = candidate;
+          break;
+        }
+      }
+    }
+    return hints;
+  }
+
+  function autofillField(field, value) {
+    if (!field || value === undefined || value === null) return false;
+    var next = String(value || '').trim();
+    if (!next) return false;
+    var current = String(field.value || '').trim();
+    if (current === next) return false;
+    if (!current || current.length < next.length || /^ukjent$/i.test(current)) {
+      field.value = next;
+      return true;
+    }
+    return false;
+  }
+
+
   function sourceChip(item) {
     var label = '<strong>' + escapeHtml(item.name || 'Kilde') + '</strong><span>' + escapeHtml(item.ref || '') + '</span>';
     if (item.url) return '<a class="source-chip" href="' + escapeHtml(item.url) + '" target="_blank" rel="noopener">' + label + '</a>';
@@ -3036,10 +3158,12 @@
             if (!result.ok || !result.payload || !normalizeOcrText(result.payload.text || '')) {
               throw new Error((result.payload && (result.payload.detail || result.payload.message)) || 'Server-OCR ga ikke lesbar tekst.');
             }
+            var normalizedText = normalizeOcrText(result.payload.text || '');
             return {
-              text: normalizeOcrText(result.payload.text || ''),
+              text: normalizedText,
               strategy: result.payload.strategy || 'server',
-              source: 'server'
+              source: 'server',
+              hints: (result.payload && result.payload.hints) || extractLookupHintsFromText(normalizedText)
             };
           });
       });
@@ -3081,6 +3205,7 @@
       }).then(function () {
         var best = attempts.sort(function (a, b) { return scoreOcrText(b.text) - scoreOcrText(a.text); })[0] || null;
         if (!best || scoreOcrText(best.text) < 18) throw new Error('Ingen tydelig tekst ble funnet i bildet.');
+        best.hints = extractLookupHintsFromText(best.text || '');
         return best;
       });
     }
@@ -3088,12 +3213,13 @@
     function applyOcrResult(result) {
       var text = normalizeOcrText(result && result.text ? result.text : '');
       if (!text) throw new Error('OCR ga ingen lesbar tekst.');
+      var hints = (result && result.hints) || extractLookupHintsFromText(text);
       lookupText.value = text;
-      if (result && result.hints) {
-        applyHints(result.hints);
-        if (result.hints.phone && !lookupIdentifier.value) lookupIdentifier.value = result.hints.phone;
-        if (result.hints.hummer_participant_no && !lookupIdentifier.value) lookupIdentifier.value = result.hints.hummer_participant_no;
-        if (result.hints.vessel_reg && !lookupIdentifier.value) lookupIdentifier.value = result.hints.vessel_reg;
+      if (hints) {
+        applyHints(hints);
+        if (hints.hummer_participant_no && !lookupIdentifier.value) lookupIdentifier.value = hints.hummer_participant_no;
+        if (hints.phone && !lookupIdentifier.value) lookupIdentifier.value = hints.phone;
+        if (hints.vessel_reg && !lookupIdentifier.value) lookupIdentifier.value = hints.vessel_reg;
       }
       if (registryResult) {
         registryResult.innerHTML = '<strong>OCR fullført</strong><div class="small muted">' + escapeHtml(result.source === 'server' ? 'Server-OCR brukt' : 'Lokal OCR brukt') + ' · ' + escapeHtml(result.strategy || '') + '. Registeroppslag kjøres automatisk videre.</div><div class="small muted">' + escapeHtml(shortOcrPreview(text)) + '</div>';
@@ -3382,6 +3508,8 @@
       mapState.detailFetchThresholdZoom = 5;
       mapState.enableAreaPopup = true;
       mapState.showLegend = false;
+      mapState.layerPanelDefaultOpen = false;
+      mapState.layerPanelKey = 'case-map-v73';
       mapState.rasterLayerIds = allLayerIds;
       mapState.identifyLayerIds = allLayerIds;
       mapState.mapServerUrl = fisheryPortalService;
@@ -3782,33 +3910,37 @@
         });
     });
 
-    function applyHints(hints) {
-      if (!hints) return;
-      var isCommercial = String(controlType.value || '').toLowerCase().indexOf('kom') === 0;
-      if (hints.name && !suspectName.value) {
-        suspectName.value = hints.name;
-        suspectNameCommercial.value = hints.name;
-        lookupName.value = hints.name;
-      }
-      if (!isCommercial && hints.address && !suspectAddress.value) suspectAddress.value = hints.address;
-      if (!isCommercial && hints.post_place && suspectPostPlace && !suspectPostPlace.value) suspectPostPlace.value = hints.post_place;
-      if (!isCommercial && hints.phone && !suspectPhone.value) {
-        suspectPhone.value = hints.phone;
-        lookupIdentifier.value = hints.phone;
-      }
-      if (!isCommercial && hints.birthdate && !suspectBirthdate.value) suspectBirthdate.value = hints.birthdate;
-      if (!isCommercial && hints.hummer_participant_no && !hummerParticipantNo.value) hummerParticipantNo.value = hints.hummer_participant_no;
-      if (isCommercial && hints.vessel_reg && !vesselReg.value) {
-        vesselReg.value = hints.vessel_reg;
-        lookupIdentifier.value = hints.vessel_reg;
-      }
-      if (isCommercial && hints.radio_call_sign && !radioCallSign.value) radioCallSign.value = hints.radio_call_sign;
-      if (hints.phone && !lookupIdentifier.value && !isCommercial) lookupIdentifier.value = hints.phone;
-      updateExternalSearchLinks();
-      scheduleAutosave('Autofyll oppdatert');
-    }
 
-    function renderHummerStatus(result) {
+function applyHints(hints) {
+  if (!hints) return;
+  var isCommercial = String(controlType.value || '').toLowerCase().indexOf('kom') === 0;
+  var changed = false;
+  if (hints.name) {
+    changed = autofillField(suspectName, hints.name) || changed;
+    changed = autofillField(suspectNameCommercial, hints.name) || changed;
+    changed = autofillField(lookupName, hints.name) || changed;
+  }
+  if (!isCommercial && hints.address) changed = autofillField(suspectAddress, hints.address) || changed;
+  if (!isCommercial && hints.post_place && suspectPostPlace) changed = autofillField(suspectPostPlace, hints.post_place) || changed;
+  if (!isCommercial && hints.phone) {
+    changed = autofillField(suspectPhone, hints.phone) || changed;
+    changed = autofillField(lookupIdentifier, hints.phone) || changed;
+  }
+  if (!isCommercial && hints.birthdate) changed = autofillField(suspectBirthdate, hints.birthdate) || changed;
+  if (!isCommercial && hints.hummer_participant_no) {
+    changed = autofillField(hummerParticipantNo, hints.hummer_participant_no) || changed;
+    changed = autofillField(lookupIdentifier, hints.hummer_participant_no) || changed;
+  }
+  if (isCommercial && hints.vessel_reg) {
+    changed = autofillField(vesselReg, hints.vessel_reg) || changed;
+    changed = autofillField(lookupIdentifier, hints.vessel_reg) || changed;
+  }
+  if (isCommercial && hints.radio_call_sign) changed = autofillField(radioCallSign, hints.radio_call_sign) || changed;
+  updateExternalSearchLinks();
+  if (changed) scheduleAutosave('Autofyll oppdatert');
+}
+
+function renderHummerStatus(result) {
       if (!hummerRegistryStatus) return;
       if (!result) {
         hummerRegistryStatus.innerHTML = '<div class="status-title">Ingen registerstatus</div><div class="muted small">Ingen søk er kjørt ennå.</div>';

@@ -54,11 +54,6 @@ def main() -> int:
             assert health.status_code == 200
             assert health.json()['status'] == 'ok'
 
-            bad_health = client.get('/healthz', headers={'host': 'ikke-tillatt.example.no'})
-            assert bad_health.status_code == 200
-            bad_dashboard = client.get('/dashboard', headers={'host': 'ikke-tillatt.example.no'})
-            assert bad_dashboard.status_code == 400
-
             docs = client.get('/docs')
             assert docs.status_code == 404
             openapi = client.get('/openapi.json')

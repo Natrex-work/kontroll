@@ -47,7 +47,7 @@ def build_nav_links(user: dict[str, Any] | None) -> list[dict[str, str]]:
         links.extend([
             {'href': '/dashboard', 'label': 'Hjem', 'icon': '⌂', 'method': 'get'},
             {'href': '/kontroller', 'label': 'Kontroller og historikk', 'icon': '🗂', 'method': 'get'},
-            {'href': '/cases/offline/new', 'label': 'Ny kontroll', 'icon': '➕', 'method': 'get'},
+            {'href': '/cases/new', 'label': 'Ny kontroll', 'icon': '➕', 'method': 'post'},
         ])
     if has_permission(user, 'kart'):
         links.append({'href': '/kart', 'label': 'Kart og Område', 'icon': '🗺', 'method': 'get'})

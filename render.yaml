@@ -1,34 +1,8 @@
 services:
-  - type: web
-    name: kv-kontroll
+  - name: minfiskerikontroll
+    type: web
     runtime: docker
-    plan: starter
     dockerfilePath: ./Dockerfile
+    dockerContext: .
     healthCheckPath: /healthz
-    envVars:
-      - key: KV_PRODUCTION_MODE
-        value: "1"
-      - key: KV_SESSION_HTTPS_ONLY
-        value: "1"
-      - key: SESSION_SECRET
-        generateValue: true
-      - key: KV_BOOTSTRAP_ADMIN_EMAIL
-        sync: false
-      - key: KV_BOOTSTRAP_ADMIN_NAME
-        sync: false
-      - key: KV_BOOTSTRAP_ADMIN_PASSWORD
-        sync: false
-      - key: KV_BOOTSTRAP_ADMIN_PREFIX
-        value: LBHN
-      - key: KV_DB_PATH
-        value: /var/data/fiskerikontroll/kv_kontroll.db
-      - key: KV_UPLOAD_DIR
-        value: /var/data/fiskerikontroll/uploads
-      - key: KV_GENERATED_DIR
-        value: /var/data/fiskerikontroll/generated
-      - key: KV_ALLOWED_HOSTS
-        value: ""
-    disk:
-      name: data
-      mountPath: /var/data
-      sizeGB: 10
+    autoDeployTrigger: commit

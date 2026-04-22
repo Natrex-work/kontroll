@@ -220,12 +220,12 @@ def extract_tag_hints(tag_text: str) -> dict[str, str]:
         pm = PHONE_RE.search(str(raw or '').replace(' ', '')) or PHONE_RE.search(str(raw or ''))
         return pm.group(1) if pm else ''
 
-    labeled_phone = _extract_labeled_value(lines, ('mobil(?:nummer)?', 'telefon', 'tlf'))
+    labeled_phone = _extract_labeled_value(lines, ('mobil(?:nummer|nr)?', 'mobiltelefon', 'telefon(?:nummer)?', 'tlf(?:nr)?'))
     out['phone'] = _pick_phone(labeled_phone) or _pick_phone(joined)
 
     labeled_hummer = HUMMER_LABELED_RE.search(joined)
     direct_hummer = HUMMER_DIRECT_RE.search(joined.upper())
-    labeled_hummer_text = _extract_labeled_value(lines, (r'hummer\s*deltak(?:er|ar)(?:nr|nummer)?', 'deltak(?:er|ar)(?:nr|nummer)?'))
+    labeled_hummer_text = _extract_labeled_value(lines, (r'hummer\s*deltak(?:er|ar)(?:nr|nummer)?', 'deltak(?:er|ar)(?:nr|nummer)?', r'delt\.?\s*nr'))
     if labeled_hummer:
         out['hummer_participant_no'] = _normalize_hummer_no(labeled_hummer.group(1))
     elif labeled_hummer_text:
@@ -238,18 +238,18 @@ def extract_tag_hints(tag_text: str) -> dict[str, str]:
     if birthdate_match:
         out['birthdate'] = birthdate_match.group(1).replace('-', '.').replace('/', '.')
 
-    labeled_name = _extract_labeled_value(lines, ('navn', 'eier', 'ansvarlig', 'skipper'))
+    labeled_name = _extract_labeled_value(lines, ('navn', 'eier', 'ansvarlig', 'skipper', 'person'))
     if labeled_name:
         labeled_name = normalize_person_name(labeled_name)
         if _is_probable_name(labeled_name):
             out['name'] = labeled_name
 
-    labeled_post = _extract_labeled_value(lines, ('poststed', r'postnr(?:\.| og sted)?', 'postnummer'))
+    labeled_post = _extract_labeled_value(lines, ('poststed', r'postnr(?:\.| og sted)?', 'postnummer', r'postnr\s*/\s*sted'))
     if labeled_post and POSTCODE_RE.search(labeled_post):
         pm = POSTCODE_RE.search(labeled_post)
         out['post_place'] = f"{pm.group(1)} {pm.group(2).strip()}"
 
-    labeled_address = _extract_labeled_value(lines, ('adresse',))
+    labeled_address = _extract_labeled_value(lines, ('adresse', 'adr', 'postadresse'))
     if labeled_address:
         addr, post = _split_address_post_place(labeled_address)
         out['address'] = addr

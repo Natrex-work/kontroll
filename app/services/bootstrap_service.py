@@ -11,28 +11,9 @@ from ..validation import validate_password
 logger = get_logger(__name__)
 
 
-def _format_allowed_hosts() -> str:
-    return ', '.join(settings.allowed_hosts) if settings.allowed_hosts else '(ingen)'
-
-
-def _log_runtime_summary() -> None:
-    logger.info(
-        'Oppstart: production=%s render=%s server_url=%s render_host=%s allowed_hosts=%s db_path=%s upload_dir=%s generated_dir=%s',
-        settings.production_mode,
-        settings.render_runtime,
-        settings.server_url or '-',
-        settings.render_external_hostname or '-',
-        _format_allowed_hosts(),
-        settings.db_path,
-        settings.upload_dir,
-        settings.generated_dir,
-    )
-
-
 def initialize_application_data() -> None:
     settings.ensure_runtime_dirs()
     db.init_db()
-    _log_runtime_summary()
     _validate_runtime_security()
     disable_legacy_demo_users()
     ensure_bootstrap_admin()
@@ -47,11 +28,13 @@ def initialize_application_data() -> None:
 def _validate_runtime_security() -> None:
     if settings.production_mode:
         if settings.session_secret == 'dev-session-secret-change-me':
-            raise RuntimeError('SESSION_SECRET må settes til en unik verdi i produksjon. På Render kan du legge den inn manuelt eller la render.yaml generere en verdi automatisk.')
+            raise RuntimeError('SESSION_SECRET må settes til en unik verdi i produksjon.')
         if not settings.session_https_only:
             raise RuntimeError('KV_SESSION_HTTPS_ONLY må være aktivert i produksjon.')
         if not settings.allowed_hosts or '*' in settings.allowed_hosts:
-            raise RuntimeError('KV_ALLOWED_HOSTS må settes eksplisitt i produksjon. Legg inn alle egne domener, og behold gjerne onrender-domenet også.')
+            raise RuntimeError('KV_ALLOWED_HOSTS må settes eksplisitt i produksjon.')
+
+
 
 
 def disable_legacy_demo_users() -> None:
@@ -65,7 +48,6 @@ def disable_legacy_demo_users() -> None:
         db.remove_user(int(existing['id']))
         db.record_audit(existing['id'], 'disable_legacy_demo_user', 'user', existing['id'], {'email': email})
         logger.warning('Deaktiverte eldre demobruker %s under oppstart.', email)
-
 
 def ensure_bootstrap_admin() -> None:
     email = settings.bootstrap_admin_email
