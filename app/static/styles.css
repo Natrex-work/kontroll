@@ -1532,102 +1532,82 @@ input, select, textarea { font-size: 16px; }
   }
 }
 
-/* v73 topprullemeny, MK-logo og mindre blokkerende kartpanel */
-body, .app-shell, .main { overflow-x: hidden; }
-.app-shell { display: block; min-height: 100vh; }
-.sidebar {
-  position: sticky;
-  top: 0;
-  z-index: 40;
-  width: 100%;
-  padding: calc(10px + var(--safe-top)) 12px 10px;
-  gap: 10px;
-  justify-content: flex-start;
-}
-.sidebar-main { gap: 10px; }
-.sidebar-topbar { min-height: 46px; justify-content: space-between; }
-.brand { gap: 12px; }
+
+/* v73 MK-branding, toppmeny og kartforbedringer */
+body { overflow-x: hidden; }
+.app-shell,
+.main,
+.sidebar,
+.card,
+.subcard,
+.home-card-grid,
+.table-wrap,
+.page-header,
+.page-header-soft { min-width: 0; }
 .brand-badge {
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
-  font-size: 1.05rem;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.06em;
 }
-.brand-app-name { white-space: nowrap; }
-.brand-version { display: inline-flex; }
-.sidebar-toggle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 42px;
-  padding: 8px 12px;
+.kv-arcgis-export-layer {
+  pointer-events: none !important;
 }
-.nav {
-  display: flex !important;
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  overflow-y: hidden;
-  gap: 8px;
-  margin-top: 0;
-  padding: 2px 0 4px;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior-x: contain;
-  touch-action: pan-x;
-}
-.nav::-webkit-scrollbar { display: none; }
-.nav-link,
-.nav-link-button {
-  flex: 0 0 auto;
-  width: auto;
-  min-width: 132px;
-  white-space: nowrap;
-  justify-content: flex-start;
-}
-.nav-link-button { display: inline-flex; }
-.sidebar-footer {
-  display: none;
-  padding: 12px;
-  border-radius: 18px;
-  background: rgba(255,255,255,0.08);
-  backdrop-filter: blur(8px);
-}
-.sidebar.sidebar-open .sidebar-footer { display: grid; }
-.main {
-  padding: 18px;
-  padding-bottom: calc(18px + var(--safe-bottom));
-}
-.home-link-card-form { display: block; }
-.person-autofill-topcard, .person-autofill-topcard .subcard-head { width: 100%; }
-.person-autofill-actions > .btn { flex: 1 1 180px; }
 .kv-temalag-panel {
   pointer-events: none;
-  width: min(300px, calc(100% - 24px));
-  top: 12px;
-  right: 12px;
-  left: auto;
-  bottom: auto;
 }
-.kv-temalag-handle,
-.kv-temalag-card { pointer-events: auto; }
-.kv-temalag-card {
-  width: min(300px, calc(100vw - 24px));
-  max-height: min(52vh, 440px);
+.kv-temalag-panel .kv-temalag-handle,
+.kv-temalag-panel .kv-temalag-card {
+  pointer-events: auto;
 }
 @media (max-width: 960px) {
-  .sidebar { padding: calc(8px + var(--safe-top)) 10px 8px; }
-  .brand-meta { display: none; }
-  .sidebar-toggle { min-height: 38px; padding: 7px 10px; }
-  .nav-link, .nav-link-button { min-width: 116px; padding: 10px 12px; }
-  .main { padding: 14px; padding-bottom: calc(110px + var(--safe-bottom)); }
-  .kv-temalag-panel {
-    width: min(280px, calc(100% - 24px));
-    right: 12px;
-    left: auto;
-    bottom: auto;
-    top: 12px;
+  .brand-toggle .brand-toggle-label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 56px;
+    font-size: 0.8rem;
+    opacity: 0.88;
   }
-  .kv-temalag-handle { width: auto; }
-  .kv-temalag-card { width: min(280px, calc(100vw - 24px)); max-height: min(46vh, 380px); }
+  .nav {
+    display: flex !important;
+    flex-wrap: nowrap;
+    gap: 8px;
+    margin-top: 10px;
+    padding: 2px 0 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    touch-action: pan-x pinch-zoom;
+    background: transparent;
+    border-radius: 0;
+    backdrop-filter: none;
+  }
+  .nav::-webkit-scrollbar { display: none; }
+  .nav-form {
+    flex: 0 0 auto;
+    display: block;
+  }
+  .nav-link,
+  .nav-link-button {
+    width: auto;
+    min-width: max-content;
+    white-space: nowrap;
+    flex: 0 0 auto;
+    padding: 10px 14px;
+  }
+  .main {
+    padding-bottom: calc(110px + var(--safe-bottom));
+  }
+  .kv-temalag-panel {
+    left: auto;
+    right: calc(10px + var(--safe-right));
+    top: calc(76px + var(--safe-top));
+    bottom: auto;
+    width: min(290px, calc(100vw - 20px - var(--safe-left) - var(--safe-right)));
+    max-width: calc(100vw - 20px - var(--safe-left) - var(--safe-right));
+  }
+  .kv-temalag-card {
+    max-height: min(58vh, 420px);
+    overflow: auto;
+  }
 }

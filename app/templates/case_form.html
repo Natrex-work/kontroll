@@ -120,7 +120,8 @@
         <button class="btn btn-secondary" type="button" id="btn-polish-basis">Formulering</button>
       </div>
       <div class="callout margin-top-s">Formulering bruker grunnlag, valgt art, redskap, område og posisjon for å foreslå og rette patruljeformål / begrunnelse.</div>
-      <div class="subcard margin-top-m person-autofill-topcard">
+      <div class="split-panel margin-top-m">
+        <div class="subcard">
           <div class="subcard-head">
             <h3>Patruljeteam og roller</h3>
             <button class="btn btn-secondary btn-small" type="button" id="btn-add-crew">Legg til rolle</button>
@@ -226,7 +227,7 @@
       <div class="card-header panel-header">
         <div>
           <h2>3. Person / fartøy</h2>
-          <div class="muted small">OCR og automatisk registeroppslag er tilpasset norske navn, adresser, postnummer, mobilnummer, fiskerimerker og hummerdeltakernummer.</div>
+          <div class="muted small">OCR og søk er tilpasset norske navn, adresser, postnummer, mobilnummer, fiskerimerker og hummerdeltakernummer.</div>
         </div>
       </div>
       <div class="callout" id="person-mode-hint">Feltene under endres automatisk mellom fritidsfiske og kommersiell kontroll.</div>
@@ -258,13 +259,10 @@
           <div class="callout margin-top-s" id="registry-result">Når du tar bilde eller oppdaterer søkefeltene, kjøres OCR og registeroppslag automatisk. Treffer fra hummerregister og offentlige kataloger brukes fortløpende til å fylle inn opplysningene under.</div>
           <div id="registry-candidates" class="registry-candidate-list hidden"></div>
         </div>
-      </div>
-
-      <div class="split-panel margin-top-m">
         <div class="subcard">
           <div class="subcard-head">
             <h3>Registerstatus</h3>
-            <span class="muted small">Hummerregister og supplerende katalogtreff vises her fortløpende når bilde er lest eller felter oppdateres.</span>
+            <span class="muted small">Hummerregister og supplerende katalogtreff vises her.</span>
           </div>
           <div id="hummer-registry-status" class="status-panel margin-top-s">
             <div class="status-title">Ingen registerkontroll kjørt ennå</div>

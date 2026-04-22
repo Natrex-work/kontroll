@@ -49,21 +49,43 @@ def _normalize_same_site(value: str | None) -> str:
     return normalized
 
 
-def _server_host(value: str | None) -> str | None:
-    if not value:
+def _host_from_value(value: str | None) -> str | None:
+    raw = str(value or '').strip()
+    if not raw:
         return None
-    parsed = urlparse(str(value).strip())
-    return parsed.hostname or None
+    if raw == '*' or raw.startswith('*.'):
+        return raw.lower()
+    if '://' not in raw and not raw.startswith('//'):
+        if '/' not in raw:
+            return raw.split(':', 1)[0].strip().lower() or None
+        raw = f"https://{raw.lstrip('/')}"
+    parsed = urlparse(raw)
+    host = (parsed.hostname or '').strip().lower()
+    return host or None
 
 
 PRODUCTION_MODE = _env_flag('KV_PRODUCTION_MODE', False)
-SERVER_URL = str(os.getenv('SERVER_URL', '')).strip()
-_allowed_hosts = list(_env_list('KV_ALLOWED_HOSTS'))
-_server_host_name = _server_host(SERVER_URL)
-if _server_host_name and _server_host_name not in _allowed_hosts:
-    _allowed_hosts.append(_server_host_name)
+RENDER_EXTERNAL_URL = str(os.getenv('RENDER_EXTERNAL_URL', '')).strip()
+RENDER_EXTERNAL_HOSTNAME = str(os.getenv('RENDER_EXTERNAL_HOSTNAME', '')).strip().lower()
+SERVER_URL = str(os.getenv('SERVER_URL', '')).strip() or RENDER_EXTERNAL_URL
+
+_allowed_hosts: list[str] = []
+for item in _env_list('KV_ALLOWED_HOSTS'):
+    normalized = _host_from_value(item)
+    if normalized and normalized not in _allowed_hosts:
+        _allowed_hosts.append(normalized)
+
+for candidate in (SERVER_URL, RENDER_EXTERNAL_URL, RENDER_EXTERNAL_HOSTNAME):
+    normalized = _host_from_value(candidate)
+    if normalized and normalized not in _allowed_hosts:
+        _allowed_hosts.append(normalized)
+
 if not _allowed_hosts:
-    _allowed_hosts = ['*'] if not PRODUCTION_MODE else []
+    if PRODUCTION_MODE:
+        _allowed_hosts = [RENDER_EXTERNAL_HOSTNAME] if RENDER_EXTERNAL_HOSTNAME else []
+    else:
+        _allowed_hosts = ['*']
+
 _session_same_site = _normalize_same_site(os.getenv('KV_SESSION_SAMESITE', 'lax'))
 _session_https_only = _env_flag('KV_SESSION_HTTPS_ONLY', PRODUCTION_MODE)
 if _session_same_site == 'none' and not _session_https_only:
@@ -102,14 +124,15 @@ class Settings:
     bootstrap_admin_case_prefix: str
 
     def ensure_runtime_dirs(self) -> None:
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self.upload_dir.mkdir(parents=True, exist_ok=True)
         self.generated_dir.mkdir(parents=True, exist_ok=True)
 
 
 settings = Settings(
-    app_name=os.getenv('KV_APP_NAME', 'MK Kontroll'),
-    app_version=os.getenv('KV_APP_VERSION', '73.0.0'),
-    app_version_label=os.getenv('KV_APP_VERSION_LABEL', 'v73'),
+    app_name=os.getenv('KV_APP_NAME', 'KV Kontroll'),
+    app_version=os.getenv('KV_APP_VERSION', '72.0.0'),
+    app_version_label=os.getenv('KV_APP_VERSION_LABEL', 'v72'),
     base_dir=BASE_DIR,
     templates_dir=BASE_DIR / 'app' / 'templates',
     static_dir=BASE_DIR / 'app' / 'static',

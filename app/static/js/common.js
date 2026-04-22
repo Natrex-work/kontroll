@@ -337,7 +337,7 @@
   }
 
 
-  var LAYER_PANEL_PREFS_VERSION = 'v73';
+  var LAYER_PANEL_PREFS_VERSION = 'v72';
 
   function layerPanelStorageKey(el, markerState) {
     return 'kv-temalag:' + LAYER_PANEL_PREFS_VERSION + ':' + String((markerState && markerState.layerPanelKey) || (el && el.id) || 'map');
@@ -486,7 +486,9 @@
     }
 
     var prefs = state.layerPanelPrefs || {};
-    if (typeof prefs.open !== 'boolean') prefs.open = window.matchMedia('(min-width: 961px)').matches;
+    var defaultOpen = !window.matchMedia('(max-width: 960px)').matches;
+    if (state.markerState && typeof state.markerState.layerPanelDefaultOpen === 'boolean') defaultOpen = state.markerState.layerPanelDefaultOpen;
+    if (typeof prefs.open !== 'boolean') prefs.open = defaultOpen;
     state.layerPanelPrefs = prefs;
     saveLayerPanelPrefs(state.layerPanelStorageKey, prefs);
 
@@ -933,6 +935,7 @@
           }
           var featureSummaries = [];
           var geo = L.geoJSON(data, {
+            interactive: false,
             style: function (feature) {
               var props = feature && feature.properties ? feature.properties : {};
               var geometryType = String((feature && feature.geometry && feature.geometry.type) || '').toLowerCase();
@@ -952,6 +955,7 @@
               var props = feature && feature.properties ? feature.properties : {};
               var color = props.__layer_color || '#c1121f';
               return L.circleMarker(latlng, {
+                interactive: false,
                 radius: 7,
                 color: color,
                 weight: 2,

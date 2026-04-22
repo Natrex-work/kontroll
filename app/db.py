@@ -480,13 +480,6 @@ def _next_case_number(conn: sqlite3.Connection, created_by: int) -> str:
 
 
 
-
-
-def next_case_number(created_by: int) -> str:
-    with get_conn() as conn:
-        return _next_case_number(conn, created_by)
-
-
 def create_case(created_by: int, investigator_name: str, complainant_name: str | None, witness_name: str | None) -> int:
     now = utcnow_iso()
     local_now = localnow_form()
