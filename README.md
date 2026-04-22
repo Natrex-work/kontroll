@@ -94,6 +94,27 @@ Anbefalte Render-variabler:
 - `KV_BOOTSTRAP_ADMIN_PASSWORD`
 - `KV_BOOTSTRAP_ADMIN_PREFIX`
 
+
+## Render-feil som ofte stopper v72
+Hvis Render viser `Deploy failed`, er de vanligste årsakene i denne pakken:
+
+- `SESSION_SECRET` mangler eller bruker standardverdien i produksjon
+- `KV_ALLOWED_HOSTS` mangler egne domener
+- `KV_SESSION_HTTPS_ONLY` er ikke satt til `1`
+- `KV_BOOTSTRAP_ADMIN_PASSWORD` er for svakt
+
+Viktig for Render: hvis tjenesten har minst ett custom domain, sender Render health check med ett av disse domenene i `Host`-headeren. Da må domenet ligge i `KV_ALLOWED_HOSTS`, ellers kan deploy bli kansellert selv om appen ellers starter.
+
+Denne versjonen legger automatisk til `RENDER_EXTERNAL_HOSTNAME` i tillatte verter når appen kjører på Render, og `/healthz` er unntatt fra host-sjekken slik at falske deploy-feil reduseres. For egne domener må du fortsatt sette `KV_ALLOWED_HOSTS` eksplisitt.
+
+Før ny deploy kan du kjøre lokalt eller i Render-shell:
+
+```bash
+python manage.py validate-config --production
+```
+
+Hvis du bruker GitHub/GitLab/Bitbucket med Render Blueprint, ligger det nå en `render.yaml` i rotmappen som setter opp helse-sjekk, diskstier og hemmeligheter mer forutsigbart.
+
 ## Teststatus
 - Python-syntakssjekk
 - JavaScript-syntakssjekk

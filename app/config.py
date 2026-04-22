@@ -57,15 +57,20 @@ def _server_host(value: str | None) -> str | None:
 
 
 PRODUCTION_MODE = _env_flag('KV_PRODUCTION_MODE', False)
-SERVER_URL = str(os.getenv('SERVER_URL', '')).strip()
+RENDER_RUNTIME = _env_flag('RENDER', False)
+RENDER_EXTERNAL_HOSTNAME = str(os.getenv('RENDER_EXTERNAL_HOSTNAME', '')).strip()
+RENDER_EXTERNAL_URL = str(os.getenv('RENDER_EXTERNAL_URL', '')).strip()
+SERVER_URL = str(os.getenv('SERVER_URL', '')).strip() or RENDER_EXTERNAL_URL
+
 _allowed_hosts = list(_env_list('KV_ALLOWED_HOSTS'))
-_server_host_name = _server_host(SERVER_URL)
-if _server_host_name and _server_host_name not in _allowed_hosts:
-    _allowed_hosts.append(_server_host_name)
+for candidate in (RENDER_EXTERNAL_HOSTNAME, _server_host(SERVER_URL)):
+    if candidate and candidate not in _allowed_hosts:
+        _allowed_hosts.append(candidate)
 if not _allowed_hosts:
     _allowed_hosts = ['*'] if not PRODUCTION_MODE else []
+
 _session_same_site = _normalize_same_site(os.getenv('KV_SESSION_SAMESITE', 'lax'))
-_session_https_only = _env_flag('KV_SESSION_HTTPS_ONLY', PRODUCTION_MODE)
+_session_https_only = _env_flag('KV_SESSION_HTTPS_ONLY', PRODUCTION_MODE or RENDER_RUNTIME)
 if _session_same_site == 'none' and not _session_https_only:
     _session_same_site = 'lax'
 
@@ -93,6 +98,9 @@ class Settings:
     min_password_length: int
     allowed_hosts: tuple[str, ...]
     production_mode: bool
+    render_runtime: bool
+    render_external_hostname: str
+    render_external_url: str
     server_url: str
     login_rate_limit_attempts: int
     login_rate_limit_window_seconds: int
@@ -128,6 +136,9 @@ settings = Settings(
     min_password_length=max(10, _env_int('KV_MIN_PASSWORD_LENGTH', 12, minimum=10, maximum=128)),
     allowed_hosts=tuple(_allowed_hosts),
     production_mode=PRODUCTION_MODE,
+    render_runtime=RENDER_RUNTIME,
+    render_external_hostname=RENDER_EXTERNAL_HOSTNAME,
+    render_external_url=RENDER_EXTERNAL_URL,
     server_url=SERVER_URL,
     login_rate_limit_attempts=_env_int('KV_LOGIN_RATE_LIMIT_ATTEMPTS', 10, minimum=3, maximum=100),
     login_rate_limit_window_seconds=_env_int('KV_LOGIN_RATE_LIMIT_WINDOW_SECONDS', 15 * 60, minimum=60, maximum=24 * 60 * 60),

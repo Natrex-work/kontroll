@@ -3,11 +3,10 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
-from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from .config import settings
 from .logging_setup import configure_logging
-from .middleware import BodySizeLimitMiddleware, SecurityHeadersMiddleware
+from .middleware import AllowedHostsMiddleware, BodySizeLimitMiddleware, SecurityHeadersMiddleware
 from .routers import admin, api, auth, cases, pages
 from .services.bootstrap_service import ensure_bootstrap_admin, initialize_application_data
 
@@ -24,7 +23,7 @@ def create_app() -> FastAPI:
         openapi_url=None,
     )
     if settings.allowed_hosts and '*' not in settings.allowed_hosts:
-        app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(settings.allowed_hosts))
+        app.add_middleware(AllowedHostsMiddleware, allowed_hosts=list(settings.allowed_hosts), exempt_paths=('/healthz',))
     app.add_middleware(BodySizeLimitMiddleware)
     app.add_middleware(
         SessionMiddleware,
