@@ -1,0 +1,8 @@
+services:
+  - name: minfiskerikontroll
+    type: web
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /healthz
+    autoDeployTrigger: commit
