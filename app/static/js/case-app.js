@@ -960,7 +960,7 @@
     var lawBrowser = parseJson(root.dataset.lawBrowser, []);
     var mapCatalog = parseJson(root.dataset.mapCatalog, []);
     var mapFilterWrap = document.getElementById('map-layer-filters');
-    var mapFilterStorageKey = 'kv-map-layer-filter-v74:' + root.dataset.caseId;
+    var mapFilterStorageKey = 'kv-map-layer-filter-v75:' + root.dataset.caseId;
     var activeLayerStatuses = { 'fredningsområde': true, 'stengt område': true, 'maksimalmål område': true, 'regulert område': true, 'fiskeriområde': true };
     try {
       localStorage.removeItem('kv-map-layer-filter:' + root.dataset.caseId);
@@ -1251,7 +1251,7 @@
         urls = urls.concat(collectTileUrls(layer, map, padding == null ? 2 : padding));
       });
       urls = uniqueUrls(urls);
-      return prefetchUrlsToCache(urls, 'kv-kontroll-v74-map-tiles').then(function (count) {
+      return prefetchUrlsToCache(urls, 'kv-kontroll-v75-map-tiles').then(function (count) {
         return { count: count, urls: urls };
       });
     }
@@ -3093,7 +3093,7 @@
       if (!text) throw new Error('OCR ga ingen lesbar tekst.');
       lookupText.value = text;
       if (result && result.hints) {
-        applyHints(result.hints);
+        applyHints(result.hints, { force: true });
         if (result.hints.phone && !lookupIdentifier.value) lookupIdentifier.value = result.hints.phone;
         if (result.hints.hummer_participant_no && !lookupIdentifier.value) lookupIdentifier.value = result.hints.hummer_participant_no;
         if (result.hints.vessel_reg && !lookupIdentifier.value) lookupIdentifier.value = result.hints.vessel_reg;
@@ -3380,24 +3380,22 @@
       var allLayerIds = (mapCatalog || []).map(function (layer) { return Number(layer && layer.id); }).filter(function (value) { return isFinite(value); });
       var fisheryPortalService = root.dataset.portalMapserver || (caseMap && caseMap.dataset ? (caseMap.dataset.portalMapserver || '') : '') || 'https://portal.fiskeridir.no/server/rest/services/fiskeridirWMS_fiskeri/MapServer';
       var vernPortalService = root.dataset.portalVernMapserver || (caseMap && caseMap.dataset ? (caseMap.dataset.portalVernMapserver || '') : '') || 'https://portal.fiskeridir.no/server/rest/services/Fiskeridir_vern/MapServer';
-      mapState.fetchFeatureDetails = false;
-      mapState.featureDetailLayerIds = [];
-      mapState.detailFetchThresholdZoom = 6;
+      mapState.fetchFeatureDetails = true;
+      mapState.featureDetailLayerIds = allLayerIds;
+      mapState.detailFetchThresholdZoom = 7;
       mapState.enableAreaPopup = true;
       mapState.showLegend = false;
-      mapState.showLayerPanel = false;
+      mapState.showLayerPanel = true;
+      mapState.layerPanelSlot = '#case-map-panel-slot';
       mapState.rasterLayerIds = allLayerIds;
       mapState.identifyLayerIds = allLayerIds;
       mapState.mapServerUrl = fisheryPortalService;
       mapState.portalFisheryService = fisheryPortalService;
       mapState.portalVernService = vernPortalService;
-      mapState.rasterServicesAuto = false;
-      mapState.rasterChunkSize = 18;
-      mapState.rasterOpacity = 0.92;
-      mapState.rasterServices = [
-        { url: fisheryPortalService, layerIds: [68, 106, 115, 121], opacity: 0.92, respectVisibility: false, key: 'fishery-groups' },
-        { url: vernPortalService, layerIds: [0, 1, 2, 3, 6, 23, 34, 35, 37], opacity: 0.92, respectVisibility: false, key: 'vern-groups' }
-      ];
+      mapState.rasterServicesAuto = true;
+      mapState.rasterChunkSize = 16;
+      mapState.rasterOpacity = 0.88;
+      mapState.rasterServices = [];
       createPortalMap(caseMap, displayLayers, mapState).then(function () {
         if (options.recenterTo) mapState.recenterTo = '';
         clearTimeout(mapState._offlineWarmTimer);
@@ -3713,22 +3711,22 @@
         suspectNameCommercial.value = person.name;
         lookupName.value = person.name;
       }
-      if (!isCommercial && person.address) suspectAddress.value = person.address;
-      if (!isCommercial && person.post_place && suspectPostPlace) suspectPostPlace.value = person.post_place;
-      if (!isCommercial && person.phone) {
+      if (person.address) suspectAddress.value = person.address;
+      if (person.post_place && suspectPostPlace) suspectPostPlace.value = person.post_place;
+      if (person.phone) {
         suspectPhone.value = person.phone;
       }
-      if (!isCommercial && person.birthdate) suspectBirthdate.value = person.birthdate;
+      if (person.birthdate) suspectBirthdate.value = person.birthdate;
       if (person.vessel_name) vesselName.value = person.vessel_name;
       if (person.vessel_reg) {
         vesselReg.value = person.vessel_reg;
-        if (isCommercial) lookupIdentifier.value = person.vessel_reg;
+        if (isCommercial || !lookupIdentifier.value) lookupIdentifier.value = person.vessel_reg;
       }
       if (person.radio_call_sign) radioCallSign.value = person.radio_call_sign;
-      if (!isCommercial && (person.hummer_participant_no || person.participant_no)) {
+      if (person.hummer_participant_no || person.participant_no) {
         hummerParticipantNo.value = person.hummer_participant_no || person.participant_no;
         lookupIdentifier.value = hummerParticipantNo.value;
-      } else if (!isCommercial && person.phone && !lookupIdentifier.value) {
+      } else if (person.phone && !lookupIdentifier.value) {
         lookupIdentifier.value = person.phone;
       }
       var lastRegistered = person.hummer_last_registered || person.registered_date_display || person.last_registered_display || person.last_registered_year || fallbackLast || '';
@@ -3824,28 +3822,32 @@
         });
     });
 
-    function applyHints(hints) {
+    function applyHints(hints, options) {
       if (!hints) return;
-      var isCommercial = String(controlType.value || '').toLowerCase().indexOf('kom') === 0;
-      if (hints.name && !suspectName.value) {
-        suspectName.value = hints.name;
-        suspectNameCommercial.value = hints.name;
-        lookupName.value = hints.name;
+      options = options || {};
+      var force = !!options.force;
+      function canWrite(input) {
+        if (!input) return false;
+        return force || !String(input.value || '').trim();
       }
-      if (!isCommercial && hints.address && !suspectAddress.value) suspectAddress.value = hints.address;
-      if (!isCommercial && hints.post_place && suspectPostPlace && !suspectPostPlace.value) suspectPostPlace.value = hints.post_place;
-      if (!isCommercial && hints.phone && !suspectPhone.value) {
-        suspectPhone.value = hints.phone;
-        lookupIdentifier.value = hints.phone;
+      if (hints.name) {
+        if (canWrite(suspectName)) suspectName.value = hints.name;
+        if (canWrite(suspectNameCommercial)) suspectNameCommercial.value = hints.name;
+        if (canWrite(lookupName)) lookupName.value = hints.name;
       }
-      if (!isCommercial && hints.birthdate && !suspectBirthdate.value) suspectBirthdate.value = hints.birthdate;
-      if (!isCommercial && hints.hummer_participant_no && !hummerParticipantNo.value) hummerParticipantNo.value = hints.hummer_participant_no;
-      if (hints.vessel_reg && !vesselReg.value) vesselReg.value = hints.vessel_reg;
-      if (isCommercial && hints.vessel_reg && !lookupIdentifier.value) lookupIdentifier.value = hints.vessel_reg;
-      if (isCommercial && hints.radio_call_sign && !radioCallSign.value) radioCallSign.value = hints.radio_call_sign;
-      if (!isCommercial && hints.hummer_participant_no && !lookupIdentifier.value) lookupIdentifier.value = hints.hummer_participant_no;
-      if (!isCommercial && hints.vessel_reg && !lookupIdentifier.value) lookupIdentifier.value = hints.vessel_reg;
-      if (hints.phone && !lookupIdentifier.value && !isCommercial) lookupIdentifier.value = hints.phone;
+      if (hints.address && canWrite(suspectAddress)) suspectAddress.value = hints.address;
+      if (hints.post_place && suspectPostPlace && canWrite(suspectPostPlace)) suspectPostPlace.value = hints.post_place;
+      if (hints.phone && canWrite(suspectPhone)) suspectPhone.value = hints.phone;
+      if (hints.birthdate && canWrite(suspectBirthdate)) suspectBirthdate.value = hints.birthdate;
+      if (hints.hummer_participant_no && canWrite(hummerParticipantNo)) hummerParticipantNo.value = hints.hummer_participant_no;
+      if (hints.vessel_reg && canWrite(vesselReg)) vesselReg.value = hints.vessel_reg;
+      if (hints.radio_call_sign && canWrite(radioCallSign)) radioCallSign.value = hints.radio_call_sign;
+      if (canWrite(lookupIdentifier)) {
+        if (hints.hummer_participant_no) lookupIdentifier.value = hints.hummer_participant_no;
+        else if (hints.phone) lookupIdentifier.value = hints.phone;
+        else if (hints.vessel_reg) lookupIdentifier.value = hints.vessel_reg;
+        else if (hints.radio_call_sign) lookupIdentifier.value = hints.radio_call_sign;
+      }
       updateExternalSearchLinks();
       scheduleAutosave('Autofyll oppdatert');
     }

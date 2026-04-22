@@ -337,7 +337,7 @@
   }
 
 
-  var LAYER_PANEL_PREFS_VERSION = 'v74';
+  var LAYER_PANEL_PREFS_VERSION = 'v75';
 
   function layerPanelStorageKey(el, markerState) {
     return 'kv-temalag:' + LAYER_PANEL_PREFS_VERSION + ':' + String((markerState && markerState.layerPanelKey) || (el && el.id) || 'map');
@@ -709,39 +709,49 @@
       return String(value || '').replace(/\/\d+$/g, '').replace(/\/+$/g, '').replace(/\/export$/g, '');
     }
 
-    function layerServiceMeta(layer, fisheryServiceUrl, vernServiceUrl) {
-      var meta = { url: '', layerId: null };
-      if (!layer) return meta;
+    function layerServiceMetas(layer, fisheryServiceUrl, vernServiceUrl) {
+      var metas = [];
+      if (!layer) return metas;
       var rawId = Number(layer.id);
       var legacyIds = Array.isArray(layer.legacy_ids) ? layer.legacy_ids.map(function (value) { return Number(value); }).filter(function (value) { return isFinite(value); }) : [];
       var serviceUrl = normalizedServiceUrl(layer.service_url || '');
       var knownVernIds = portalVernIdLookup();
-      var isVernService = serviceUrl && serviceUrl.toLowerCase().indexOf('fiskeridir_vern') !== -1;
-      if (isVernService) {
-        meta.url = normalizedServiceUrl(vernServiceUrl || serviceUrl);
-        if (knownVernIds[String(rawId)]) meta.layerId = rawId;
-        else if (legacyIds.length) meta.layerId = legacyIds[0];
-        return meta;
+      var seen = {};
+      function add(url, layerId) {
+        var normalizedUrl = normalizedServiceUrl(url || '');
+        var numericId = Number(layerId);
+        if (!normalizedUrl || !isFinite(numericId)) return;
+        var key = normalizedUrl + '|' + String(numericId);
+        if (seen[key]) return;
+        seen[key] = true;
+        metas.push({ url: normalizedUrl, layerId: numericId });
       }
-      if (legacyIds.some(function (value) { return knownVernIds[String(value)]; })) {
-        meta.url = normalizedServiceUrl(vernServiceUrl);
-        meta.layerId = legacyIds.filter(function (value) { return knownVernIds[String(value)]; })[0];
-        return meta;
+
+      if (serviceUrl) {
+        if (serviceUrl.toLowerCase().indexOf('fiskeridir_vern') !== -1) add(vernServiceUrl || serviceUrl, rawId);
+        else add(fisheryServiceUrl || serviceUrl, rawId);
+      } else if (isFinite(rawId)) {
+        if (knownVernIds[String(rawId)]) add(vernServiceUrl, rawId);
+        else add(fisheryServiceUrl, rawId);
       }
-      meta.url = normalizedServiceUrl(fisheryServiceUrl || serviceUrl);
-      if (isFinite(rawId)) meta.layerId = rawId;
-      return meta;
+
+      legacyIds.forEach(function (value) {
+        if (knownVernIds[String(value)]) add(vernServiceUrl, value);
+      });
+
+      return metas;
     }
 
     function buildPortalRasterServicesFromLayers(layers, fisheryServiceUrl, vernServiceUrl, options) {
       options = options || {};
       var byService = {};
       (layers || []).forEach(function (layer) {
-        var meta = layerServiceMeta(layer, fisheryServiceUrl, vernServiceUrl);
-        var layerId = Number(meta.layerId);
-        if (!meta.url || !isFinite(layerId)) return;
-        if (!byService[meta.url]) byService[meta.url] = [];
-        byService[meta.url].push(layerId);
+        layerServiceMetas(layer, fisheryServiceUrl, vernServiceUrl).forEach(function (meta) {
+          var layerId = Number(meta.layerId);
+          if (!meta.url || !isFinite(layerId)) return;
+          if (!byService[meta.url]) byService[meta.url] = [];
+          byService[meta.url].push(layerId);
+        });
       });
       var services = [];
       Object.keys(byService).forEach(function (serviceUrl) {
