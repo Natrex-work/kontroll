@@ -7,7 +7,7 @@
     <p class="muted">Tidligere kontroller er lagret og kan åpnes, videreføres eller eksporteres.</p>
   </div>
   <div class="actions-row wrap">
-    <form method="post" action="/cases/new" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><button class="btn btn-primary" type="submit">Ny kontroll</button></form>
+    <a class="btn btn-primary" href="/cases/offline/new" data-create-local-case="1">Ny kontroll</a>
   </div>
 </section>
 

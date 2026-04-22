@@ -4,13 +4,14 @@
 <section class="home-card-grid">
   <form method="post" action="/cases/new" class="home-link-card-form home-link-card-primary-order">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-    <button type="submit" class="home-link-card home-link-card-button">
+    <button type="submit" class="home-link-card home-link-card-button home-link-card-primary-order">
       <div class="home-card-icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"></path><path d="M5 12h14"></path><rect x="3" y="3" width="18" height="18" rx="3"></rect><path d="M16 8h0"></path><path d="M8 16h0"></path></svg>
       </div>
       <div>
         <h2>Ny kontroll</h2>
-        <p class="muted">Opprett ny sak med aktivt LBHN-løpenummer, automatisk starttid, posisjon, kontrollpunkter og illustrasjonsrapport.</p>
+        <p class="muted">Opprett ny sak med aktivt LBHN-løpenummer, automatisk starttid, roller, posisjon, kontrollpunkter og illustrasjonsrapport.</p>
+        <div class="small muted margin-top-s">Offline-kladd kan fortsatt brukes fra lokale kladder ved behov.</div>
       </div>
     </button>
   </form>
@@ -47,7 +48,7 @@
   <div class="card-header">
     <div>
       <h2>Lokale kladder på enheten</h2>
-      <div class="muted small">Lokale kladder du har lagret på enheten vises her. Nye saker opprettes nå direkte med aktivt LBHN-løpenummer.</div>
+      <div class="muted small">Saker du har redigert offline eller som ikke er synket ennå vises her.</div>
     </div>
   </div>
   <div class="recent-case-list" id="offline-drafts-list">

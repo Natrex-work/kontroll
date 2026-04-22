@@ -31,7 +31,7 @@
     var packagesSummary = document.getElementById('overview-offline-packages-summary');
     var packagesList = document.getElementById('overview-offline-packages-list');
     var filterWrap = document.getElementById('overview-layer-filters');
-    var storageKey = 'kv-overview-layer-filter-v72';
+    var storageKey = 'kv-overview-layer-filter-v74';
     var defaultView = { lat: 64.8, lng: 14.5, zoom: 4 };
     var activeLayerStatuses = { 'fredningsområde': true, 'stengt område': true, 'maksimalmål område': true, 'regulert område': true, 'fiskeriområde': true };
     var fisheryPortalService = el.dataset.portalMapserver || 'https://portal.fiskeridir.no/server/rest/services/fiskeridirWMS_fiskeri/MapServer';
@@ -40,16 +40,19 @@
       view: defaultView,
       persistView: false,
       fetchFeatureDetails: false,
-      rasterOpacity: 0.9,
+      rasterOpacity: 0.92,
       enableAreaPopup: true,
       showLegend: false,
       mapServerUrl: fisheryPortalService,
       portalFisheryService: fisheryPortalService,
       portalVernService: vernPortalService,
-      rasterServicesAuto: true,
+      rasterServicesAuto: false,
       rasterChunkSize: 18,
       rasterLayerIds: (allLayers || []).map(function (layer) { return Number(layer && layer.id); }).filter(function (value) { return isFinite(value); }),
-      rasterServices: null,
+      rasterServices: [
+        { url: fisheryPortalService, layerIds: [68, 106, 115, 121], opacity: 0.92, respectVisibility: false, key: 'fishery-groups' },
+        { url: vernPortalService, layerIds: [0, 1, 2, 3, 6, 23, 34, 35, 37], opacity: 0.92, respectVisibility: false, key: 'vern-groups' }
+      ],
       identifyLayerIds: (allLayers || []).map(function (layer) { return Number(layer && layer.id); }).filter(function (value) { return isFinite(value); }),
       lat: null,
       lng: null,
@@ -138,7 +141,7 @@
         urls = urls.concat(collectTileUrls(layer, map, 2));
       });
       urls = uniqueUrls(urls);
-      return prefetchUrlsToCache(urls, 'kv-kontroll-v72-map-tiles').then(function (count) {
+      return prefetchUrlsToCache(urls, 'kv-kontroll-v74-map-tiles').then(function (count) {
         return { count: count, urls: urls };
       });
     }

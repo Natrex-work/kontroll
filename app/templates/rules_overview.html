@@ -19,7 +19,7 @@
   </div>
   <div class="actions-row wrap">
     <button class="btn btn-primary" type="button" id="overview_fetch_rules">Vis relevant regelverk</button>
-    <form method="post" action="/cases/new" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><button class="btn btn-secondary" type="submit">Bruk i ny kontroll</button></form>
+    <a class="btn btn-secondary" href="/cases/offline/new" data-create-local-case="1">Bruk i ny kontroll</a>
   </div>
   <div id="overview_rule_summary" class="stack gap-m">
     <div id="rules-overview-meta" class="callout">Velg kontrolltype, art/fiskeri og redskap for å hente relevant regelverk og kontrollpunkter.</div>

@@ -39,7 +39,8 @@
       <div class="callout margin-top-s" id="overview-offline-packages-summary">Ingen offline-kartpakker er lagret på denne enheten ennå.</div>
       <div class="offline-packages-list" id="overview-offline-packages-list"></div>
     </div>
-    <div id="overview-map" class="leaflet-map large-map" data-portal-catalog='{{ portal_layers|tojson }}' data-portal-url="{{ portal_map_url }}" data-portal-mapserver="{{ portal_mapserver_url }}" data-portal-vern-mapserver="{{ portal_vern_mapserver_url }}"></div>
+    <div id="overview-map-panel-slot" class="map-panel-slot"></div>
+    <div id="overview-map" class="leaflet-map large-map" data-layer-panel-slot="#overview-map-panel-slot" data-portal-catalog='{{ portal_layers|tojson }}' data-portal-url="{{ portal_map_url }}" data-portal-mapserver="{{ portal_mapserver_url }}" data-portal-vern-mapserver="{{ portal_vern_mapserver_url }}"></div>
   </article>
   <article class="card">
     <h2>Områdestatus</h2>

@@ -28,6 +28,126 @@ VESSEL_HINT_RE = re.compile(r'\b[A-ZÆØÅ]{1,4}[- ]?[A-ZÆØÅ]{1,4}[- ]?\d{2,4
 NAME_HINT_RE = re.compile(r'\b[A-ZÆØÅ][A-Za-zÆØÅæøå\-]+(?:\s+[A-ZÆØÅ][A-Za-zÆØÅæøå\-]+){1,3}\b')
 
 
+def _normalize_phone(value: str | None) -> str:
+    digits = ''.join(ch for ch in str(value or '') if ch.isdigit())
+    if digits.startswith('47') and len(digits) > 8:
+        digits = digits[-8:]
+    if len(digits) == 8:
+        return digits
+    return ''
+
+
+def _normalize_post_place(value: str | None) -> str:
+    match = registry.POSTCODE_RE.search(str(value or ''))
+    if not match:
+        return ''
+    return f"{match.group(1)} {' '.join(match.group(2).split())}".strip()
+
+
+def _normalize_name(value: str | None) -> str:
+    cleaned = registry.normalize_person_name(str(value or ''))
+    return cleaned if registry._is_probable_name(cleaned) else ''
+
+
+def _normalize_address(value: str | None) -> str:
+    return registry._normalize_address_line(str(value or ''))
+
+
+def _extract_best_vessel(text: str) -> str:
+    text = str(text or '').upper()
+    for pattern in (registry.VESSEL_RE, registry.FISHERIMERKE_RE):
+        for match in pattern.finditer(text):
+            candidate = registry._normalize_vessel_like(match.group(1) if match.groups() else match.group(0))
+            if candidate:
+                return candidate
+    loose = re.search(r'([A-ZÆØÅ]{2,5})[- ]?([A-ZÆØÅ]{2,5})[- ]?([0-9ILOQS]{3,4})', text)
+    if loose:
+        return registry._normalize_vessel_like(''.join(loose.groups()))
+    return ''
+
+
+def _merge_attempt_hints(attempts: list[dict[str, Any]]) -> dict[str, str]:
+    merged = {
+        'phone': '',
+        'vessel_reg': '',
+        'radio_call_sign': '',
+        'hummer_participant_no': '',
+        'address': '',
+        'post_place': '',
+        'birthdate': '',
+        'name': '',
+    }
+    best_scores = {key: -1 for key in merged}
+
+    def consider(field: str, value: str, score: int) -> None:
+        if not value:
+            return
+        normalized = value
+        if field == 'phone':
+            normalized = _normalize_phone(value)
+        elif field == 'vessel_reg':
+            normalized = registry._normalize_vessel_like(value)
+        elif field == 'hummer_participant_no':
+            normalized = registry._normalize_hummer_no(value)
+        elif field == 'post_place':
+            normalized = _normalize_post_place(value)
+        elif field == 'address':
+            normalized = _normalize_address(value)
+        elif field == 'name':
+            normalized = _normalize_name(value)
+        elif field == 'birthdate':
+            normalized = str(value or '').strip()
+        elif field == 'radio_call_sign':
+            normalized = str(value or '').strip().upper()
+        if not normalized:
+            return
+        effective_score = score + len(normalized)
+        if field == 'name' and len(normalized.split()) >= 2:
+            effective_score += 20
+        if field == 'address' and any(ch.isdigit() for ch in normalized):
+            effective_score += 15
+        if field == 'vessel_reg' and normalized.count('-') >= 2:
+            effective_score += 25
+        if field == 'post_place' and registry.POSTCODE_RE.search(normalized):
+            effective_score += 20
+        if effective_score > best_scores[field]:
+            merged[field] = normalized
+            best_scores[field] = effective_score
+
+    for item in attempts or []:
+        raw_text = str(item.get('text') or '')
+        score = int(item.get('score') or 0)
+        hints = dict(item.get('hints') or {})
+        for field in merged:
+            consider(field, str(hints.get(field) or ''), score)
+        if not merged['vessel_reg'] or score >= best_scores['vessel_reg'] - 10:
+            consider('vessel_reg', _extract_best_vessel(raw_text), score + 10)
+        if not merged['phone']:
+            phone_match = PHONE_HINT_RE.search(raw_text)
+            if phone_match:
+                consider('phone', phone_match.group(0), score + 5)
+        if not merged['post_place']:
+            post_match = POST_HINT_RE.search(raw_text)
+            if post_match:
+                consider('post_place', post_match.group(0), score + 5)
+        if not merged['name']:
+            for line in registry._normalize_lines(raw_text):
+                cleaned = registry.normalize_person_name(line)
+                if registry._is_probable_name(cleaned):
+                    consider('name', cleaned, score + 8)
+                    break
+        if not merged['address']:
+            for line in registry._normalize_lines(raw_text):
+                normalized_line = registry._normalize_address_line(line)
+                if registry.STREET_LINE_RE.match(normalized_line) or registry.COMPACT_STREET_RE.match(normalized_line):
+                    consider('address', normalized_line, score + 8)
+                    break
+
+    if merged['post_place'] and merged['address'] and merged['post_place'] in merged['address']:
+        merged['address'] = merged['address'].replace(merged['post_place'], '').strip(' ,;')
+    return merged
+
+
 def _score_text(text: str) -> int:
     cleaned = str(text or '').strip()
     if not cleaned:
@@ -117,6 +237,10 @@ def _fallback_center_label_crops(image: Image.Image) -> list[Image.Image]:
     w, h = image.size
     crops: list[Image.Image] = []
     windows = [
+        (0.15, 0.12, 0.85, 0.72),
+        (0.18, 0.15, 0.82, 0.75),
+        (0.12, 0.12, 0.88, 0.72),
+        (0.15, 0.15, 0.85, 0.82),
         (0.15, 0.10, 0.85, 0.52),
         (0.10, 0.15, 0.90, 0.58),
         (0.18, 0.18, 0.82, 0.62),
@@ -142,7 +266,7 @@ def _detect_label_crop(image: Image.Image) -> Image.Image | None:
         int(round(w * 0.05)),
         int(round(h * 0.05)),
         int(round(w * 0.95)),
-        int(round(h * 0.82)),
+        int(round(h * 0.90)),
     )
     search = work.crop(search_box).convert('HSV')
     pix = search.load()
@@ -222,6 +346,7 @@ def _prepare_variants(image: Image.Image, *, label_mode: bool = False) -> list[t
         (prefix + 'oppskalert dokument', upscaled, f'--oem 1 --psm {base_psm} preserve_interword_spaces=1'),
         (prefix + 'høy kontrast', threshold, f'--oem 1 --psm {alt_psm} preserve_interword_spaces=1'),
         (prefix + 'sparsom tekst', sparse, f'--oem 1 --psm {alt_psm} preserve_interword_spaces=1'),
+        (prefix + 'adresselinje', medium, f'--oem 1 --psm 4 preserve_interword_spaces=1'),
         (prefix + 'enkel linje', medium, f'--oem 1 --psm {line_psm} preserve_interword_spaces=1'),
     ]
 
@@ -296,17 +421,22 @@ def extract_text_from_image(content: bytes, *, filename: str = '', timeout_secon
     best = best or {'strategy': 'ingen', 'text': '', 'hints': {}}
     best_text = str(best.get('text') or '').strip()
     best_hints = dict(best.get('hints') or {})
-    normalized_text = _compose_text_from_hints(best_hints, fallback_text=best_text)
+    for item in attempts:
+        item['score'] = _score_text(str(item.get('text') or '')) + _hint_quality(dict(item.get('hints') or {}))
+    merged_hints = _merge_attempt_hints(attempts)
+    final_hints = dict(best_hints)
+    final_hints.update({k: v for k, v in merged_hints.items() if v})
+    normalized_text = _compose_text_from_hints(final_hints, fallback_text=best_text)
     if _score_text(normalized_text) < 18:
         raise ValueError('Ingen tydelig tekst ble funnet i bildet.')
     return {
         'text': normalized_text,
         'raw_text': best_text,
-        'hints': best_hints,
+        'hints': final_hints,
         'strategy': str(best.get('strategy') or 'forbedret bilde'),
         'attempts': [{
             'strategy': str(item.get('strategy') or ''),
-            'score': _score_text(str(item.get('text') or '')) + _hint_quality(dict(item.get('hints') or {})),
+            'score': int(item.get('score') or 0),
         } for item in attempts],
         'label_crop_detected': bool(label_crops),
     }

@@ -1,6 +1,6 @@
 {
-  "name": "Kontroll Og Oppsyn",
-  "short_name": "Oppsyn",
+  "name": "MK Kontroll",
+  "short_name": "MK",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f4f7fb",

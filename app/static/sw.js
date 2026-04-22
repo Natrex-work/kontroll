@@ -1,5 +1,5 @@
-const CACHE = 'kv-kontroll-v72-map-offline';
-const MAP_TILE_CACHE = 'kv-kontroll-v72-map-tiles';
+const CACHE = 'kv-kontroll-v74-map-offline';
+const MAP_TILE_CACHE = 'kv-kontroll-v74-map-tiles';
 const STATIC_PREFIX = '/static/';
 const API_CACHE_PREFIXES = ['/api/map/catalog', '/api/map/bundle', '/api/map/offline-package', '/api/map/features', '/api/map/identify', '/api/zones/check', '/api/rules'];
 const ASSETS = [

@@ -95,8 +95,13 @@ def _normalize_address_line(line: str) -> str:
     if not candidate:
         return ''
     upper_compact = candidate.upper().replace(' ', '')
-    if VESSEL_RE.fullmatch(upper_compact) or FISHERIMERKE_RE.fullmatch(upper_compact) or HUMMER_STRICT_RE.fullmatch(upper_compact):
-        return candidate
+    vessel_like = _normalize_vessel_like(candidate)
+    if vessel_like or VESSEL_RE.fullmatch(upper_compact) or FISHERIMERKE_RE.fullmatch(upper_compact) or HUMMER_STRICT_RE.fullmatch(upper_compact):
+        return vessel_like or candidate
+    if not POST_PLACE_ONLY_RE.match(candidate):
+        street_match = re.search(r'([A-ZÆØÅa-zæøå][A-Za-zÆØÅæøå\-. ]+\s+\d{1,4}[A-Za-z]?)', candidate)
+        if street_match:
+            candidate = ' '.join(street_match.group(1).split())
     match = COMPACT_STREET_RE.match(candidate)
     if match and not POST_PLACE_ONLY_RE.match(candidate):
         street = ' '.join(match.group(1).split())
@@ -138,13 +143,29 @@ def _normalize_hummer_no(value: str) -> str:
     return raw
 
 
+def _normalize_vessel_like(value: str | None) -> str:
+    raw = str(value or '').strip().upper().replace(' ', '').replace('–', '-').replace('—', '-')
+    if not raw:
+        return ''
+    raw = raw.replace('_', '-').replace('--', '-')
+    match = re.search(r'([A-ZÆØÅ]{2,5})-?([A-ZÆØÅ]{2,5})-?([0-9ILOQS]{3,4})\b', raw)
+    if not match:
+        match = re.search(r'([A-ZÆØÅ]{1,3})-?([A-ZÆØÅ]{1,3})-?([0-9ILOQS]{3,4})\b', raw)
+    if not match:
+        return ''
+    suffix = match.group(3).translate(str.maketrans({'I': '1', 'L': '1', 'O': '0', 'Q': '0', 'S': '5'}))
+    if not suffix.isdigit():
+        return ''
+    return f'{match.group(1)}-{match.group(2)}-{suffix}'
+
+
 def _clean_name_candidate(value: str | None) -> str:
     parts = [part for part in ' '.join(str(value or '').replace('|', ' ').split()).strip(' ,;|-').split() if part]
     if not parts:
         return ''
-    while len(parts) > 2 and len(parts[0]) == 1:
+    while len(parts) > 2 and len(parts[0]) <= 2 and parts[0].isalpha():
         parts = parts[1:]
-    while len(parts) > 2 and len(parts[-1]) == 1:
+    while len(parts) > 2 and len(parts[-1]) <= 2 and parts[-1].isalpha():
         parts = parts[:-1]
     cleaned = ' '.join(parts)
     cleaned = re.sub(r'\b([A-ZÆØÅ])$', '', cleaned).strip(' ,;|-')
@@ -220,12 +241,12 @@ def extract_tag_hints(tag_text: str) -> dict[str, str]:
         pm = PHONE_RE.search(str(raw or '').replace(' ', '')) or PHONE_RE.search(str(raw or ''))
         return pm.group(1) if pm else ''
 
-    labeled_phone = _extract_labeled_value(lines, ('mobil(?:nummer|nr)?', 'mobiltelefon', 'telefon(?:nummer)?', 'tlf(?:nr)?'))
+    labeled_phone = _extract_labeled_value(lines, ('mobil(?:nummer)?', 'telefon', 'tlf'))
     out['phone'] = _pick_phone(labeled_phone) or _pick_phone(joined)
 
     labeled_hummer = HUMMER_LABELED_RE.search(joined)
     direct_hummer = HUMMER_DIRECT_RE.search(joined.upper())
-    labeled_hummer_text = _extract_labeled_value(lines, (r'hummer\s*deltak(?:er|ar)(?:nr|nummer)?', 'deltak(?:er|ar)(?:nr|nummer)?', r'delt\.?\s*nr'))
+    labeled_hummer_text = _extract_labeled_value(lines, (r'hummer\s*deltak(?:er|ar)(?:nr|nummer)?', 'deltak(?:er|ar)(?:nr|nummer)?'))
     if labeled_hummer:
         out['hummer_participant_no'] = _normalize_hummer_no(labeled_hummer.group(1))
     elif labeled_hummer_text:
@@ -238,18 +259,18 @@ def extract_tag_hints(tag_text: str) -> dict[str, str]:
     if birthdate_match:
         out['birthdate'] = birthdate_match.group(1).replace('-', '.').replace('/', '.')
 
-    labeled_name = _extract_labeled_value(lines, ('navn', 'eier', 'ansvarlig', 'skipper', 'person'))
+    labeled_name = _extract_labeled_value(lines, ('navn', 'eier', 'ansvarlig', 'skipper'))
     if labeled_name:
         labeled_name = normalize_person_name(labeled_name)
         if _is_probable_name(labeled_name):
             out['name'] = labeled_name
 
-    labeled_post = _extract_labeled_value(lines, ('poststed', r'postnr(?:\.| og sted)?', 'postnummer', r'postnr\s*/\s*sted'))
+    labeled_post = _extract_labeled_value(lines, ('poststed', r'postnr(?:\.| og sted)?', 'postnummer'))
     if labeled_post and POSTCODE_RE.search(labeled_post):
         pm = POSTCODE_RE.search(labeled_post)
         out['post_place'] = f"{pm.group(1)} {pm.group(2).strip()}"
 
-    labeled_address = _extract_labeled_value(lines, ('adresse', 'adr', 'postadresse'))
+    labeled_address = _extract_labeled_value(lines, ('adresse',))
     if labeled_address:
         addr, post = _split_address_post_place(labeled_address)
         out['address'] = addr
@@ -263,7 +284,7 @@ def extract_tag_hints(tag_text: str) -> dict[str, str]:
         upper_line = line.upper().replace(' ', '')
         vessel_full = FISHERIMERKE_RE.fullmatch(upper_line) or VESSEL_RE.fullmatch(upper_line) or FISHERIMERKE_RE.fullmatch(line.upper()) or VESSEL_RE.fullmatch(line.upper())
         if vessel_full and not out['vessel_reg']:
-            candidate = vessel_full.group(1).replace(' ', '').upper()
+            candidate = _normalize_vessel_like(vessel_full.group(1)) or vessel_full.group(1).replace(' ', '').upper()
             if candidate != _compact(out['hummer_participant_no']) and not POST_PLACE_ONLY_RE.match(line):
                 out['vessel_reg'] = candidate
                 continue
@@ -293,7 +314,7 @@ def extract_tag_hints(tag_text: str) -> dict[str, str]:
         if not out['vessel_reg']:
             vessel_match = FISHERIMERKE_RE.fullmatch(line.upper()) or VESSEL_RE.fullmatch(line.upper()) or FISHERIMERKE_RE.search(line.upper()) or VESSEL_RE.search(line.upper())
             if vessel_match:
-                candidate = vessel_match.group(1).replace(' ', '').upper()
+                candidate = _normalize_vessel_like(vessel_match.group(1)) or vessel_match.group(1).replace(' ', '').upper()
                 if candidate != _compact(out['hummer_participant_no']) and not POST_PLACE_ONLY_RE.match(line):
                     out['vessel_reg'] = candidate
                     continue

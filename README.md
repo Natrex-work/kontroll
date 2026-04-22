@@ -1,23 +1,25 @@
-# KV Kontroll – Render-hotfix og videreutviklet pakke
+# KV Kontroll v60 – full offline ny sak, lokal synk og feltkladd
 
-Herdet PWA / webapp for feltutprøving av kontrollsaker, kart, regelverk, registeroppslag og dokumenteksport.
+Herdet PWA / webapp for fullskala feltutprøving av kontrollsaker, kart, regelverk, registeroppslag og dokumenteksport.
 
-## Hva som er rettet i denne pakken
-- rettet `uvicorn`-pin i `requirements.txt` slik at Docker-bygg i Render ikke stopper på en ugyldig versjon
-- appen godtar nå automatisk Render sitt `onrender.com`-vertsnavn når den kjører i produksjon på Render
-- appen oppretter nå også foreldremappen til `KV_DB_PATH` automatisk ved oppstart
-- `KV_ALLOWED_HOSTS` tåler nå også at du ved en feil legger inn full URL i stedet for bare vertsnavn
-- lagt ved egen Render-guide med sjekkliste og forklaring på vanlige feil
-
-## Sikkerhetsoppsett som fortsatt gjelder
-- åpne FastAPI-dokumentasjonssider er slått av i produksjon
-- CSRF-beskyttelse på innlogging, lagring, eksport, adminhandlinger og API-kall
-- Trusted Host-kontroll og strammere sesjonsinnstillinger
-- sikkerhetsheadere som CSP, `X-Frame-Options`, `Referrer-Policy`, `X-Content-Type-Options` og HSTS på HTTPS
-- offentlig tilgang til `/uploads` og `/generated` er fjernet
-- filsignaturkontroll og strengere filtrering av filtyper ved opplasting
-- innloggingsbegrensning mot brute force og tidsavgrenset sesjonskontroll
-- service worker cacher bare statiske filer
+## Sikkerhetsforbedringer i denne pakken
+- fjernet demooppsett, demoordlyd, eksempeldatabaser og unødvendige hjelpefiler
+- slått av åpne FastAPI-dokumentasjonssider i produksjon
+- lagt inn **CSRF-beskyttelse** på innlogging, lagring, eksport, adminhandlinger og API-kall
+- lagt inn **Trusted Host**-kontroll og strammere sesjonsinnstillinger
+- lagt inn **sikkerhetsheadere** som CSP, `X-Frame-Options`, `Referrer-Policy`, `X-Content-Type-Options` og HSTS på HTTPS
+- fjernet offentlig tilgang til `/uploads` og `/generated`; filer åpnes nå bare via autentiserte, saksbundne ruter
+- lagt inn **filsignaturkontroll** og strengere filtrering av filtyper ved opplasting
+- lagt inn **innloggingsbegrensning** mot brute force og tidsavgrenset sesjonskontroll
+- oppdatert service worker til å cache kun statiske filer
+- beholdt kartforbedringer med **blå GPS-prikk + nøyaktighetssirkel** og **rød kontrollnål**
+- oversiktskartet viser nå **synlige soner i kartutsnittet** i egen liste
+- kontrollkartet viser nå **bare soner og kartlag som matcher valgt kontrolltype, fiskeri og redskap**
+- ny kontroll kan nå startes som **lokal sakskladd på enheten** uten server først
+- lokale nye saker kan **synkes til server senere** og får da endelig saksnummer
+- områdesjekk filtrerer nå treff etter valgt fiskeri/kontrolltype slik at varslene blir mer presise
+- beholdt redigering av de tre siste sifrene i saksnummeret
+- beholdt `/healthz` for Render
 
 ## Første oppstart
 Kopier `.env.example` til `.env` og sett minst:
@@ -26,6 +28,7 @@ Kopier `.env.example` til `.env` og sett minst:
 KV_PRODUCTION_MODE=1
 SESSION_SECRET=sett-en-lang-og-unik-hemmelig-verdi
 KV_DATA_ENCRYPTION_KEY=sett-en-lang-og-unik-krypteringsnoekkel
+KV_ALLOWED_HOSTS=www.dittdomene.no,dittdomene.onrender.com
 KV_SESSION_HTTPS_ONLY=1
 KV_BOOTSTRAP_ADMIN_EMAIL=navn@domene.no
 KV_BOOTSTRAP_ADMIN_NAME=Fullt Navn
@@ -33,11 +36,10 @@ KV_BOOTSTRAP_ADMIN_PASSWORD=VelgEtSterktPassord123!Ekstra
 KV_BOOTSTRAP_ADMIN_PREFIX=LBHN
 ```
 
-Hvis du bruker eget domene, sett også minst ett av disse:
+Du kan også opprette første administrator lokalt med:
 
-```env
-KV_ALLOWED_HOSTS=www.dittdomene.no,dittdomene.onrender.com
-SERVER_URL=https://www.dittdomene.no
+```bash
+python manage.py create-admin --email navn@domene.no --name "Fullt Navn" --password "VelgEtSterktPassord123!Ekstra" --prefix LBHN
 ```
 
 ## Kjør lokalt
@@ -55,8 +57,9 @@ Health check path:
 /healthz
 ```
 
-### Anbefalte Render-variabler
+Anbefalte Render-variabler:
 - `KV_PRODUCTION_MODE=1`
+- `KV_ALLOWED_HOSTS=www.minfiskerikontroll.no,minfiskerikontroll.onrender.com`
 - `KV_SESSION_HTTPS_ONLY=1`
 - `SESSION_SECRET=...`
 - `KV_DATA_ENCRYPTION_KEY=...`
@@ -68,21 +71,36 @@ Health check path:
 - `KV_UPLOAD_DIR=/var/data/fiskerikontroll/uploads`
 - `KV_GENERATED_DIR=/var/data/fiskerikontroll/generated`
 
-### Viktig om vertsnavn i Render
-- Hvis du **bare** bruker `*.onrender.com`, vil appen nå automatisk plukke opp Render sitt vertsnavn.
-- Hvis du bruker **eget domene**, sett `KV_ALLOWED_HOSTS` og/eller `SERVER_URL` eksplisitt til domenet ditt.
-- Hvis `KV_ALLOWED_HOSTS` er feil, vil `/healthz` kunne svare `400 Invalid host header`, og Render vil markere deployen som mislykket.
-
-### Viktig om lagring i Render
-- Uten persistent disk er filsystemet midlertidig.
-- Appen oppretter nå nødvendige mapper automatisk, men data vil fortsatt forsvinne ved restart uten disk.
-- For varig lagring anbefales Render-disk montert på `/var/data`.
+## Nyttige miljøvariabler
+- `KV_PRODUCTION_MODE`
+- `SESSION_SECRET`
+- `KV_DATA_ENCRYPTION_KEY`
+- `KV_ALLOWED_HOSTS`
+- `KV_SESSION_HTTPS_ONLY`
+- `KV_SESSION_MAX_AGE_SECONDS`
+- `KV_SESSION_IDLE_MINUTES`
+- `KV_SESSION_ABSOLUTE_MINUTES`
+- `KV_DB_PATH`
+- `KV_UPLOAD_DIR`
+- `KV_GENERATED_DIR`
+- `KV_LOG_LEVEL`
+- `KV_MAX_REQUEST_MB`
+- `KV_MIN_PASSWORD_LENGTH`
+- `KV_LOGIN_RATE_LIMIT_ATTEMPTS`
+- `KV_LOGIN_RATE_LIMIT_WINDOW_SECONDS`
+- `KV_LIVE_SOURCES`
+- `KV_BOOTSTRAP_ADMIN_EMAIL`
+- `KV_BOOTSTRAP_ADMIN_NAME`
+- `KV_BOOTSTRAP_ADMIN_PASSWORD`
+- `KV_BOOTSTRAP_ADMIN_PREFIX`
 
 ## Teststatus
 - Python-syntakssjekk
 - JavaScript-syntakssjekk
-- eksisterende smoke test for innlogging, sak, kart og PDF
-- ekstra Render-smoke test for auto-host og oppretting av DB-mappe
+- smoke test med bootstrap-admin og CSRF
+- health check `/healthz`
+- oppretting, lagring, forhåndsvisning og PDF-eksport av sak
+- saksnummerendring av tresifret løpenummer
 
 ## Merknad
 Live kartlag, hummerregister, fartøyregister og andre eksterne oppslag krever internett. Når en ekstern kilde ikke svarer, brukes lokale fallback-data der det finnes trygge geografiske reserveflater og grunnleggende oppslagsdata.

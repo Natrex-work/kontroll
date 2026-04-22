@@ -31,19 +31,17 @@
           </button>
           {% block topbar_extra %}{% endblock %}
         </div>
-        <div class="nav-scroller" id="nav-scroller" aria-label="Hovedmeny som kan rulles sideveis">
-          <nav class="nav" aria-label="Hovedmeny">
-            {% for link in nav_links %}
-              {% if link.method == 'post' %}
-              <form method="post" action="{{ link.href }}" class="nav-form">
-                <button type="submit" class="nav-link nav-link-button {% if request.url.path == link.href or request.url.path.startswith(link.href ~ '/') %}active{% endif %}"><span class="nav-link-icon" aria-hidden="true">{{ link.icon }}</span><span>{{ link.label }}</span></button>
-              </form>
-              {% else %}
-              <a href="{{ link.href }}" class="nav-link {% if request.url.path == link.href or request.url.path.startswith(link.href ~ '/') %}active{% endif %}"><span class="nav-link-icon" aria-hidden="true">{{ link.icon }}</span><span>{{ link.label }}</span></a>
-              {% endif %}
-            {% endfor %}
-          </nav>
-        </div>
+        <nav class="nav">
+          {% for link in nav_links %}
+            {% if link.method == 'post' %}
+            <form method="post" action="{{ link.href }}" class="nav-form">
+              <button type="submit" class="nav-link nav-link-button {% if request.url.path == link.href or request.url.path.startswith(link.href ~ '/') %}active{% endif %}"><span class="nav-link-icon" aria-hidden="true">{{ link.icon }}</span><span>{{ link.label }}</span></button>
+            </form>
+            {% else %}
+            <a href="{{ link.href }}" class="nav-link {% if request.url.path == link.href or request.url.path.startswith(link.href ~ '/') %}active{% endif %}"><span class="nav-link-icon" aria-hidden="true">{{ link.icon }}</span><span>{{ link.label }}</span></a>
+            {% endif %}
+          {% endfor %}
+        </nav>
       </div>
       <div class="sidebar-footer" id="sidebar-footer">
         <div class="sidebar-user-card">
