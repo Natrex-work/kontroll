@@ -1,30 +1,44 @@
 {% extends 'base.html' %}
-{% block title %}Logg inn · {{ app_name }}{% endblock %}
+{% block title %}Logg inn · {{ display_app_name }}{% endblock %}
+{% block body_class %}page-login{% endblock %}
+{% block main_class %}main-login{% endblock %}
 {% block content %}
-<section class="login-wrap">
-  <div class="login-card">
-    <div class="brand center">
-      <div class="brand-badge">MK</div>
+<section class="login-wrap login-wrap-brand">
+  <div class="login-hero-copy">
+    <div class="login-brand-row">
+      <span class="login-brand-badge">MK</span>
       <div>
-        <strong>{{ app_name }}</strong>
-        <div class="muted">Sikker kontrollflate for kontroll, kart, regelverk og dokumentasjon</div>
+        <div class="login-brand-org">{{ brand_org_name }}</div>
+        <div class="login-brand-app">{{ display_app_name }}</div>
       </div>
     </div>
-    <h1>Logg inn</h1>
-    <p class="muted">Løsningen er klargjort for feltutprøving med kontrollflyt, registeroppslag, posisjon/områdestatus, lovpunkter og eksport.</p>
+    <h1>Logg inn for å åpne kontrollflaten</h1>
+    <p>Mobiltilpasset arbeidsflate for kontroll, kart, regelverk, dokumentasjon og videre oppfølging i samme flyt.</p>
+  </div>
+  <div class="login-card login-card-brand">
+    <div class="login-card-head">
+      <div class="brand center brand-login-card">
+        <div class="brand-badge">MK</div>
+        <div>
+          <strong>{{ display_app_name }}</strong>
+          <div class="muted">Sikker innlogging til kontroll, kart og sak</div>
+        </div>
+      </div>
+      <h2>Logg inn</h2>
+    </div>
     {% if error %}
       <div class="alert alert-error">{{ error }}</div>
     {% endif %}
     <form method="post" action="/login" class="stack gap-m">
       <label>
         <span>E-post</span>
-        <input name="email" type="email" placeholder="navn@kystvakt.no" autocomplete="username" required />
+        <input name="email" type="email" placeholder="navn@eksempel.no" autocomplete="username" required />
       </label>
       <label>
         <span>Passord</span>
         <input name="password" type="password" placeholder="••••••••" autocomplete="current-password" required />
       </label>
-      <button class="btn btn-primary btn-full" type="submit">Logg inn</button>
+      <button class="btn btn-primary btn-full login-submit" type="submit">Logg inn</button>
     </form>
   </div>
 </section>

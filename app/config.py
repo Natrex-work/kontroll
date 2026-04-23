@@ -95,6 +95,7 @@ if _session_same_site == 'none' and not _session_https_only:
 @dataclass(frozen=True)
 class Settings:
     app_name: str
+    brand_org_name: str
     app_version: str
     app_version_label: str
     base_dir: Path
@@ -130,9 +131,10 @@ class Settings:
 
 
 settings = Settings(
-    app_name=os.getenv('KV_APP_NAME', 'KV Kontroll'),
-    app_version=os.getenv('KV_APP_VERSION', '72.0.0'),
-    app_version_label=os.getenv('KV_APP_VERSION_LABEL', 'v72'),
+    app_name=os.getenv('KV_APP_NAME', 'Kontroll'),
+    brand_org_name=os.getenv('KV_BRAND_ORG_NAME', 'Fiskeridirektoratet').strip() or 'Fiskeridirektoratet',
+    app_version=os.getenv('KV_APP_VERSION', '76.0.0'),
+    app_version_label=os.getenv('KV_APP_VERSION_LABEL', 'v76'),
     base_dir=BASE_DIR,
     templates_dir=BASE_DIR / 'app' / 'templates',
     static_dir=BASE_DIR / 'app' / 'static',

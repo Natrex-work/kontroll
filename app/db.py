@@ -17,9 +17,9 @@ INVESTIGATOR_PERMISSION_OPTIONS = ('kv_kontroll', 'kart', 'regelverk')
 ADMIN_PERMISSION_OPTIONS = ('user_admin', 'control_admin')
 USER_PERMISSION_OPTIONS = INVESTIGATOR_PERMISSION_OPTIONS + ADMIN_PERMISSION_OPTIONS
 USER_PERMISSION_LABELS = {
-    'kv_kontroll': 'KV Kontroll',
-    'kart': 'Kart og Omrade',
-    'regelverk': 'Regelverk Fiskeri',
+    'kv_kontroll': 'Kontroll',
+    'kart': 'Kart og områder',
+    'regelverk': 'Regelverk',
     'user_admin': 'Brukerstyring',
     'control_admin': 'Slette/gjenopprette kontroller',
 }

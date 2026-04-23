@@ -39,34 +39,64 @@ CASE_BASIS_OPTIONS = [
 ]
 
 
+def visible_app_name(name: str | None) -> str:
+    raw = (name or '').strip()
+    if not raw:
+        return 'Kontroll'
+    if raw.lower().startswith('kv '):
+        trimmed = raw[3:].strip()
+        return trimmed or 'Kontroll'
+    if raw.lower() == 'kv':
+        return 'Kontroll'
+    return raw
+
+
+VISIBLE_APP_NAME = visible_app_name(settings.app_name)
+
+
 def build_nav_links(user: dict[str, Any] | None) -> list[dict[str, str]]:
     if not user:
         return []
     links: list[dict[str, str]] = []
     if has_permission(user, 'kv_kontroll'):
         links.extend([
-            {'href': '/dashboard', 'label': 'Hjem', 'icon': '⌂', 'method': 'get'},
-            {'href': '/kontroller', 'label': 'Kontroller og historikk', 'icon': '🗂', 'method': 'get'},
-            {'href': '/cases/new', 'label': 'Ny kontroll', 'icon': '➕', 'method': 'post'},
+            {'href': '/dashboard', 'label': 'Hjem', 'dock_label': 'Hjem', 'icon': '⌂', 'method': 'get', 'key': 'home'},
+            {'href': '/cases/new', 'label': 'Ny kontroll', 'dock_label': 'Ny', 'icon': '➕', 'method': 'post', 'key': 'new_case'},
+            {'href': '/kontroller', 'label': 'Kontroller og historikk', 'dock_label': 'Saker', 'icon': '🗂', 'method': 'get', 'key': 'history'},
         ])
     if has_permission(user, 'kart'):
-        links.append({'href': '/kart', 'label': 'Kart og Område', 'icon': '🗺', 'method': 'get'})
+        links.append({'href': '/kart', 'label': 'Kart og områder', 'dock_label': 'Kart', 'icon': '🗺', 'method': 'get', 'key': 'map'})
     if has_permission(user, 'regelverk'):
-        links.append({'href': '/regelverk', 'label': 'Regelverk Fiskeri', 'icon': '📘', 'method': 'get'})
+        links.append({'href': '/regelverk', 'label': 'Regelverk', 'dock_label': 'Regler', 'icon': '📘', 'method': 'get', 'key': 'rules'})
     if has_permission(user, 'user_admin'):
-        links.append({'href': '/admin/users', 'label': 'Brukere', 'icon': '👤', 'method': 'get'})
+        links.append({'href': '/admin/users', 'label': 'Brukere', 'dock_label': 'Brukere', 'icon': '👤', 'method': 'get', 'key': 'users'})
     if has_permission(user, 'control_admin'):
-        links.append({'href': '/admin/controls', 'label': 'Kontroller', 'icon': '♻', 'method': 'get'})
+        links.append({'href': '/admin/controls', 'label': 'Kontroller', 'dock_label': 'Admin', 'icon': '♻', 'method': 'get', 'key': 'admin_controls'})
     return links
+
+
+MOBILE_NAV_ORDER = ('home', 'new_case', 'map', 'rules', 'history')
+
+
+def build_mobile_nav_links(nav_links: list[dict[str, str]]) -> list[dict[str, str]]:
+    by_key = {str(link.get('key')): link for link in nav_links}
+    mobile_links: list[dict[str, str]] = []
+    for key in MOBILE_NAV_ORDER:
+        link = by_key.get(key)
+        if link:
+            mobile_links.append(link)
+    return mobile_links
 
 
 def render_template(request: Request, name: str, **context: Any) -> HTMLResponse:
     user = current_user(request)
+    nav_links = build_nav_links(user)
     base_context = {
         'request': request,
         'current_user': user,
         'current_permissions': user_permissions(user),
-        'nav_links': build_nav_links(user),
+        'nav_links': nav_links,
+        'mobile_nav_links': build_mobile_nav_links(nav_links),
         'default_home_path': first_allowed_path(user) or '/login',
         'can_case_admin': has_permission(user, 'control_admin'),
         'control_types': CONTROL_TYPES,
@@ -89,6 +119,8 @@ def render_template(request: Request, name: str, **context: Any) -> HTMLResponse
         'dashboard_zones': area.ZONES,
         'app_version': settings.app_version_label,
         'app_name': settings.app_name,
+        'display_app_name': VISIBLE_APP_NAME,
+        'brand_org_name': getattr(settings, 'brand_org_name', 'Fiskeridirektoratet'),
         'csrf_token': ensure_csrf_token(request),
         'server_url': settings.server_url,
         'production_mode': settings.production_mode,
