@@ -18,6 +18,19 @@ from ..validation import sanitize_original_filename, validate_saved_file_size
 router = APIRouter()
 
 
+def _parse_optional_float_query(value: str | float | int | None, *, field_name: str, min_value: float, max_value: float) -> float | None:
+    raw = str(value or '').strip().replace(',', '.')
+    if not raw:
+        return None
+    try:
+        parsed = float(raw)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=f'Ugyldig verdi for {field_name}.') from exc
+    if parsed < min_value or parsed > max_value:
+        raise HTTPException(status_code=422, detail=f'Ugyldig verdi for {field_name}.')
+    return parsed
+
+
 def _basis_opening_phrase(case_basis: str, source_name: str = '') -> str:
     raw_source = str(source_name or '').strip()
     normalized = raw_source.lower()
@@ -76,9 +89,11 @@ def api_text_polish(request: Request, payload: TextPolishRequest):
 
 
 @router.get('/api/rules')
-def api_rules(request: Request, control_type: str = '', species: str = '', gear_type: str = '', area_status: str = '', control_date: str = '', lat: float | None = Query(default=None, ge=-90, le=90), lng: float | None = Query(default=None, ge=-180, le=180)):
+def api_rules(request: Request, control_type: str = '', species: str = '', gear_type: str = '', area_status: str = '', control_date: str = '', lat: str = '', lng: str = ''):
     require_any_permission(request, ['regelverk', 'kv_kontroll'], detail='Brukeren har ikke tilgang til regelverksoppslag.')
-    bundle = get_rule_bundle_with_live_sources(control_type=control_type, species=species, gear_type=gear_type, area_status=area_status, control_date=control_date, area_name=request.query_params.get('area_name', ''), area_notes=request.query_params.get('area_notes', ''), lat=lat, lng=lng)
+    parsed_lat = _parse_optional_float_query(lat, field_name='lat', min_value=-90, max_value=90)
+    parsed_lng = _parse_optional_float_query(lng, field_name='lng', min_value=-180, max_value=180)
+    bundle = get_rule_bundle_with_live_sources(control_type=control_type, species=species, gear_type=gear_type, area_status=area_status, control_date=control_date, area_name=request.query_params.get('area_name', ''), area_notes=request.query_params.get('area_notes', ''), lat=parsed_lat, lng=parsed_lng)
     return JSONResponse(bundle)
 
 

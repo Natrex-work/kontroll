@@ -337,7 +337,7 @@
   }
 
 
-  var LAYER_PANEL_PREFS_VERSION = 'v75';
+  var LAYER_PANEL_PREFS_VERSION = 'v72';
 
   function layerPanelStorageKey(el, markerState) {
     return 'kv-temalag:' + LAYER_PANEL_PREFS_VERSION + ':' + String((markerState && markerState.layerPanelKey) || (el && el.id) || 'map');
@@ -438,17 +438,6 @@
     });
   }
 
-  function resolveLayerPanelHost(map, state) {
-    var container = map && typeof map.getContainer === 'function' ? map.getContainer() : null;
-    var slotSelector = state && state.markerState && state.markerState.layerPanelSlot ? String(state.markerState.layerPanelSlot || '') : '';
-    if (!slotSelector && container && container.dataset && container.dataset.layerPanelSlot) slotSelector = String(container.dataset.layerPanelSlot || '');
-    var slot = null;
-    if (slotSelector) {
-      try { slot = document.querySelector(slotSelector); } catch (e) { slot = null; }
-    }
-    return slot || container;
-  }
-
   function syncLayerPanel(state, map, allLayers, visibleLayers) {
     if (!map || !state) return;
     if (state.markerState && state.markerState.showLayerPanel === false) {
@@ -456,7 +445,7 @@
       state.layerPanelRoot = null;
       return;
     }
-    var container = resolveLayerPanelHost(map, state);
+    var container = map.getContainer();
     if (!container) return;
     if (!state.layerPanelRoot) {
       var root = document.createElement('div');
@@ -474,7 +463,6 @@
       ].join('');
       container.appendChild(root);
       state.layerPanelRoot = root;
-      state.layerPanelHost = container;
       if (window.L && L.DomEvent) {
         L.DomEvent.disableClickPropagation(root);
         if (L.DomEvent.disableScrollPropagation) L.DomEvent.disableScrollPropagation(root);
@@ -498,15 +486,13 @@
     }
 
     var prefs = state.layerPanelPrefs || {};
-    if (typeof prefs.open !== 'boolean') prefs.open = false;
+    var defaultOpen = !window.matchMedia('(max-width: 960px)').matches;
+    if (state.markerState && typeof state.markerState.layerPanelDefaultOpen === 'boolean') defaultOpen = state.markerState.layerPanelDefaultOpen;
+    if (typeof prefs.open !== 'boolean') prefs.open = defaultOpen;
     state.layerPanelPrefs = prefs;
     saveLayerPanelPrefs(state.layerPanelStorageKey, prefs);
 
     var root = state.layerPanelRoot;
-    if (root && state.layerPanelHost !== container) {
-      try { container.appendChild(root); } catch (e) {}
-      state.layerPanelHost = container;
-    }
     if (!root) return;
     root.classList.toggle('is-open', prefs.open !== false);
     var handle = root.querySelector('.kv-temalag-handle');
@@ -709,49 +695,39 @@
       return String(value || '').replace(/\/\d+$/g, '').replace(/\/+$/g, '').replace(/\/export$/g, '');
     }
 
-    function layerServiceMetas(layer, fisheryServiceUrl, vernServiceUrl) {
-      var metas = [];
-      if (!layer) return metas;
+    function layerServiceMeta(layer, fisheryServiceUrl, vernServiceUrl) {
+      var meta = { url: '', layerId: null };
+      if (!layer) return meta;
       var rawId = Number(layer.id);
       var legacyIds = Array.isArray(layer.legacy_ids) ? layer.legacy_ids.map(function (value) { return Number(value); }).filter(function (value) { return isFinite(value); }) : [];
       var serviceUrl = normalizedServiceUrl(layer.service_url || '');
       var knownVernIds = portalVernIdLookup();
-      var seen = {};
-      function add(url, layerId) {
-        var normalizedUrl = normalizedServiceUrl(url || '');
-        var numericId = Number(layerId);
-        if (!normalizedUrl || !isFinite(numericId)) return;
-        var key = normalizedUrl + '|' + String(numericId);
-        if (seen[key]) return;
-        seen[key] = true;
-        metas.push({ url: normalizedUrl, layerId: numericId });
+      var isVernService = serviceUrl && serviceUrl.toLowerCase().indexOf('fiskeridir_vern') !== -1;
+      if (isVernService) {
+        meta.url = normalizedServiceUrl(vernServiceUrl || serviceUrl);
+        if (knownVernIds[String(rawId)]) meta.layerId = rawId;
+        else if (legacyIds.length) meta.layerId = legacyIds[0];
+        return meta;
       }
-
-      if (serviceUrl) {
-        if (serviceUrl.toLowerCase().indexOf('fiskeridir_vern') !== -1) add(vernServiceUrl || serviceUrl, rawId);
-        else add(fisheryServiceUrl || serviceUrl, rawId);
-      } else if (isFinite(rawId)) {
-        if (knownVernIds[String(rawId)]) add(vernServiceUrl, rawId);
-        else add(fisheryServiceUrl, rawId);
+      if (legacyIds.some(function (value) { return knownVernIds[String(value)]; })) {
+        meta.url = normalizedServiceUrl(vernServiceUrl);
+        meta.layerId = legacyIds.filter(function (value) { return knownVernIds[String(value)]; })[0];
+        return meta;
       }
-
-      legacyIds.forEach(function (value) {
-        if (knownVernIds[String(value)]) add(vernServiceUrl, value);
-      });
-
-      return metas;
+      meta.url = normalizedServiceUrl(fisheryServiceUrl || serviceUrl);
+      if (isFinite(rawId)) meta.layerId = rawId;
+      return meta;
     }
 
     function buildPortalRasterServicesFromLayers(layers, fisheryServiceUrl, vernServiceUrl, options) {
       options = options || {};
       var byService = {};
       (layers || []).forEach(function (layer) {
-        layerServiceMetas(layer, fisheryServiceUrl, vernServiceUrl).forEach(function (meta) {
-          var layerId = Number(meta.layerId);
-          if (!meta.url || !isFinite(layerId)) return;
-          if (!byService[meta.url]) byService[meta.url] = [];
-          byService[meta.url].push(layerId);
-        });
+        var meta = layerServiceMeta(layer, fisheryServiceUrl, vernServiceUrl);
+        var layerId = Number(meta.layerId);
+        if (!meta.url || !isFinite(layerId)) return;
+        if (!byService[meta.url]) byService[meta.url] = [];
+        byService[meta.url].push(layerId);
       });
       var services = [];
       Object.keys(byService).forEach(function (serviceUrl) {
@@ -959,6 +935,7 @@
           }
           var featureSummaries = [];
           var geo = L.geoJSON(data, {
+            interactive: false,
             style: function (feature) {
               var props = feature && feature.properties ? feature.properties : {};
               var geometryType = String((feature && feature.geometry && feature.geometry.type) || '').toLowerCase();
@@ -978,6 +955,7 @@
               var props = feature && feature.properties ? feature.properties : {};
               var color = props.__layer_color || '#c1121f';
               return L.circleMarker(latlng, {
+                interactive: false,
                 radius: 7,
                 color: color,
                 weight: 2,
@@ -1266,52 +1244,8 @@
     });
   }
 
-  function setupHorizontalNavScroll() {
-    var scroller = document.getElementById('nav-scroller');
-    if (!scroller) return;
-    var startX = 0;
-    var startScrollLeft = 0;
-    var pointerDown = false;
-    var dragDistance = 0;
-
-    scroller.addEventListener('pointerdown', function (event) {
-      if (event.pointerType === 'mouse' && event.button !== 0) return;
-      pointerDown = true;
-      dragDistance = 0;
-      startX = event.clientX;
-      startScrollLeft = scroller.scrollLeft;
-      scroller.setPointerCapture && scroller.setPointerCapture(event.pointerId);
-    });
-    scroller.addEventListener('pointermove', function (event) {
-      if (!pointerDown) return;
-      var delta = event.clientX - startX;
-      dragDistance = Math.max(dragDistance, Math.abs(delta));
-      if (dragDistance > 6) {
-        scroller.scrollLeft = startScrollLeft - delta;
-        event.preventDefault();
-      }
-    }, { passive: false });
-    function finishPointer(event) {
-      if (!pointerDown) return;
-      pointerDown = false;
-      dragDistance = 0;
-      if (event && scroller.releasePointerCapture) {
-        try { scroller.releasePointerCapture(event.pointerId); } catch (e) {}
-      }
-    }
-    scroller.addEventListener('pointerup', finishPointer);
-    scroller.addEventListener('pointercancel', finishPointer);
-    scroller.addEventListener('wheel', function (event) {
-      if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) {
-        scroller.scrollLeft += event.deltaY;
-        event.preventDefault();
-      }
-    }, { passive: false });
-  }
-
   ready(setupSecurityInteractions);
   ready(setupSidebarToggle);
-  ready(setupHorizontalNavScroll);
 
   window.KVCommon = { ready: ready, escapeHtml: escapeHtml, parseJson: parseJson, csrfToken: csrfToken, injectCsrfField: injectCsrfField, appendCsrfToForms: appendCsrfToForms, csrfHeaders: csrfHeaders, secureFetchOptions: secureFetchOptions, sourceChip: sourceChip, findingSource: findingSource, lawHelpCard: lawHelpCard, buildReadonlyFindingsHtml: buildReadonlyFindingsHtml, normalizeFeatureCollection: normalizeFeatureCollection, createPortalMap: createPortalMap };
 })();

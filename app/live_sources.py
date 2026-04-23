@@ -1528,95 +1528,6 @@ PORTAL_LAYER_CACHE_META = CACHE_DIR / f'portal_layer_catalog_meta_{PORTAL_LAYER_
 PORTAL_LAYER_CACHE_DIR = CACHE_DIR / f'portal_layers_{PORTAL_LAYER_SCHEMA_VERSION}'
 PORTAL_LAYER_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
-KNOWN_VERN_LAYER_IDS = {0, 1, 2, 3, 6, 23, 34, 35, 37}
-
-
-def _portal_layer_row(layer_id: int) -> dict[str, Any] | None:
-    try:
-        target = int(layer_id)
-    except Exception:
-        return None
-    for row in portal_layer_catalog() or []:
-        try:
-            if int(row.get('id')) == target:
-                return dict(row)
-        except Exception:
-            continue
-    for row in _fallback_portal_layer_defs() or []:
-        try:
-            if int(row.get('id')) == target:
-                return dict(row)
-        except Exception:
-            continue
-    return None
-
-
-def _normalized_mapservice_url(value: str | None) -> str:
-    return str(value or '').replace('/export', '').rstrip('/')
-
-
-def _portal_service_candidates(layer_id: int) -> list[tuple[str, int]]:
-    try:
-        raw_id = int(layer_id)
-    except Exception:
-        return []
-    row = _portal_layer_row(raw_id) or {}
-    candidates: list[tuple[str, int]] = []
-    seen: set[tuple[str, int]] = set()
-
-    def add(url: str | None, candidate_id: int | None) -> None:
-        try:
-            numeric_id = int(candidate_id)
-        except Exception:
-            return
-        normalized = _normalized_mapservice_url(url)
-        if not normalized:
-            return
-        key = (normalized, numeric_id)
-        if key in seen:
-            return
-        seen.add(key)
-        candidates.append(key)
-
-    service_url = _normalized_mapservice_url(row.get('service_url') or '')
-    if service_url:
-        if 'fiskeridir_vern' in service_url.lower():
-            add(VERN_BASE, raw_id)
-        else:
-            add(YGG_BASE, raw_id)
-    else:
-        if raw_id in KNOWN_VERN_LAYER_IDS:
-            add(VERN_BASE, raw_id)
-        else:
-            add(YGG_BASE, raw_id)
-
-    for legacy in list(row.get('legacy_ids') or []):
-        try:
-            legacy_id = int(legacy)
-        except Exception:
-            continue
-        if legacy_id in KNOWN_VERN_LAYER_IDS:
-            add(VERN_BASE, legacy_id)
-
-    return candidates
-
-
-def _query_portal_geojson_candidates(layer_id: int, *, params: dict[str, Any], timeout: float) -> dict[str, Any]:
-    last_error: Exception | None = None
-    for service_url, candidate_id in _portal_service_candidates(layer_id):
-        try:
-            return _safe_get(f'{service_url}/{candidate_id}/query', params=params, timeout=timeout).json()
-        except Exception as exc:
-            last_error = exc
-            continue
-    if last_error is not None:
-        raise last_error
-    raise LiveSourceError(f'Ugyldig kartlag {layer_id}')
-
-
-def _query_portal_point_candidates(layer_id: int, *, params: dict[str, Any], timeout: float) -> dict[str, Any]:
-    return _query_portal_geojson_candidates(layer_id, params=params, timeout=timeout)
-
 
 def _fallback_portal_layer_defs() -> list[dict[str, Any]]:
     return [
@@ -2103,7 +2014,7 @@ def fetch_portal_geojson(layer_id: int, *, force: bool = False, max_age_seconds:
             'spatialRel': 'esriSpatialRelIntersects',
         }
         try:
-            data = _query_portal_geojson_candidates(layer_id, params=params, timeout=PORTAL_REQUEST_TIMEOUT)
+            data = _safe_get(f'{YGG_BASE}/{layer_id}/query', params=params, timeout=PORTAL_REQUEST_TIMEOUT).json()
             normalized = normalize_geojson(data)
             merged_live = _merge_feature_collections(normalized, local_view)
             if merged_live.get('features'):
@@ -2134,7 +2045,7 @@ def fetch_portal_geojson(layer_id: int, *, force: bool = False, max_age_seconds:
             'outSR': '4326',
         }
         try:
-            data = _query_portal_geojson_candidates(layer_id, params=params, timeout=PORTAL_REQUEST_TIMEOUT)
+            data = _safe_get(f'{YGG_BASE}/{layer_id}/query', params=params, timeout=PORTAL_REQUEST_TIMEOUT).json()
             normalized = normalize_geojson(data)
             if _portal_cache_has_features(normalized):
                 _write_portal_cache(cache_path, meta_path, normalized, source_kind='live')
@@ -2208,7 +2119,7 @@ def _ygg_query_point(layer_id: int, lat: float, lng: float, *, geometry_type: st
         'returnGeometry': 'false',
         'outFields': '*',
     }
-    data = _query_portal_point_candidates(layer_id, params=params, timeout=min(PORTAL_REQUEST_TIMEOUT, 6))
+    data = _safe_get(f'{YGG_BASE}/{layer_id}/query', params=params, timeout=min(PORTAL_REQUEST_TIMEOUT, 6)).json()
     payload = list(data.get('features') or [])
     _portal_point_cache_put(cache_key, payload)
     return payload
@@ -2231,7 +2142,7 @@ def _portal_identify_point(layer_id: int, lat: float, lng: float) -> list[dict[s
         'outFields': '*',
     }
     try:
-        data = _query_portal_point_candidates(layer_id, params=params, timeout=min(PORTAL_REQUEST_TIMEOUT, 6))
+        data = _safe_get(f'{YGG_BASE}/{layer_id}/query', params=params, timeout=min(PORTAL_REQUEST_TIMEOUT, 6)).json()
     except Exception:
         return []
     payload = list(data.get('features') or [])

@@ -28,6 +28,15 @@ NON_NAME_WORDS = {
     'kv', 'kystvakten', 'hummer', 'deltakarnummer', 'deltakernummer', 'tlf', 'telefon', 'adresse', 'mobil', 'vak',
     'blåse', 'blase', 'flyt', 'dobbe', 'radiokallesignal', 'fiskerimerke', 'registreringsmerke'
 }
+KNOWN_FIELD_LABELS = (
+    r'navn', r'eier', r'ansvarlig', r'skipper', r'person',
+    r'adresse', r'adr', r'postadresse',
+    r'poststed', r'postnummer', r'postnr(?:\.| og sted)?', r'postnr\s*/\s*sted',
+    r'mobil(?:nummer|nr)?', r'mobiltelefon', r'telefon(?:nummer)?', r'tlf(?:nr)?',
+    r'hummer\s*deltak(?:er|ar)(?:nr|nummer)?', r'deltak(?:er|ar)(?:nr|nummer)?', r'delt\.?\s*nr',
+    r'fødselsdato', r'fodselsdato', r'f[øo]dt', r'fartøy', r'fartoy', r'fiskerimerke', r'radiokallesignal'
+)
+LABEL_LINE_RE = re.compile(r'^(?:' + '|'.join(KNOWN_FIELD_LABELS) + r')\s*[:#-]?\s*$', re.IGNORECASE)
 
 
 def _load(path: Path) -> list[dict[str, Any]]:
@@ -95,13 +104,10 @@ def _normalize_address_line(line: str) -> str:
     if not candidate:
         return ''
     upper_compact = candidate.upper().replace(' ', '')
-    vessel_like = _normalize_vessel_like(candidate)
-    if vessel_like or VESSEL_RE.fullmatch(upper_compact) or FISHERIMERKE_RE.fullmatch(upper_compact) or HUMMER_STRICT_RE.fullmatch(upper_compact):
-        return vessel_like or candidate
-    if not POST_PLACE_ONLY_RE.match(candidate):
-        street_match = re.search(r'([A-ZÆØÅa-zæøå][A-Za-zÆØÅæøå\-. ]+\s+\d{1,4}[A-Za-z]?)', candidate)
-        if street_match:
-            candidate = ' '.join(street_match.group(1).split())
+    if LABEL_LINE_RE.match(candidate):
+        return candidate
+    if VESSEL_RE.fullmatch(upper_compact) or FISHERIMERKE_RE.fullmatch(upper_compact) or HUMMER_STRICT_RE.fullmatch(upper_compact):
+        return candidate
     match = COMPACT_STREET_RE.match(candidate)
     if match and not POST_PLACE_ONLY_RE.match(candidate):
         street = ' '.join(match.group(1).split())
@@ -143,29 +149,13 @@ def _normalize_hummer_no(value: str) -> str:
     return raw
 
 
-def _normalize_vessel_like(value: str | None) -> str:
-    raw = str(value or '').strip().upper().replace(' ', '').replace('–', '-').replace('—', '-')
-    if not raw:
-        return ''
-    raw = raw.replace('_', '-').replace('--', '-')
-    match = re.search(r'([A-ZÆØÅ]{2,5})-?([A-ZÆØÅ]{2,5})-?([0-9ILOQS]{3,4})\b', raw)
-    if not match:
-        match = re.search(r'([A-ZÆØÅ]{1,3})-?([A-ZÆØÅ]{1,3})-?([0-9ILOQS]{3,4})\b', raw)
-    if not match:
-        return ''
-    suffix = match.group(3).translate(str.maketrans({'I': '1', 'L': '1', 'O': '0', 'Q': '0', 'S': '5'}))
-    if not suffix.isdigit():
-        return ''
-    return f'{match.group(1)}-{match.group(2)}-{suffix}'
-
-
 def _clean_name_candidate(value: str | None) -> str:
     parts = [part for part in ' '.join(str(value or '').replace('|', ' ').split()).strip(' ,;|-').split() if part]
     if not parts:
         return ''
-    while len(parts) > 2 and len(parts[0]) <= 2 and parts[0].isalpha():
+    while len(parts) > 2 and len(parts[0]) == 1:
         parts = parts[1:]
-    while len(parts) > 2 and len(parts[-1]) <= 2 and parts[-1].isalpha():
+    while len(parts) > 2 and len(parts[-1]) == 1:
         parts = parts[:-1]
     cleaned = ' '.join(parts)
     cleaned = re.sub(r'\b([A-ZÆØÅ])$', '', cleaned).strip(' ,;|-')
@@ -207,15 +197,43 @@ def _line_address(lines: list[str]) -> str:
     return ''
 
 
-def _extract_labeled_value(lines: list[str], labels: tuple[str, ...]) -> str:
-    patterns = [re.compile(r'^(?:' + label + r')\s*[:#-]?\s*(.+)$', re.IGNORECASE) for label in labels]
-    for line in lines:
-        for pattern in patterns:
+def _looks_like_label_line(line: str) -> bool:
+    candidate = ' '.join(str(line or '').split()).strip(' ,;|')
+    return bool(candidate and LABEL_LINE_RE.match(candidate))
+
+
+def _extract_labeled_value(lines: list[str], labels: tuple[str, ...], *, max_lines: int = 1, joiner: str = ' ') -> str:
+    inline_patterns = [re.compile(r'^(?:' + label + r')(?=\s|[:#-]|$)\s*[:#-]?\s*(.+)$', re.IGNORECASE) for label in labels]
+    label_only_patterns = [re.compile(r'^(?:' + label + r')(?=\s|[:#-]|$)\s*[:#-]?\s*$', re.IGNORECASE) for label in labels]
+    for idx, raw_line in enumerate(lines):
+        line = ' '.join(str(raw_line or '').split()).strip(' ,;|')
+        if not line:
+            continue
+        for pattern in inline_patterns:
             match = pattern.match(line)
             if match:
                 value = ' '.join(match.group(1).split())
                 if value:
                     return value
+        for pattern in label_only_patterns:
+            if not pattern.match(line):
+                continue
+            collected: list[str] = []
+            for offset in range(1, max_lines + 1):
+                if idx + offset >= len(lines):
+                    break
+                next_line = ' '.join(str(lines[idx + offset] or '').split()).strip(' ,;|')
+                if not next_line:
+                    continue
+                if _looks_like_label_line(next_line):
+                    break
+                collected.append(next_line)
+                if max_lines <= 1:
+                    break
+            if collected:
+                if joiner == ', ' and len(collected) >= 2 and POST_PLACE_ONLY_RE.match(collected[1]):
+                    return f'{collected[0]}, {collected[1]}'
+                return joiner.join(collected).strip()
     return ''
 
 
@@ -241,12 +259,12 @@ def extract_tag_hints(tag_text: str) -> dict[str, str]:
         pm = PHONE_RE.search(str(raw or '').replace(' ', '')) or PHONE_RE.search(str(raw or ''))
         return pm.group(1) if pm else ''
 
-    labeled_phone = _extract_labeled_value(lines, ('mobil(?:nummer)?', 'telefon', 'tlf'))
+    labeled_phone = _extract_labeled_value(lines, ('mobil(?:nummer|nr)?', 'mobiltelefon', 'telefon(?:nummer)?', 'tlf(?:nr)?'), max_lines=1)
     out['phone'] = _pick_phone(labeled_phone) or _pick_phone(joined)
 
     labeled_hummer = HUMMER_LABELED_RE.search(joined)
     direct_hummer = HUMMER_DIRECT_RE.search(joined.upper())
-    labeled_hummer_text = _extract_labeled_value(lines, (r'hummer\s*deltak(?:er|ar)(?:nr|nummer)?', 'deltak(?:er|ar)(?:nr|nummer)?'))
+    labeled_hummer_text = _extract_labeled_value(lines, (r'hummer\s*deltak(?:er|ar)(?:nr|nummer)?', 'deltak(?:er|ar)(?:nr|nummer)?', r'delt\.?\s*nr'), max_lines=1)
     if labeled_hummer:
         out['hummer_participant_no'] = _normalize_hummer_no(labeled_hummer.group(1))
     elif labeled_hummer_text:
@@ -254,23 +272,35 @@ def extract_tag_hints(tag_text: str) -> dict[str, str]:
     elif direct_hummer:
         out['hummer_participant_no'] = _normalize_hummer_no(direct_hummer.group(0))
 
-    labeled_birthdate = _extract_labeled_value(lines, ('fødselsdato', 'fodselsdato', 'f[øo]dt'))
+    labeled_birthdate = _extract_labeled_value(lines, ('fødselsdato', 'fodselsdato', 'f[øo]dt'), max_lines=1)
     birthdate_match = BIRTHDATE_RE.search(labeled_birthdate or joined)
     if birthdate_match:
         out['birthdate'] = birthdate_match.group(1).replace('-', '.').replace('/', '.')
 
-    labeled_name = _extract_labeled_value(lines, ('navn', 'eier', 'ansvarlig', 'skipper'))
+    labeled_vessel = _extract_labeled_value(lines, ('fiskerimerke', 'registreringsmerke', 'fart[øo]y(?:s)?merke'), max_lines=1)
+    if labeled_vessel and not out['hummer_participant_no']:
+        vessel_candidate = re.sub(r'\s+', '', labeled_vessel).upper()
+        if vessel_candidate and not HUMMER_STRICT_RE.search(vessel_candidate):
+            out['vessel_reg'] = vessel_candidate
+
+    labeled_radio = _extract_labeled_value(lines, ('radiokallesignal', 'kallesignal', 'radio'), max_lines=1)
+    if labeled_radio and not out['radio_call_sign']:
+        radio_match = RADIO_RE.search(re.sub(r'\s+', '', labeled_radio).upper())
+        if radio_match:
+            out['radio_call_sign'] = radio_match.group(1).upper()
+
+    labeled_name = _extract_labeled_value(lines, ('navn', 'eier', 'ansvarlig', 'skipper', 'person'), max_lines=1)
     if labeled_name:
         labeled_name = normalize_person_name(labeled_name)
         if _is_probable_name(labeled_name):
             out['name'] = labeled_name
 
-    labeled_post = _extract_labeled_value(lines, ('poststed', r'postnr(?:\.| og sted)?', 'postnummer'))
+    labeled_post = _extract_labeled_value(lines, ('poststed', r'postnr(?:\.| og sted)?', 'postnummer', r'postnr\s*/\s*sted'), max_lines=1)
     if labeled_post and POSTCODE_RE.search(labeled_post):
         pm = POSTCODE_RE.search(labeled_post)
         out['post_place'] = f"{pm.group(1)} {pm.group(2).strip()}"
 
-    labeled_address = _extract_labeled_value(lines, ('adresse',))
+    labeled_address = _extract_labeled_value(lines, ('adresse', 'adr', 'postadresse'), max_lines=2, joiner=', ')
     if labeled_address:
         addr, post = _split_address_post_place(labeled_address)
         out['address'] = addr
@@ -281,10 +311,15 @@ def extract_tag_hints(tag_text: str) -> dict[str, str]:
         line = _normalize_address_line(raw_line)
         if not line:
             continue
+        if _looks_like_label_line(line):
+            continue
         upper_line = line.upper().replace(' ', '')
-        vessel_full = FISHERIMERKE_RE.fullmatch(upper_line) or VESSEL_RE.fullmatch(upper_line) or FISHERIMERKE_RE.fullmatch(line.upper()) or VESSEL_RE.fullmatch(line.upper())
+        compact_line = _compact(line)
+        hummer_compact = _compact(out['hummer_participant_no'])
+        is_hummer_line = bool(HUMMER_DIRECT_RE.search(line.upper())) or bool(hummer_compact and hummer_compact in compact_line)
+        vessel_full = None if is_hummer_line else (FISHERIMERKE_RE.fullmatch(upper_line) or VESSEL_RE.fullmatch(upper_line) or FISHERIMERKE_RE.fullmatch(line.upper()) or VESSEL_RE.fullmatch(line.upper()))
         if vessel_full and not out['vessel_reg']:
-            candidate = _normalize_vessel_like(vessel_full.group(1)) or vessel_full.group(1).replace(' ', '').upper()
+            candidate = vessel_full.group(1).replace(' ', '').upper()
             if candidate != _compact(out['hummer_participant_no']) and not POST_PLACE_ONLY_RE.match(line):
                 out['vessel_reg'] = candidate
                 continue
@@ -311,10 +346,10 @@ def extract_tag_hints(tag_text: str) -> dict[str, str]:
             elif idx + 1 < len(lines) and POST_PLACE_ONLY_RE.match(lines[idx + 1]):
                 out['post_place'] = lines[idx + 1]
             continue
-        if not out['vessel_reg']:
+        if not out['vessel_reg'] and not is_hummer_line:
             vessel_match = FISHERIMERKE_RE.fullmatch(line.upper()) or VESSEL_RE.fullmatch(line.upper()) or FISHERIMERKE_RE.search(line.upper()) or VESSEL_RE.search(line.upper())
             if vessel_match:
-                candidate = _normalize_vessel_like(vessel_match.group(1)) or vessel_match.group(1).replace(' ', '').upper()
+                candidate = vessel_match.group(1).replace(' ', '').upper()
                 if candidate != _compact(out['hummer_participant_no']) and not POST_PLACE_ONLY_RE.match(line):
                     out['vessel_reg'] = candidate
                     continue

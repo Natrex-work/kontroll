@@ -120,7 +120,8 @@
         <button class="btn btn-secondary" type="button" id="btn-polish-basis">Formulering</button>
       </div>
       <div class="callout margin-top-s">Formulering bruker grunnlag, valgt art, redskap, område og posisjon for å foreslå og rette patruljeformål / begrunnelse.</div>
-      <div class="subcard margin-top-m person-autofill-topcard">
+      <div class="split-panel margin-top-m">
+        <div class="subcard">
           <div class="subcard-head">
             <h3>Patruljeteam og roller</h3>
             <button class="btn btn-secondary btn-small" type="button" id="btn-add-crew">Legg til rolle</button>
@@ -204,7 +205,14 @@
           <span class="map-symbol-chip"><span class="map-symbol user"></span> GPS-posisjon</span>
           <span class="map-symbol-chip"><span class="map-symbol case"></span> Kontrollposisjon / rød nål</span>
         </div>
-        <div class="callout margin-top-s" id="map-selection-status">Kartet viser alle fiskerirelaterte lag fra karttjenesten direkte i kontrollbildet, inkludert stengte områder, fredningsområder og andre reguleringer. Trykk på et område i kartet for å se informasjon og datakilde. Områdevurdering bruker kontrollposisjonen (rød nål).</div>
+        <div class="callout margin-top-s" id="map-selection-status">Kartet viser relevante fiskerirelaterte lag fra karttjenesten direkte i kontrollbildet. Bruk filtrene over kartet for å veksle mellom fredningsområder, stengte felt og andre reguleringer. Områdevurdering bruker kontrollposisjonen (rød nål).</div>
+        <div class="map-relevant-panel margin-top-s" id="case-relevant-areas">
+          <div class="map-relevant-head">
+            <strong>Aktuelle temalag og områder</strong>
+            <span class="muted small">Oppdateres fra kontrolltype, art/redskap og kontrollposisjon.</span>
+          </div>
+          <div class="map-relevant-list" id="case-relevant-areas-list"><div class="muted small">Velg kontrolltype, art eller redskap for å se hvilke temalag som prioriteres.</div></div>
+        </div>
         <div class="callout margin-top-s" id="map-offline-status">Kartdata for denne visningen lagres også lokalt på enheten, slik at kontrollkartet blir mer stabilt og raskere ved videre bruk.</div>
         <div class="offline-packages-panel margin-top-s">
           <div class="offline-packages-head">
@@ -217,8 +225,7 @@
           <div class="callout margin-top-s" id="offline-packages-summary">Ingen offline-kartpakker er lagret på denne enheten ennå.</div>
           <div class="offline-packages-list" id="offline-packages-list"></div>
         </div>
-        <div id="case-map-panel-slot" class="map-panel-slot"></div>
-        <div id="case-position-map" class="leaflet-map case-map" data-layer-panel-slot="#case-map-panel-slot" data-portal-catalog='{{ portal_layers|tojson }}' data-portal-mapserver="{{ portal_mapserver_url }}" data-portal-vern-mapserver="{{ portal_vern_mapserver_url }}"></div>
+        <div id="case-position-map" class="leaflet-map case-map" data-portal-catalog='{{ portal_layers|tojson }}' data-portal-mapserver="{{ portal_mapserver_url }}" data-portal-vern-mapserver="{{ portal_vern_mapserver_url }}"></div>
       </div>
       <div class="step-actions"><button type="button" class="btn btn-secondary" data-prev-step>Tilbake</button><button type="button" class="btn btn-primary" data-next-step>Videre</button></div>
     </section>
@@ -227,7 +234,7 @@
       <div class="card-header panel-header">
         <div>
           <h2>3. Person / fartøy</h2>
-          <div class="muted small">OCR og automatisk registeroppslag er tilpasset norske navn, adresser, postnummer, mobilnummer, fiskerimerker og hummerdeltakernummer.</div>
+          <div class="muted small">OCR og søk er tilpasset norske navn, adresser, postnummer, mobilnummer, fiskerimerker og hummerdeltakernummer.</div>
         </div>
       </div>
       <div class="callout" id="person-mode-hint">Feltene under endres automatisk mellom fritidsfiske og kommersiell kontroll.</div>
@@ -257,15 +264,13 @@
           <div class="callout margin-top-s hidden" id="ocr-selected-file">Ingen bildefil valgt ennå.</div>
           <div class="callout margin-top-s hidden" id="local-media-status"><span id="local-media-status-text">Bilder og lyd lagres lokalt på enheten og synkes til saken i bakgrunnen når nettverket er klart.</span> <button class="btn btn-secondary btn-small" type="button" id="btn-sync-local-media">Synk nå</button></div>
           <div class="callout margin-top-s" id="registry-result">Når du tar bilde eller oppdaterer søkefeltene, kjøres OCR og registeroppslag automatisk. Treffer fra hummerregister og offentlige kataloger brukes fortløpende til å fylle inn opplysningene under.</div>
+          <div id="ocr-autofill-preview" class="ocr-preview hidden"></div>
           <div id="registry-candidates" class="registry-candidate-list hidden"></div>
         </div>
-      </div>
-
-      <div class="split-panel margin-top-m">
         <div class="subcard">
           <div class="subcard-head">
             <h3>Registerstatus</h3>
-            <span class="muted small">Hummerregister og supplerende katalogtreff vises her fortløpende når bilde er lest eller felter oppdateres.</span>
+            <span class="muted small">Hummerregister og supplerende katalogtreff vises her.</span>
           </div>
           <div id="hummer-registry-status" class="status-panel margin-top-s">
             <div class="status-title">Ingen registerkontroll kjørt ennå</div>

@@ -30,8 +30,9 @@
     var btnRefreshPackages = document.getElementById('btn-overview-refresh-packages');
     var packagesSummary = document.getElementById('overview-offline-packages-summary');
     var packagesList = document.getElementById('overview-offline-packages-list');
+    var relevantAreasList = document.getElementById('overview-relevant-areas-list');
     var filterWrap = document.getElementById('overview-layer-filters');
-    var storageKey = 'kv-overview-layer-filter-v75';
+    var storageKey = 'kv-overview-layer-filter-v72';
     var defaultView = { lat: 64.8, lng: 14.5, zoom: 4 };
     var activeLayerStatuses = { 'fredningsområde': true, 'stengt område': true, 'maksimalmål område': true, 'regulert område': true, 'fiskeriområde': true };
     var fisheryPortalService = el.dataset.portalMapserver || 'https://portal.fiskeridir.no/server/rest/services/fiskeridirWMS_fiskeri/MapServer';
@@ -39,27 +40,27 @@
     var state = {
       view: defaultView,
       persistView: false,
-      fetchFeatureDetails: true,
-      featureDetailLayerIds: (allLayers || []).map(function (layer) { return Number(layer && layer.id); }).filter(function (value) { return isFinite(value); }),
-      detailFetchThresholdZoom: 7,
-      rasterOpacity: 0.88,
+      fetchFeatureDetails: false,
+      rasterOpacity: 0.9,
       enableAreaPopup: true,
       showLegend: false,
-      showLayerPanel: true,
+      showLayerPanel: false,
       mapServerUrl: fisheryPortalService,
       portalFisheryService: fisheryPortalService,
       portalVernService: vernPortalService,
       rasterServicesAuto: true,
-      rasterChunkSize: 16,
+      rasterChunkSize: 18,
       rasterLayerIds: (allLayers || []).map(function (layer) { return Number(layer && layer.id); }).filter(function (value) { return isFinite(value); }),
-      rasterServices: [],
+      rasterServices: null,
       identifyLayerIds: (allLayers || []).map(function (layer) { return Number(layer && layer.id); }).filter(function (value) { return isFinite(value); }),
       lat: null,
       lng: null,
       deviceLat: null,
       deviceLng: null,
       deviceAccuracy: null,
-      recenterTo: ''
+      recenterTo: '',
+      latestZoneResult: null,
+      onFeaturesRendered: function () { renderRelevantAreas(state.latestZoneResult || null); }
     };
 
     function currentMapBbox() {
@@ -141,7 +142,7 @@
         urls = urls.concat(collectTileUrls(layer, map, 2));
       });
       urls = uniqueUrls(urls);
-      return prefetchUrlsToCache(urls, 'kv-kontroll-v75-map-tiles').then(function (count) {
+      return prefetchUrlsToCache(urls, 'kv-kontroll-v72-map-tiles').then(function (count) {
         return { count: count, urls: urls };
       });
     }
@@ -163,12 +164,75 @@
     }
 
     function filteredLayers() {
-      return (allLayers || []).slice();
+      var rows = (allLayers || []).filter(function (layer) {
+        var status = String(layer && layer.status || '').trim().toLowerCase();
+        return !Object.prototype.hasOwnProperty.call(activeLayerStatuses, status) || activeLayerStatuses[status] !== false;
+      });
+      return rows.slice().sort(function (a, b) {
+        return String(a && a.name || '').localeCompare(String(b && b.name || ''), 'nb');
+      });
+    }
+
+    function toneClass(status) {
+      var key = String(status || '').trim().toLowerCase();
+      if (key === 'stengt område' || key === 'nullfiskeområde') return 'stengt';
+      if (key === 'fredningsområde') return 'fredning';
+      if (key === 'maksimalmål område') return 'maksimal';
+      if (key === 'regulert område') return 'regulert';
+      if (key === 'fiskeriområde') return 'fiskeri';
+      return 'annet';
+    }
+
+    function renderRelevantAreas(result) {
+      if (!relevantAreasList) return;
+      var items = [];
+      var seen = {};
+      var hits = result && result.match && Array.isArray(result.hits) ? result.hits.slice(0, 4) : [];
+      hits.forEach(function (hit) {
+        var key = 'zone:' + String(hit.zone_id || hit.name || hit.layer || '');
+        if (!key || seen[key]) return;
+        seen[key] = true;
+        items.push({
+          title: hit.name || hit.layer || hit.status || 'Område',
+          status: hit.status || 'regulert område',
+          summary: hit.notes || 'Treff for valgt punkt i kartet.',
+          meta: [hit.source || '', hit.layer || ''].filter(Boolean)
+        });
+      });
+      filteredLayers().slice(0, 8).forEach(function (layer) {
+        var key = 'layer:' + String(layer && (layer.id || layer.name) || '');
+        if (!key || seen[key]) return;
+        seen[key] = true;
+        var meta = [];
+        if (Array.isArray(layer.control_tags) && layer.control_tags.length) meta.push('Kontroll: ' + layer.control_tags.join(', '));
+        if (Array.isArray(layer.fishery_tags) && layer.fishery_tags.length) meta.push('Fiskeri: ' + layer.fishery_tags.join(', '));
+        if (Array.isArray(layer.gear_tags) && layer.gear_tags.length) meta.push('Redskap: ' + layer.gear_tags.join(', '));
+        items.push({
+          title: layer.name || ('Lag ' + String(layer.id || '')),
+          status: layer.status || 'annet lag',
+          summary: layer.selection_summary || layer.description || 'Synlig temalag i oversiktskartet.',
+          meta: meta
+        });
+      });
+      if (!items.length) {
+        relevantAreasList.innerHTML = '<div class="muted small">Ingen temalag er valgt akkurat nå. Slå på flere filtre over kartet.</div>';
+        return;
+      }
+      relevantAreasList.innerHTML = items.map(function (item) {
+        return [
+          '<article class="map-relevant-item">',
+          '<div class="map-relevant-meta"><span class="map-tone ' + escapeHtml(toneClass(item.status)) + '">' + escapeHtml(item.status || 'Temalag') + '</span></div>',
+          '<strong>' + escapeHtml(item.title || 'Område') + '</strong>',
+          item.summary ? '<div class="muted small">' + escapeHtml(item.summary) + '</div>' : '',
+          item.meta && item.meta.length ? '<div class="map-quick-tags">' + item.meta.map(function (meta) { return '<span class="map-quick-tag">' + escapeHtml(meta) + '</span>'; }).join('') + '</div>' : '',
+          '</article>'
+        ].join('');
+      }).join('');
     }
 
     function syncFilterUi() {
       if (!filterWrap) return;
-      filterWrap.style.display = 'none';
+      filterWrap.style.display = '';
       Array.prototype.forEach.call(filterWrap.querySelectorAll('input[data-layer-filter]'), function (input) {
         var key = String(input.getAttribute('data-layer-filter') || '').trim().toLowerCase();
         input.checked = activeLayerStatuses[key] !== false;
@@ -178,6 +242,7 @@
     function redrawMap() {
       return createPortalMap(el, filteredLayers(), state).then(function () {
         if (state.recenterTo) state.recenterTo = '';
+        renderRelevantAreas(state.latestZoneResult || null);
       });
     }
 
@@ -191,8 +256,10 @@
       if (map && typeof map.setView === 'function') {
         map.setView([defaultView.lat, defaultView.lng], defaultView.zoom);
       }
+      state.latestZoneResult = null;
       redrawMap();
-      if (statusEl) statusEl.innerHTML = 'Kartet viser nasjonalt utvalg av temalag direkte i kartet. Bruk Temalag-panelet for å slå grupper og enkeltlag av og på, eller bruk «Bruk min posisjon» for å kontrollere et bestemt punkt.';
+      renderRelevantAreas(null);
+      if (statusEl) statusEl.innerHTML = 'Kartet viser nasjonalt utvalg av temalag direkte i kartet. Lagpanelet i selve kartet er skjult på mobil, så bruk filtrene over kartet og listen under for å se aktuelle områder.';
     }
 
     function applyPosition(position) {
@@ -206,10 +273,14 @@
       fetch('/api/zones/check?lat=' + encodeURIComponent(lat) + '&lng=' + encodeURIComponent(lng))
         .then(function (r) { return r.json(); })
         .then(function (result) {
+          state.latestZoneResult = result || null;
           statusEl.innerHTML = zoneResultHtml(result);
+          renderRelevantAreas(result || null);
         })
         .catch(function (err) {
+          state.latestZoneResult = null;
           statusEl.innerHTML = 'Kunne ikke sjekke områdestatus akkurat nå: ' + escapeHtml(err && err.message ? err.message : 'ukjent feil');
+          renderRelevantAreas(null);
         });
     }
 
@@ -408,6 +479,7 @@
           var key = String(input.getAttribute('data-layer-filter') || '').trim().toLowerCase();
           activeLayerStatuses[key] = !!input.checked;
           try { localStorage.setItem(storageKey, JSON.stringify(activeLayerStatuses)); } catch (e) {}
+          renderRelevantAreas(state.latestZoneResult || null);
           redrawMap();
         });
       });
@@ -440,7 +512,8 @@
       window.KVLocalMap.getPackage(packageId).then(function (row) { focusOfflinePackage(row); });
     });
 
-    if (statusEl) statusEl.innerHTML = 'Kartet viser nasjonalt utvalg av temalag direkte i kartet. Bruk Temalag-panelet for å slå grupper og enkeltlag av og på, eller bruk «Bruk min posisjon» for å kontrollere et bestemt punkt.';
+    if (statusEl) statusEl.innerHTML = 'Kartet viser nasjonalt utvalg av temalag direkte i kartet. Lagpanelet i selve kartet er skjult på mobil, så bruk filtrene over kartet og listen under for å se aktuelle områder.';
+    renderRelevantAreas(null);
     redrawMap();
     setTimeout(setNationalView, 50);
     maintainOfflinePackages(true).then(function () { return refreshOfflinePackageList(); }).then(function () { return autoRefreshStalePackages(); });

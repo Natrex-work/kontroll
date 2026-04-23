@@ -47,7 +47,7 @@ def _offline_case_shell(user: dict[str, object], local_id: str = '') -> dict[str
     prefix = settings.bootstrap_admin_case_prefix or 'LBHN'
     return {
         'id': str(local_id or ''),
-        'case_number': db.next_case_number(int(user.get('id') or 0)) if user.get('id') else f'{prefix} {year_short} xxx',
+        'case_number': f'{prefix} {year_short} xxx',
         'investigator_name': str(user.get('full_name') or ''),
         'complainant_name': str(user.get('last_complainant_name') or ''),
         'witness_name': str(user.get('last_witness_name') or ''),

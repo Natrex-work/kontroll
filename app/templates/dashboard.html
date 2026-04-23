@@ -1,17 +1,47 @@
 {% extends 'base.html' %}
 {% block title %}{{ app_name }}{% endblock %}
 {% block content %}
-<section class="home-card-grid">
+<section class="sea-hero card hero-home">
+  <div class="stack gap-m">
+    <div class="eyebrow">MK Kontroll</div>
+    <div>
+      <h1>Mobil kontroll med kart, regelverk og sak i samme flyt</h1>
+      <p class="muted">Oppsettet er gjort enklere og mer mobilvennlig, med tydelig startsiden, store handlingsknapper og rask vei videre til kart, regler og ny kontroll.</p>
+    </div>
+    <div class="actions-row wrap hero-actions">
+      <form method="post" action="/cases/new" class="inline-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        <button type="submit" class="btn btn-primary hero-cta">Start ny kontroll</button>
+      </form>
+      <a class="btn btn-secondary hero-cta" href="/kart">Kart og område</a>
+      <a class="btn btn-secondary hero-cta" href="/regelverk">Regelverk</a>
+    </div>
+    <div class="hero-badges">
+      <span class="pill">LBHN-løpenummer opprettes automatisk</span>
+      <span class="pill">Kart viser relevante temalag</span>
+      <span class="pill">OCR og autofyll i person/fartøy</span>
+    </div>
+  </div>
+  <div class="sea-hero-art">
+    <div class="sea-stat-grid">
+      <div class="sea-stat-card"><strong>{{ cases|length }}</strong><span>Saker totalt</span></div>
+      <div class="sea-stat-card"><strong>{{ cases|selectattr('status', 'equalto', 'Pågår')|list|length }}</strong><span>Pågår</span></div>
+      <div class="sea-stat-card"><strong>{{ cases[:6]|length }}</strong><span>Siste saker</span></div>
+      <div class="sea-stat-card"><strong>24/7</strong><span>Mobil bruk</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="home-card-grid margin-top-m">
   <form method="post" action="/cases/new" class="home-link-card-form home-link-card-primary-order">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-    <button type="submit" class="home-link-card home-link-card-button home-link-card-primary-order">
+    <button type="submit" class="home-link-card home-link-card-button">
       <div class="home-card-icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"></path><path d="M5 12h14"></path><rect x="3" y="3" width="18" height="18" rx="3"></rect><path d="M16 8h0"></path><path d="M8 16h0"></path></svg>
       </div>
       <div>
         <h2>Ny kontroll</h2>
-        <p class="muted">Opprett ny sak med aktivt LBHN-løpenummer, automatisk starttid, roller, posisjon, kontrollpunkter og illustrasjonsrapport.</p>
-        <div class="small muted margin-top-s">Offline-kladd kan fortsatt brukes fra lokale kladder ved behov.</div>
+        <p class="muted">Opprett sak, hent posisjon og start dokumentasjon med én gang.</p>
       </div>
     </button>
   </form>
@@ -20,8 +50,8 @@
       <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2V6z"></path><path d="M9 4v14"></path><path d="M15 6v14"></path><path d="M12 9.5c1.7 0 3 1.3 3 3 0 2.3-3 5.2-3 5.2S9 14.8 9 12.5c0-1.7 1.3-3 3-3z"></path><path d="M12 12.5h.01"></path></svg>
     </div>
     <div>
-      <h2>Kart og Område</h2>
-      <p class="muted">Sjekk kontrollørens posisjon mot fredningsområder, stengte områder og andre relevante kartlag.</p>
+      <h2>Kart og område</h2>
+      <p class="muted">Se fredningsområder, stengte felt og aktuelle lag direkte i kartet.</p>
     </div>
   </a>
   <a class="home-link-card" href="/regelverk">
@@ -29,8 +59,8 @@
       <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4.5h10l4 4V19a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-13.5a1 1 0 0 1 1-1z"></path><path d="M14 4.5V9h4"></path><path d="M8 12h8"></path><path d="M8 15.5h6"></path><path d="M9 8.5h2"></path></svg>
     </div>
     <div>
-      <h2>Regelverk Fiskeri</h2>
-      <p class="muted">Velg fritidsfiske eller kommersiell kontroll, art og redskap. Se bare gjeldende lovpunkter og hjemler.</p>
+      <h2>Regelverk</h2>
+      <p class="muted">Velg fiskeri og redskap og se bare det som er relevant i saken.</p>
     </div>
   </a>
   <a class="home-link-card" href="/kontroller">
@@ -38,8 +68,8 @@
       <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="14" rx="2"></rect><path d="M8 9h8"></path><path d="M8 13h8"></path><path d="M8 17h5"></path><path d="M18 3v4"></path><path d="M16 5h4"></path></svg>
     </div>
     <div>
-      <h2>Kontroller og historikk</h2>
-      <p class="muted">Åpne lagrede saker, fortsett kontroll, se forhåndsvisning og eksporter dokumentpakke.</p>
+      <h2>Historikk</h2>
+      <p class="muted">Fortsett saker, sjekk status og hent ut dokumentpakker.</p>
     </div>
   </a>
 </section>
@@ -48,7 +78,7 @@
   <div class="card-header">
     <div>
       <h2>Lokale kladder på enheten</h2>
-      <div class="muted small">Saker du har redigert offline eller som ikke er synket ennå vises her.</div>
+      <div class="muted small">Lokale kladder du har lagret på enheten vises her. Nye saker opprettes direkte med aktivt LBHN-løpenummer.</div>
     </div>
   </div>
   <div class="recent-case-list" id="offline-drafts-list">
@@ -60,7 +90,7 @@
   <div class="card-header">
     <div>
       <h2>Siste saker</h2>
-      <div class="muted small">Hurtiglenker til testing av redigering, regelpunkter og PDF-eksport.</div>
+      <div class="muted small">Hurtiglenker til pågående og nylig oppdaterte saker.</div>
     </div>
   </div>
   <div class="recent-case-list">
@@ -96,7 +126,7 @@
       var when = '';
       try { when = new Date(Number(row.updated_at || 0)).toLocaleString('nb-NO'); } catch (e) { when = ''; }
       var href = String(row.case_url || (LocalCases && LocalCases.buildCaseUrl ? LocalCases.buildCaseUrl(row.case_id || '') : (offlineNewUrl + '?local_id=' + encodeURIComponent(String(row.case_id || '')))));
-      return '<a class="recent-case" href="' + href + '">'
+      return '<a class="recent-case" href="' + href + '">' 
         + '<div><strong>' + String(row.case_number || ('Sak ' + String(row.case_id || ''))) + '</strong>'
         + '<div class="muted small">Lokal kladd' + (when ? ' · oppdatert ' + when : '') + '</div></div>'
         + '<span class="pill">Ikke synket</span></a>';

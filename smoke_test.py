@@ -94,6 +94,13 @@ def main() -> int:
             regelverk = client.get('/regelverk')
             assert regelverk.status_code == 200
 
+            rules_without_coords = client.get('/api/rules', params={'control_type': 'Fritidsfiske', 'species': 'Hummer', 'gear_type': 'Teine', 'lat': '', 'lng': ''})
+            assert rules_without_coords.status_code == 200, rules_without_coords.text
+            rules_without_coords_json = rules_without_coords.json()
+            rule_keys = {item.get('key') for item in rules_without_coords_json.get('items') or []}
+            assert 'hummerdeltakernummer' in rule_keys
+            assert 'hummer_periode' in rule_keys
+
 
             offline_new = client.get('/cases/offline/new?local_id=local-smoke-1')
             assert offline_new.status_code == 200
