@@ -6,7 +6,7 @@
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('/static/sw.js').catch(function () {});
+      navigator.serviceWorker.register('/static/sw.js?v=v85').catch(function () {});
     });
   }
 
@@ -25,6 +25,18 @@
 
   var Common = window.KVCommon || {};
   var sharedCreatePortalMap = Common.createPortalMap;
+  var secureFetchOptions = Common.secureFetchOptions || window.secureFetchOptions || function (options) {
+    var result = Object.assign({ credentials: 'same-origin' }, options || {});
+    var method = String(result.method || 'GET').toUpperCase();
+    if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
+      var headers = new Headers(result.headers || {});
+      var meta = document.querySelector('meta[name="csrf-token"]');
+      var token = meta ? String(meta.getAttribute('content') || '') : '';
+      if (token && !headers.has('X-CSRF-Token')) headers.set('X-CSRF-Token', token);
+      result.headers = headers;
+    }
+    return result;
+  };
 
   var latestZoneResult = null;
   var findingsState = [];
@@ -2039,6 +2051,73 @@
       syncMapSelectionStatus();
       renderRelevantAreaPanel(latestZoneResult);
     };
+
+    function zoneHitColor(status) {
+      var key = String(status || '').trim().toLowerCase();
+      if (key === 'stengt område' || key === 'nullfiskeområde') return '#b5171e';
+      if (key === 'fredningsområde') return '#f4a261';
+      if (key === 'maksimalmål område') return '#bc4749';
+      if (key === 'regulert område') return '#355070';
+      if (key === 'fiskeriområde') return '#2a9d8f';
+      return '#1f4f82';
+    }
+
+    function clearZoneHitOverlay() {
+      if (!caseMap || !caseMap._kvLeafletMap || !caseMap._kvPortalState) return;
+      var state = caseMap._kvPortalState;
+      if (state.zoneHitOverlay) {
+        try { caseMap._kvLeafletMap.removeLayer(state.zoneHitOverlay); } catch (e) {}
+        state.zoneHitOverlay = null;
+      }
+    }
+
+    function zoneHitFeatureCollection(result) {
+      var hits = result && result.match && Array.isArray(result.hits) ? result.hits : [];
+      var features = [];
+      var seen = {};
+      hits.forEach(function (hit) {
+        var feature = hit && (hit.feature || hit.geojson || hit.geometry_feature);
+        if (!feature || feature.type !== 'Feature' || !feature.geometry) return;
+        var props = Object.assign({}, feature.properties || {});
+        if (!props.__layer_id && hit.layer_id !== undefined && hit.layer_id !== null) props.__layer_id = hit.layer_id;
+        if (!props.__layer_name && (hit.layer || hit.layer_name)) props.__layer_name = hit.layer || hit.layer_name;
+        if (!props.__layer_status && hit.status) props.__layer_status = hit.status;
+        if (!props.__layer_color) props.__layer_color = zoneHitColor(hit.status);
+        if (!props.__layer_description && hit.notes) props.__layer_description = hit.notes;
+        if (!props.__layer_url && hit.url) props.__layer_url = hit.url;
+        if (!props.name && hit.name) props.name = hit.name;
+        var dedupe = JSON.stringify([props.__layer_id || props.__layer_name || hit.name || '', feature.geometry]);
+        if (seen[dedupe]) return;
+        seen[dedupe] = true;
+        features.push({ type: 'Feature', geometry: feature.geometry, properties: props });
+      });
+      return { type: 'FeatureCollection', features: features };
+    }
+
+    function syncZoneHitOverlay(result) {
+      clearZoneHitOverlay();
+      if (!caseMap || !caseMap._kvLeafletMap || !window.L) return;
+      var collection = zoneHitFeatureCollection(result);
+      if (!collection.features.length) return;
+      var state = caseMap._kvPortalState || {};
+      var overlay = L.geoJSON(collection, {
+        interactive: false,
+        bubblingMouseEvents: false,
+        style: function (feature) {
+          var props = feature && feature.properties ? feature.properties : {};
+          var color = props.__layer_color || zoneHitColor(props.__layer_status || '');
+          return { color: color, weight: 5, opacity: 1, fillColor: color, fillOpacity: 0.18 };
+        },
+        pointToLayer: function (feature, latlng) {
+          var props = feature && feature.properties ? feature.properties : {};
+          var color = props.__layer_color || zoneHitColor(props.__layer_status || '');
+          return L.circleMarker(latlng, { radius: 10, color: color, weight: 3, fillColor: color, fillOpacity: 0.92, interactive: false });
+        }
+      }).addTo(caseMap._kvLeafletMap);
+      if (overlay && typeof overlay.bringToFront === 'function') overlay.bringToFront();
+      state.zoneHitOverlay = overlay;
+      caseMap._kvPortalState = state;
+    }
     function persistPositionMode(mode) {
       var normalized = String(mode || '').trim().toLowerCase() === 'manual' ? 'manual' : 'auto';
       try { localStorage.setItem(positionModeStorageKey, normalized); } catch (e) {}
@@ -3831,7 +3910,7 @@
       mapState.showLegend = false;
       mapState.showLayerPanel = true;
       mapState.layerPanelDefaultOpen = false;
-      mapState.layerPanelKey = 'case-map-v82';
+      mapState.layerPanelKey = 'case-map-v85';
       mapState.rasterLayerIds = allLayerIds;
       mapState.identifyLayerIds = allLayerIds;
       mapState.mapServerUrl = fisheryPortalService;
@@ -3850,6 +3929,7 @@
           mapState._offlineWarmTimer = setTimeout(function () { downloadCurrentMapToDevice(); }, 1800);
         }
         renderRelevantAreaPanel(latestZoneResult);
+        syncZoneHitOverlay(latestZoneResult);
       });
       syncManualPositionNotice();
       syncMarkerPositionInputs();

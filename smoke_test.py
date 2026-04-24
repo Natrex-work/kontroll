@@ -123,6 +123,7 @@ def main() -> int:
             zone_hit_json = zone_hit.json()
             assert zone_hit_json.get('match') is True
             assert any((item.get('layer_ids') or [item.get('layer_id')]) for item in zone_hit_json.get('hits') or [])
+            assert any((item.get('feature') or {{}}).get('geometry') for item in zone_hit_json.get('hits') or [])
 
             legacy_bundle = client.get('/api/map/bundle', params={
                 'bbox': '10.3355,59.33525,10.7355,59.73525',
@@ -378,6 +379,8 @@ LBHN 26 123''')
             assert zones.status_code == 200
             zone_json = zones.json()
             assert zone_json.get('status') in {'fredningsområde', 'ingen treff', 'regulert område', 'stengt område', 'maksimalmål område'}
+            if zone_json.get('match'):
+                assert any((item.get('feature') or {}).get('geometry') for item in zone_json.get('hits') or [])
 
         return 0
     finally:

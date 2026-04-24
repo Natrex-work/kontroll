@@ -377,12 +377,12 @@ def search_jmeldinger(species: str = '', gear_type: str = '', area_status: str =
 def _ygg_query_point(layer_id: int, lat: float, lng: float) -> list[dict[str, Any]]:
     url = f'{YGG_BASE}/{layer_id}/query'
     params = {
-        'f': 'json',
+        'f': 'geojson',
         'geometry': f'{lng},{lat}',
         'geometryType': 'esriGeometryPoint',
         'inSR': '4326',
         'spatialRel': 'esriSpatialRelIntersects',
-        'returnGeometry': 'false',
+        'returnGeometry': 'true',
         'outFields': '*',
     }
     data = _safe_get(url, params=params).json()
@@ -2191,12 +2191,12 @@ def _ygg_query_point(layer_id: int, lat: float, lng: float, *, geometry_type: st
     if cached is not None:
         return cached
     params = {
-        'f': 'json',
+        'f': 'geojson',
         'geometry': f'{lng},{lat}',
         'geometryType': 'esriGeometryPoint',
         'inSR': '4326',
         'spatialRel': 'esriSpatialRelIntersects',
-        'returnGeometry': 'false',
+        'returnGeometry': 'true',
         'outFields': '*',
     }
     data = _safe_get(f'{YGG_BASE}/{layer_id}/query', params=params, timeout=min(PORTAL_REQUEST_TIMEOUT, 6)).json()
@@ -2437,6 +2437,8 @@ def classify_position_live(lat: float, lng: float, species: str = '', gear_type:
             'url': url,
             'source': 'Fiskeridirektoratet kartportal',
             'layer_id': layer.get('id'),
+            'layer_ids': [layer.get('id')] if layer.get('id') is not None else [],
+            'feature': _annotate_portal_feature(feature, layer),
         }
         hits.append(hit)
         rank = priorities.get(layer['status'], 0)
@@ -2468,6 +2470,8 @@ def classify_position_live(lat: float, lng: float, species: str = '', gear_type:
                 'url': url,
                 'source': 'Fiskeridirektoratet kartportal',
                 'layer_id': layer.get('id'),
+                'layer_ids': [layer.get('id')] if layer.get('id') is not None else [],
+                'feature': _annotate_portal_feature(feature, layer),
             }
             hits.append(hit)
             rank = priorities.get(layer['status'], 0)

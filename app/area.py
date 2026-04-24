@@ -84,6 +84,29 @@ def _zone_rank(zone: dict[str, Any]) -> int:
 
 
 def _zone_hit(zone: dict[str, Any]) -> dict[str, Any]:
+    feature = None
+    polygon = zone.get('polygon') or []
+    if isinstance(polygon, list) and len(polygon) >= 3:
+        ring = []
+        for point in polygon:
+            if not isinstance(point, (list, tuple)) or len(point) < 2:
+                continue
+            try:
+                ring.append([float(point[1]), float(point[0])])
+            except Exception:
+                continue
+        if len(ring) >= 3:
+            if ring[0] != ring[-1]:
+                ring.append(list(ring[0]))
+            feature = {
+                'type': 'Feature',
+                'geometry': {'type': 'Polygon', 'coordinates': [ring]},
+                'properties': {
+                    '__layer_name': zone.get('layer_name') or zone.get('layer') or zone.get('status') or 'sone',
+                    '__layer_status': zone.get('status') or 'regulert område',
+                    'name': zone.get('name') or 'Ukjent sone',
+                }
+            }
     return {
         'source': zone.get('source') or 'Lokal reserveflate',
         'layer': zone.get('layer_name') or zone.get('layer') or zone.get('status') or 'sone',
@@ -93,6 +116,7 @@ def _zone_hit(zone: dict[str, Any]) -> dict[str, Any]:
         'notes': zone.get('notes') or '',
         'layer_ids': zone.get('layer_ids') or [],
         'zone_id': zone.get('id') or '',
+        'feature': feature,
     }
 
 

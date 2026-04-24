@@ -2820,3 +2820,34 @@ body {
     line-height: 1;
   }
 }
+
+
+/* v85 mobilvennlig temalagpanel og trygg OCR-cache */
+@media (max-width: 960px) {
+  .kv-temalag-panel {
+    left: auto;
+    right: calc(10px + var(--safe-right));
+    top: auto;
+    bottom: calc(10px + var(--safe-bottom));
+    width: min(250px, calc(100vw - 20px - var(--safe-left) - var(--safe-right)));
+    max-width: calc(100vw - 20px - var(--safe-left) - var(--safe-right));
+    align-items: flex-end;
+    z-index: 620;
+  }
+  .kv-temalag-handle {
+    width: auto;
+    min-width: 120px;
+    max-width: 100%;
+    padding: 8px 12px;
+    border-radius: 14px;
+  }
+  .kv-temalag-card {
+    width: min(250px, calc(100vw - 20px - var(--safe-left) - var(--safe-right)));
+    max-height: min(42vh, 320px);
+    overflow: hidden;
+  }
+  .kv-temalag-groups {
+    max-height: calc(min(42vh, 320px) - 118px);
+    overflow: auto;
+  }
+}

@@ -6,7 +6,7 @@
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('/static/sw.js').catch(function () {});
+      navigator.serviceWorker.register('/static/sw.js?v=v85').catch(function () {});
     });
   }
 
@@ -337,7 +337,7 @@
   }
 
 
-  var LAYER_PANEL_PREFS_VERSION = 'v72';
+  var LAYER_PANEL_PREFS_VERSION = 'v85';
 
   function layerPanelStorageKey(el, markerState) {
     return 'kv-temalag:' + LAYER_PANEL_PREFS_VERSION + ':' + String((markerState && markerState.layerPanelKey) || (el && el.id) || 'map');
@@ -1289,5 +1289,7 @@
   ready(setupSidebarToggle);
   ready(setupHistoryControls);
 
+  window.csrfHeaders = csrfHeaders;
+  window.secureFetchOptions = secureFetchOptions;
   window.KVCommon = { ready: ready, escapeHtml: escapeHtml, parseJson: parseJson, csrfToken: csrfToken, injectCsrfField: injectCsrfField, appendCsrfToForms: appendCsrfToForms, csrfHeaders: csrfHeaders, secureFetchOptions: secureFetchOptions, sourceChip: sourceChip, findingSource: findingSource, lawHelpCard: lawHelpCard, buildReadonlyFindingsHtml: buildReadonlyFindingsHtml, normalizeFeatureCollection: normalizeFeatureCollection, createPortalMap: createPortalMap };
 })();
