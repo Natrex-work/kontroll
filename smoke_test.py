@@ -5,9 +5,11 @@ import os
 import re
 import shutil
 import tempfile
+from io import BytesIO
 from pathlib import Path
 
 from fastapi.testclient import TestClient
+from PIL import Image, ImageDraw, ImageFont
 
 
 CSRF_RE = re.compile(r"name=[\"']csrf_token[\"']\\s+value=[\"']([^\"']+)[\"']|<meta name=[\"']csrf-token[\"'] content=[\"']([^\"']+)[\"']", re.IGNORECASE)
@@ -44,6 +46,25 @@ def build_test_app() -> tuple[object, Path]:
     importlib.reload(app.db)
     importlib.reload(app.main)
     return app.main.app, tmpdir
+
+
+
+
+def build_synthetic_ocr_image_bytes() -> bytes:
+    width, height = 4032, 3024
+    image = Image.new('RGB', (width, height), '#7ba6d5')
+    draw = ImageDraw.Draw(image)
+    label_box = (1500, 1200, 2400, 1650)
+    draw.rounded_rectangle(label_box, radius=30, fill='white', outline='black', width=3)
+    try:
+        font = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', 28)
+    except Exception:
+        font = ImageFont.load_default()
+    text = 'Navn\nOla Nordmann\nAdresse\nSjøveien 12\n8123 HAVN\nMobil\n90123456\nLBHN 26 123'
+    draw.multiline_text((1560, 1240), text, fill='black', font=font, spacing=6)
+    buffer = BytesIO()
+    image.save(buffer, format='JPEG', quality=92)
+    return buffer.getvalue()
 
 
 def main() -> int:
@@ -90,6 +111,27 @@ def main() -> int:
             layer_names = ' | '.join(item.get('name') or '' for item in map_catalog_json.get('layers') or [])
             assert 'J-melding stengte fiskefelt' in layer_names
             assert 'Hummer - fredningsområder' in layer_names
+
+            zone_hit = client.get('/api/zones/check', params={
+                'lat': 59.53525,
+                'lng': 10.5355,
+                'species': 'Hummer',
+                'gear_type': 'Teine',
+                'control_type': 'Fritidsfiske',
+            })
+            assert zone_hit.status_code == 200, zone_hit.text
+            zone_hit_json = zone_hit.json()
+            assert zone_hit_json.get('match') is True
+            assert any((item.get('layer_ids') or [item.get('layer_id')]) for item in zone_hit_json.get('hits') or [])
+
+            legacy_bundle = client.get('/api/map/bundle', params={
+                'bbox': '10.3355,59.33525,10.7355,59.73525',
+                'layer_ids': '1'
+            })
+            assert legacy_bundle.status_code == 200, legacy_bundle.text
+            legacy_bundle_json = legacy_bundle.json()
+            assert len(legacy_bundle_json.get('features') or []) >= 1
+            assert any('Hummer - fredningsområder' == str(item.get('name') or '') for item in legacy_bundle_json.get('layers') or [])
 
             regelverk = client.get('/regelverk')
             assert regelverk.status_code == 200
@@ -180,6 +222,21 @@ LBHN 26 123''')
             assert parsed_hints.get('phone') == '41234567'
             assert parsed_hints.get('hummer_participant_no') == 'LBHN-26-123'
 
+            import app.services.ocr_service as ocr_service
+            synthetic_ocr = None
+            try:
+                synthetic_ocr = ocr_service.extract_text_from_image(build_synthetic_ocr_image_bytes(), filename='syntetisk-ocr.jpg', timeout_seconds=20)
+            except RuntimeError as exc:
+                if 'ikke installert' not in str(exc).lower():
+                    raise
+            if synthetic_ocr is not None:
+                synthetic_hints = synthetic_ocr.get('hints') or {}
+                assert synthetic_hints.get('name') == 'Ola Nordmann'
+                assert synthetic_hints.get('address') == 'Sjøveien 12'
+                assert synthetic_hints.get('post_place') == '8123 HAVN'
+                assert synthetic_hints.get('phone') == '90123456'
+                assert synthetic_hints.get('hummer_participant_no') == 'LBHN-26-123'
+
             summary_suggest = client.post('/api/summary/suggest', json={
                 'case_basis': 'patruljeobservasjon',
                 'control_type': 'Fritidsfiske',
@@ -204,6 +261,7 @@ LBHN 26 123''')
             assert summary_suggest.status_code == 200, summary_suggest.text
             summary_json = summary_suggest.json()
             assert 'i oppgitt posisjon ble teine observert og kontrollert' in summary_json.get('summary', '').lower()
+            assert 'for dette området gjaldt følgende reguleringer og begrensninger' in summary_json.get('summary', '').lower()
             assert 'hummerfredningsområde tofte' in summary_json.get('summary', '').lower()
 
             offline_new = client.get('/cases/offline/new?local_id=local-smoke-1')

@@ -245,7 +245,7 @@ async def api_ocr_extract(request: Request, file: UploadFile = File(...)):
     content = await file.read()
     validate_saved_file_size(len(content or b''))
     try:
-        result = extract_text_from_image(content or b'', filename=filename, timeout_seconds=40)
+        result = extract_text_from_image(content or b'', filename=filename, timeout_seconds=55)
     except ValueError as exc:
         return JSONResponse({'ok': False, 'message': str(exc), 'text': ''}, status_code=422)
     except RuntimeError as exc:

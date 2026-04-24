@@ -1352,7 +1352,26 @@
       for (var i = 0; i < rows.length; i += 1) {
         if (Number(rows[i] && rows[i].id) === numericId) return rows[i];
       }
+      for (var j = 0; j < rows.length; j += 1) {
+        var legacyIds = Array.isArray(rows[j] && rows[j].legacy_ids) ? rows[j].legacy_ids : [];
+        for (var k = 0; k < legacyIds.length; k += 1) {
+          if (Number(legacyIds[k]) === numericId) return rows[j];
+        }
+      }
       return null;
+    }
+
+    function resolveCatalogLayerId(layerId, layerName) {
+      var layer = layerDefinitionById(layerId);
+      if (layer && isFinite(Number(layer.id))) return Number(layer.id);
+      var wantedName = String(layerName || '').trim().toLowerCase();
+      if (!wantedName) return isFinite(Number(layerId)) ? Number(layerId) : null;
+      var rows = mapCatalog || [];
+      for (var i = 0; i < rows.length; i += 1) {
+        var name = String(rows[i] && rows[i].name || '').trim().toLowerCase();
+        if (name && name === wantedName) return Number(rows[i].id);
+      }
+      return isFinite(Number(layerId)) ? Number(layerId) : null;
     }
 
     function mergeRelevantMapLayers(baseLayers, forcedLayerIds) {
@@ -1384,10 +1403,15 @@
       var seen = {};
       var hits = result && result.match && Array.isArray(result.hits) ? result.hits : [];
       hits.forEach(function (hit) {
-        var layerId = Number(hit && hit.layer_id);
-        if (!isFinite(layerId) || seen[layerId]) return;
-        seen[layerId] = true;
-        ids.push(layerId);
+        var rawIds = [];
+        if (hit && Array.isArray(hit.layer_ids) && hit.layer_ids.length) rawIds = hit.layer_ids.slice();
+        else if (hit && hit.layer_id !== undefined && hit.layer_id !== null && hit.layer_id !== '') rawIds = [hit.layer_id];
+        rawIds.forEach(function (rawLayerId) {
+          var resolvedId = resolveCatalogLayerId(rawLayerId, hit && (hit.layer || hit.layer_name || hit.name));
+          if (!isFinite(Number(resolvedId)) || seen[Number(resolvedId)]) return;
+          seen[Number(resolvedId)] = true;
+          ids.push(Number(resolvedId));
+        });
       });
       return ids;
     }
@@ -3287,8 +3311,9 @@
     function preprocessImageForOcr(file, mode) {
       return loadImageForOcr(file).then(function (image) {
         var uploadMobile = mode === 'upload-mobile';
-        var maxSide = uploadMobile ? 1024 : (mode === 'document' ? 1280 : 1440);
-        var quality = uploadMobile ? 0.74 : (mode === 'document' ? 0.82 : 0.86);
+        var serverHighRes = mode === 'server-highres';
+        var maxSide = serverHighRes ? 2200 : (uploadMobile ? 1024 : (mode === 'document' ? 1280 : 1440));
+        var quality = serverHighRes ? 0.92 : (uploadMobile ? 0.74 : (mode === 'document' ? 0.82 : 0.86));
         var longest = Math.max(image.naturalWidth || image.width || 1, image.naturalHeight || image.height || 1);
         var scale = longest > maxSide ? maxSide / longest : 1;
         var width = Math.max(1, Math.round((image.naturalWidth || image.width || 1) * scale));
@@ -3304,9 +3329,9 @@
         var data = imageData.data;
         for (var i = 0; i < data.length; i += 4) {
           var gray = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
-          gray = (gray - 128) * (uploadMobile ? 1.22 : 1.35) + 128;
+          gray = (gray - 128) * (serverHighRes ? 1.28 : (uploadMobile ? 1.22 : 1.35)) + 128;
           if (mode === 'threshold') gray = gray > 162 ? 255 : 0;
-          else if (mode === 'document' || uploadMobile) gray = Math.max(0, Math.min(255, gray * 1.08));
+          else if (mode === 'document' || uploadMobile || serverHighRes) gray = Math.max(0, Math.min(255, gray * (serverHighRes ? 1.05 : 1.08)));
           gray = Math.max(0, Math.min(255, gray));
           data[i] = gray;
           data[i + 1] = gray;
@@ -3330,16 +3355,17 @@
       return [file && file.name || '', file && file.size || 0, file && file.lastModified || 0].join('|');
     }
 
-    function buildOcrUploadFile(file) {
+    function buildOcrUploadFile(file, mode) {
+      mode = mode || 'original';
+      if (!file) return Promise.reject(new Error('Bildefilen mangler.'));
+      if (mode === 'original') return Promise.resolve(file);
       var ua = navigator.userAgent || '';
       var touchPoints = Number(navigator.maxTouchPoints || 0);
       var isAppleMobile = /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/i.test(ua) && touchPoints > 1);
-      var rawType = String(file && file.type || '').toLowerCase();
-      var rawName = String(file && file.name || '');
-      var needsProcessing = /heic|heif/i.test(rawType) || /\.(heic|heif)$/i.test(rawName) || rawType !== 'image/jpeg' || Number(file && file.size || 0) > (1500 * 1024) || isAppleMobile;
-      if (!needsProcessing) return Promise.resolve(file);
-      return preprocessImageForOcr(file, isAppleMobile ? 'upload-mobile' : 'document').then(function (blob) {
-        return new File([blob], (String(file.name || 'ocr').replace(/\.[^.]+$/, '') || 'ocr') + '.jpg', { type: 'image/jpeg', lastModified: Date.now() });
+      var processMode = mode === 'server-highres' ? 'server-highres' : (isAppleMobile ? 'upload-mobile' : 'document');
+      return preprocessImageForOcr(file, processMode).then(function (blob) {
+        var suffix = mode === 'server-highres' ? '-ocr-hires.jpg' : '-ocr.jpg';
+        return new File([blob], (String(file.name || 'ocr').replace(/\.[^.]+$/, '') || 'ocr') + suffix, { type: 'image/jpeg', lastModified: Date.now() });
       }).catch(function () {
         return file;
       });
@@ -3378,12 +3404,16 @@
     }
 
     function runServerOcr(file) {
-      if (registryResult) registryResult.innerHTML = 'Forbereder og laster opp bilde til OCR ...';
-      return buildOcrUploadFile(file).then(function (uploadFile) {
+      function fileAttemptKey(uploadFile) {
+        return [uploadFile && uploadFile.name || '', uploadFile && uploadFile.size || 0, uploadFile && uploadFile.type || ''].join('|');
+      }
+
+      function sendAttempt(uploadFile, label) {
+        if (registryResult) registryResult.innerHTML = 'Sender bildet til server-OCR (' + escapeHtml(label) + ') ...';
         var formData = new FormData();
         formData.append('file', uploadFile, uploadFile.name || ('ocr-' + Date.now() + '.jpg'));
         var controller = typeof AbortController === 'function' ? new AbortController() : null;
-        var timer = controller ? setTimeout(function () { try { controller.abort(); } catch (e) {} }, 40000) : null;
+        var timer = controller ? setTimeout(function () { try { controller.abort(); } catch (e) {} }, 50000) : null;
         return fetch('/api/ocr/extract', Object.assign(secureFetchOptions({ method: 'POST', body: formData }), controller ? { signal: controller.signal } : {}))
           .then(function (response) {
             return response.json().catch(function () { return {}; }).then(function (payload) {
@@ -3392,18 +3422,45 @@
           })
           .finally(function () { if (timer) clearTimeout(timer); })
           .then(function (result) {
-            if (!result.ok || !result.payload || !normalizeOcrText(result.payload.text || '')) {
+            var normalizedText = normalizeOcrText(result && result.payload ? (result.payload.text || '') : '');
+            if (!result.ok || !result.payload || !normalizedText) {
               throw new Error((result.payload && (result.payload.detail || result.payload.message)) || 'Server-OCR ga ikke lesbar tekst.');
             }
-            var normalizedText = normalizeOcrText(result.payload.text || '');
+            var rawText = normalizeOcrText(result.payload.raw_text || normalizedText);
             return {
               text: normalizedText,
-              strategy: result.payload.strategy || 'server',
+              raw_text: rawText,
+              strategy: (result.payload.strategy || 'server') + ' · ' + label,
               source: 'server',
-              hints: (result.payload && result.payload.hints) || extractLookupHintsFromText(normalizedText)
+              hints: (result.payload && result.payload.hints) || extractLookupHintsFromText(rawText || normalizedText)
             };
           });
-      });
+      }
+
+      if (registryResult) registryResult.innerHTML = 'Forbereder bildet for server-OCR ...';
+      var seen = {};
+      var attempts = [
+        function () { return Promise.resolve(file).then(function (uploadFile) { return { file: uploadFile, label: 'originalbilde' }; }); },
+        function () { return buildOcrUploadFile(file, 'server-highres').then(function (uploadFile) { return { file: uploadFile, label: 'forbedret original' }; }); },
+        function () { return buildOcrUploadFile(file, 'document').then(function (uploadFile) { return { file: uploadFile, label: 'dokumentmodus' }; }); }
+      ];
+
+      function nextAttempt(index, lastError) {
+        if (index >= attempts.length) return Promise.reject(lastError || new Error('Server-OCR ga ikke lesbar tekst.'));
+        return attempts[index]().then(function (candidate) {
+          if (!candidate || !candidate.file) return nextAttempt(index + 1, lastError);
+          var key = fileAttemptKey(candidate.file);
+          if (seen[key]) return nextAttempt(index + 1, lastError);
+          seen[key] = true;
+          return sendAttempt(candidate.file, candidate.label).catch(function (err) {
+            return nextAttempt(index + 1, err);
+          });
+        }).catch(function (err) {
+          return nextAttempt(index + 1, err || lastError);
+        });
+      }
+
+      return nextAttempt(0, null);
     }
 
     function runBrowserOcr(file) {
@@ -3449,9 +3506,12 @@
 
     function applyOcrResult(result) {
       var text = normalizeOcrText(result && result.text ? result.text : '');
-      if (!text) throw new Error('OCR ga ingen lesbar tekst.');
-      var hints = (result && result.hints) || extractLookupHintsFromText(text);
-      lookupText.value = text;
+      var rawText = normalizeOcrText(result && result.raw_text ? result.raw_text : '');
+      var lookupPayloadText = scoreOcrText(rawText) > scoreOcrText(text) ? rawText : text;
+      if (!lookupPayloadText) throw new Error('OCR ga ingen lesbar tekst.');
+      var textHints = extractLookupHintsFromText(rawText || text);
+      var hints = Object.assign({}, textHints, (result && result.hints) || {});
+      lookupText.value = lookupPayloadText;
       if (hints) {
         applyHints(hints);
         if (hints.hummer_participant_no && !lookupIdentifier.value) lookupIdentifier.value = hints.hummer_participant_no;
@@ -3459,7 +3519,7 @@
         if (hints.vessel_reg && !lookupIdentifier.value) lookupIdentifier.value = hints.vessel_reg;
       }
       if (registryResult) {
-        registryResult.innerHTML = '<strong>OCR fullført</strong><div class="small muted">' + escapeHtml(result.source === 'server' ? 'Server-OCR brukt' : 'Lokal OCR brukt') + ' · ' + escapeHtml(result.strategy || '') + '. Registeroppslag kjøres automatisk videre.</div><div class="small muted">' + escapeHtml(shortOcrPreview(text)) + '</div>';
+        registryResult.innerHTML = '<strong>OCR fullført</strong><div class="small muted">' + escapeHtml(result.source === 'server' ? 'Server-OCR brukt' : 'Lokal OCR brukt') + ' · ' + escapeHtml(result.strategy || '') + '. Registeroppslag kjøres automatisk videre.</div><div class="small muted">' + escapeHtml(shortOcrPreview(lookupPayloadText)) + '</div>';
       }
       renderAutofillPreview({ source: result.source === 'server' ? 'Server-OCR' : 'Lokal OCR', detail: result.strategy || 'Tekst lest fra bilde' });
       lookupRegistry({ force: true, automatic: true });
@@ -3472,11 +3532,13 @@
         return Promise.resolve(null);
       }
       registryResult.innerHTML = 'Forbereder bildet lokalt og starter tekstlesing ...';
-      var ocrPromise = prefersServerOcrFirst(file)
+      var browserOffline = typeof navigator !== 'undefined' && navigator.onLine === false;
+      var useServerFirst = !browserOffline || prefersServerOcrFirst(file);
+      var ocrPromise = useServerFirst
         ? (function () {
-            if (registryResult) registryResult.innerHTML = 'Sender bildet til server-OCR (iPhone/HEIC-optimalisert) ...';
+            if (registryResult) registryResult.innerHTML = 'Sender originalbildet til server-OCR (full analyse) ...';
             return runServerOcr(file).catch(function () {
-              if (registryResult) registryResult.innerHTML = 'Server-OCR fant ikke tydelig tekst. Prøver lokal OCR ...';
+              if (registryResult) registryResult.innerHTML = 'Server-OCR fant ikke tydelig tekst. Prøver lokal OCR i nettleseren ...';
               return runBrowserOcr(file);
             });
           }())
@@ -4495,7 +4557,9 @@ function renderHummerStatus(result) {
         if (!ruleText) {
           ruleText = sentenceize('I dette området gjelder særskilte forbud eller begrensninger' + (subjectBits.length ? ' for ' + subjectBits.join(' og ') : '') + '.');
         }
-        return '- ' + sentenceize('I oppgitt posisjon ble ' + gearLabel.toLowerCase() + ' observert og kontrollert der det befant seg i ' + label + ' (' + status + ')') + ' ' + ruleText;
+        var intro = 'I oppgitt posisjon ble ' + gearLabel.toLowerCase() + ' observert og kontrollert der det befant seg i området ' + label + ' (' + status + ').';
+        var statusText = 'For dette området gjaldt følgende reguleringer og begrensninger:';
+        return '- ' + sentenceize(intro) + ' ' + statusText + ' ' + ruleText;
       }
 
       var points = avvik.map(function (item, idx) {

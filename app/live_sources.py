@@ -1957,11 +1957,32 @@ def _portal_layer_def(layer_id: int) -> dict[str, Any] | None:
         if item_id is None:
             continue
         try:
-            if int(item_id) == int(layer_id):
+            if int(layer_id) in _layer_id_candidates(int(item_id), item):
                 return item
         except Exception:
             continue
     return None
+
+
+def _resolve_portal_catalog_rows(layer_ids: list[int] | None = None) -> list[dict[str, Any]]:
+    rows = [row for row in portal_layer_catalog() if row.get('id') is not None]
+    requested = {int(value) for value in (layer_ids or []) if str(value).strip()} if layer_ids else set()
+    if not requested:
+        return rows
+    resolved: list[dict[str, Any]] = []
+    seen: set[int] = set()
+    for row in rows:
+        try:
+            row_id = int(row.get('id'))
+        except Exception:
+            continue
+        if not (_layer_id_candidates(row_id, row) & requested):
+            continue
+        if row_id in seen:
+            continue
+        seen.add(row_id)
+        resolved.append(row)
+    return resolved
 
 
 def _iter_coords(value: Any):
@@ -2210,10 +2231,7 @@ def _portal_identify_point(layer_id: int, lat: float, lng: float) -> list[dict[s
 
 
 def identify_portal_point(lat: float, lng: float, layer_ids: list[int] | None = None) -> dict[str, Any]:
-    requested = {int(value) for value in (layer_ids or []) if str(value).strip()} if layer_ids else set()
-    rows = portal_layer_catalog()
-    if requested:
-        rows = [row for row in rows if row.get('id') is not None and int(row.get('id')) in requested]
+    rows = _resolve_portal_catalog_rows(layer_ids)
     priorities = {'stengt område': 4, 'fredningsområde': 3, 'maksimalmål område': 2, 'regulert område': 1, 'fiskeriområde': 0}
     hits: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -2335,13 +2353,11 @@ def _annotate_portal_feature(feature: dict[str, Any], layer: dict[str, Any]) -> 
 
 
 def fetch_portal_bundle(*, layer_ids: list[int] | None = None, bbox: tuple[float, float, float, float] | None = None, max_age_seconds: int = 6 * 3600) -> dict[str, Any]:
-    rows = portal_layer_catalog()
     requested_ids = sorted({int(value) for value in (layer_ids or []) if str(value).strip()})
-    if requested_ids:
-        requested = set(requested_ids)
-        rows = [row for row in rows if row.get('id') is not None and int(row.get('id')) in requested]
+    rows = _resolve_portal_catalog_rows(requested_ids)
     rows = [row for row in rows if row.get('id') is not None]
-    bundle_cache_key = _portal_bundle_cache_key(requested_ids or [int(row.get('id')) for row in rows], bbox)
+    canonical_ids = [int(row.get('id')) for row in rows]
+    bundle_cache_key = _portal_bundle_cache_key(canonical_ids or requested_ids or [int(row.get('id')) for row in rows], bbox)
     cached_bundle = _portal_bundle_cache_get(bundle_cache_key, min(max_age_seconds, PORTAL_BUNDLE_CACHE_TTL))
     if cached_bundle is not None:
         return cached_bundle

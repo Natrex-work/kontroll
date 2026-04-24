@@ -904,6 +904,35 @@ def _sentenceize(value: Any) -> str:
     return text
 
 
+
+
+def _normalize_area_generated_note(note: Any, case_row: Dict[str, Any], item: Dict[str, Any]) -> str:
+    clean = _clean_generated_phrase(note)
+    area_name = _clean_generated_phrase(_area_name_value(case_row) or item.get('area_name') or item.get('name') or item.get('label') or 'aktuelt område')
+    area_status = _clean_generated_phrase(_area_status_value(case_row) or item.get('area_status') or item.get('status') or '')
+    gear_text = _clean_generated_phrase(case_row.get('gear_type') or item.get('gear_type') or 'redskapet') or 'redskapet'
+
+    if clean:
+        clean = re.sub(r'^I oppgitt posisjon ble .*? kontrollert i [^.]+\.?\s*', '', clean, flags=re.IGNORECASE)
+        clean = re.sub(r'^Posisjonen ligger i [^.]+\.?\s*', '', clean, flags=re.IGNORECASE)
+        clean = re.sub(r'^Valgt redskap \(([^)]+)\) er ikke blant redskapene som er tillatt i området\.?', r'Følgende redskap er ikke tillatt i dette området: .', clean, flags=re.IGNORECASE)
+        clean = re.sub(r'^Valgt redskap \(([^)]+)\) må vurderes som ulovlig eller særskilt regulert i området\.?', r'Følgende redskap er forbudt eller særskilt regulert i dette området: .', clean, flags=re.IGNORECASE)
+        clean = re.sub(r'^Dette redskapet er ikke tillatt i hummerfredningsområdet\.?', f'Følgende redskap er ikke tillatt i hummerfredningsområdet: {gear_text.lower()}.', clean, flags=re.IGNORECASE)
+        clean = re.sub(r'^Området er registrert som ([^.]+)\.?', r'Området er registrert som .', clean, flags=re.IGNORECASE)
+        clean = re.sub(r'^For dette området gjaldt følgende reguleringer og begrensninger:\s*', '', clean, flags=re.IGNORECASE)
+        clean = _sentenceize(clean)
+
+    intro = f'I oppgitt posisjon ble {gear_text.lower()} observert og kontrollert'
+    if area_name:
+        intro += f' der det befant seg i området {area_name}'
+        if area_status:
+            intro += f' ({area_status})'
+    intro = _sentenceize(intro)
+    if clean:
+        return f"{intro} For dette området gjaldt følgende reguleringer og begrensninger: {clean.rstrip('.')} .".replace(' .', '.')
+    return f"{intro} For dette området gjaldt følgende reguleringer og begrensninger."
+
+
 def _dedupe_preserve(values: list[str]) -> list[str]:
     seen: set[str] = set()
     out: list[str] = []
@@ -992,7 +1021,8 @@ def _structured_case_points(case_row: Dict[str, Any], findings: list[Dict[str, A
         offence = _offence_from_finding(case_row, item, findings)
         item_key = str(item.get('key') or '').strip().lower()
         is_area_item = item_key in area_keys
-        shared_note = str((item.get('summary_text') if is_area_item else '') or item.get('notes') or item.get('summary_text') or '').strip()
+        shared_note_raw = str((item.get('summary_text') if is_area_item else '') or item.get('notes') or item.get('summary_text') or '').strip()
+        shared_note = _normalize_area_generated_note(shared_note_raw, case_row, item) if is_area_item else shared_note_raw
         attached = False
 
         for row in _deviation_rows(item):
@@ -1046,7 +1076,7 @@ def _structured_case_points(case_row: Dict[str, Any], findings: list[Dict[str, A
         generic_display = shared_note or _finding_display_note(item) or item.get('label') or item.get('key') or 'Registrert avvik'
         _append_point_detail(generic_facts, generic_display)
         if is_area_item:
-            detailed_note = str(item.get('notes') or '').strip()
+            detailed_note = ''
             if detailed_note and detailed_note.strip() != str(generic_display).strip():
                 _append_point_detail(generic_facts, detailed_note)
         generic_groups.append({
