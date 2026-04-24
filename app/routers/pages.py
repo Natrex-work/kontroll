@@ -22,7 +22,7 @@ def dashboard(request: Request, status_filter: str = 'all'):
 @router.get('/kart', response_class=HTMLResponse)
 def map_overview(request: Request):
     require_permission(request, 'kart', detail='Brukeren har ikke tilgang til Kart og Område.')
-    return render_template(request, 'map_overview.html', portal_layers=live_sources.portal_layer_catalog())
+    return render_template(request, 'map_overview.html', portal_layers=live_sources.portal_layer_catalog_page_payload())
 
 
 @router.get('/regelverk', response_class=HTMLResponse)

@@ -51,7 +51,18 @@ def visible_app_name(name: str | None) -> str:
     return raw
 
 
+def visible_brand_org_name(name: str | None) -> str:
+    raw = (name or '').strip()
+    if not raw:
+        return 'Minfiskerikontroll'
+    lowered = raw.lower()
+    if lowered.startswith('fiskeridirektoratet'):
+        return 'Minfiskerikontroll'
+    return raw
+
+
 VISIBLE_APP_NAME = visible_app_name(settings.app_name)
+VISIBLE_BRAND_ORG_NAME = visible_brand_org_name(settings.brand_org_name)
 
 
 def build_nav_links(user: dict[str, Any] | None) -> list[dict[str, str]]:
@@ -120,7 +131,7 @@ def render_template(request: Request, name: str, **context: Any) -> HTMLResponse
         'app_version': settings.app_version_label,
         'app_name': settings.app_name,
         'display_app_name': VISIBLE_APP_NAME,
-        'brand_org_name': getattr(settings, 'brand_org_name', 'Fiskeridirektoratet'),
+        'brand_org_name': VISIBLE_BRAND_ORG_NAME,
         'csrf_token': ensure_csrf_token(request),
         'server_url': settings.server_url,
         'production_mode': settings.production_mode,

@@ -104,9 +104,10 @@ def api_zones_check(request: Request, lat: float = Query(..., ge=-90, le=90), ln
 
 
 @router.get('/api/map/catalog')
-def api_map_catalog(request: Request, fishery: str = '', control_type: str = '', gear_type: str = ''):
+def api_map_catalog(request: Request, fishery: str = '', control_type: str = '', gear_type: str = '', fresh: bool = False):
     require_any_permission(request, ['kart', 'kv_kontroll'], detail='Brukeren har ikke tilgang til kart- og omradekontroll.')
-    return JSONResponse({'portal_url': live_sources.MAP_PORTAL_URL, 'layers': live_sources.portal_layer_catalog(fishery=fishery, control_type=control_type, gear_type=gear_type)})
+    layers = live_sources.portal_layer_catalog(fishery=fishery, control_type=control_type, gear_type=gear_type) if fresh else live_sources.portal_layer_catalog_page_payload(fishery=fishery, control_type=control_type, gear_type=gear_type)
+    return JSONResponse({'portal_url': live_sources.MAP_PORTAL_URL, 'layers': layers})
 
 
 

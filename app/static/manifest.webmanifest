@@ -1,9 +1,9 @@
 {
-  "name": "Kontroll Og Oppsyn",
-  "short_name": "Oppsyn",
+  "name": "Minfiskerikontroll",
+  "short_name": "Kontroll",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f4f7fb",
+  "background_color": "#143e6c",
   "theme_color": "#0f2740",
   "icons": [
     {

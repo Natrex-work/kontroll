@@ -1,10 +1,11 @@
 {% extends 'base.html' %}
-{% block title %}{{ case.case_number }} · Kontroll Og Oppsyn {{ app_version }}{% endblock %}
+{% block title %}{{ case.case_number }} · {{ brand_org_name }}{% endblock %}
+{% block body_class %}page-case-form has-top-step-nav{% endblock %}
 {% block topbar_extra %}
 <div class="top-step-nav" id="top-step-nav" aria-label="Stegnavigasjon for mobil">
-  <button type="button" class="btn btn-secondary btn-small top-step-btn" id="top-prev-step">Tilbake</button>
+  <button type="button" class="btn btn-secondary btn-small top-step-btn" id="top-prev-step" aria-label="Forrige steg"><span class="top-step-btn-text">Tilbake</span><span class="top-step-btn-icon" aria-hidden="true">←</span></button>
   <div class="top-step-label" id="top-step-label">1 / 7</div>
-  <button type="button" class="btn btn-primary btn-small top-step-btn" id="top-next-step">Videre</button>
+  <button type="button" class="btn btn-primary btn-small top-step-btn" id="top-next-step" aria-label="Neste steg"><span class="top-step-btn-text">Videre</span><span class="top-step-btn-icon" aria-hidden="true">→</span></button>
 </div>
 {% endblock %}
 {% block content %}

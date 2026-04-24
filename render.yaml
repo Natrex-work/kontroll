@@ -6,3 +6,8 @@ services:
     dockerContext: .
     healthCheckPath: /healthz
     autoDeployTrigger: commit
+    envVars:
+      - key: KV_APP_NAME
+        value: Kontroll
+      - key: KV_BRAND_ORG_NAME
+        value: Minfiskerikontroll

@@ -1,4 +1,4 @@
-# KV Kontroll – Render-hotfix og videreutviklet pakke
+# Minfiskerikontroll – Render-hotfix og videreutviklet pakke
 
 Herdet PWA / webapp for feltutprøving av kontrollsaker, kart, regelverk, registeroppslag og dokumenteksport.
 

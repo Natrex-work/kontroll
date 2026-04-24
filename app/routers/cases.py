@@ -134,7 +134,7 @@ def offline_new_case(request: Request, local_id: str = ''):
         law_browser=catalog.law_browser_data(),
         leisure_fields=catalog.LEISURE_FIELDS,
         commercial_fields=catalog.COMMERCIAL_FIELDS,
-        portal_layers=live_sources.portal_layer_catalog(),
+        portal_layers=live_sources.portal_layer_catalog_page_payload(),
         case_number_error=None,
         case_number_saved=None,
         offline_new=True,
@@ -183,7 +183,7 @@ def edit_case(request: Request, case_id: int):
     crew = db.case_to_crew(case_row)
     external_actors = db.case_to_external_actors(case_row)
     interviews = db.case_to_interviews(case_row)
-    return render_template(request, 'case_form.html', case=case_row, evidence=evidence, findings=findings, sources=sources, crew=crew, external_actors=external_actors, interviews=interviews, law_browser=catalog.law_browser_data(), leisure_fields=catalog.LEISURE_FIELDS, commercial_fields=catalog.COMMERCIAL_FIELDS, portal_layers=live_sources.portal_layer_catalog(), case_number_error=request.query_params.get('case_number_error'), case_number_saved=request.query_params.get('case_number_saved'))
+    return render_template(request, 'case_form.html', case=case_row, evidence=evidence, findings=findings, sources=sources, crew=crew, external_actors=external_actors, interviews=interviews, law_browser=catalog.law_browser_data(), leisure_fields=catalog.LEISURE_FIELDS, commercial_fields=catalog.COMMERCIAL_FIELDS, portal_layers=live_sources.portal_layer_catalog_page_payload(), case_number_error=request.query_params.get('case_number_error'), case_number_saved=request.query_params.get('case_number_saved'))
 
 
 @router.post('/cases/{case_id}/save')

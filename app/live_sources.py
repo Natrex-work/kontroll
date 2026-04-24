@@ -1881,10 +1881,69 @@ def _portal_display_score(row: dict[str, Any], *, fishery: str = '', control_typ
     return (score, label)
 
 
+def _sorted_portal_catalog_rows(rows: list[dict[str, Any]], *, fishery: str = '', control_type: str = '', gear_type: str = '') -> list[dict[str, Any]]:
+    return sorted(
+        list(rows or []),
+        key=lambda row: (
+            -_portal_display_score(row, fishery=fishery, control_type=control_type, gear_type=gear_type)[0],
+            _portal_display_score(row, fishery=fishery, control_type=control_type, gear_type=gear_type)[1],
+        ),
+    )
+
+
 def portal_layer_catalog(*, fishery: str = '', control_type: str = '', gear_type: str = '') -> list[dict[str, Any]]:
     rows = _enrich_catalog_rows(_merge_catalog_with_fallback(refresh_portal_layer_catalog(force=False)))
-    rows = sorted(rows, key=lambda row: (-_portal_display_score(row, fishery=fishery, control_type=control_type, gear_type=gear_type)[0], _portal_display_score(row, fishery=fishery, control_type=control_type, gear_type=gear_type)[1]))
-    return rows
+    return _sorted_portal_catalog_rows(rows, fishery=fishery, control_type=control_type, gear_type=gear_type)
+
+
+def portal_layer_catalog_fast(*, fishery: str = '', control_type: str = '', gear_type: str = '') -> list[dict[str, Any]]:
+    """Returner kartkatalog for sidevisning uten a blokkere pa eksterne nettverkskall.
+
+    Bruker sist kjente cache hvis den finnes, ellers lokale fallback-lag. Dette brukes
+    pa server-renderte sider som "Ny kontroll", slik at sideaapning ikke star og venter
+    pa treg eller utilgjengelig karttjeneste.
+    """
+    cached = _load_portal_catalog_cache()
+    base_rows = cached if cached else _enrich_catalog_rows(_fallback_portal_layer_defs())
+    rows = _enrich_catalog_rows(_merge_catalog_with_fallback(base_rows))
+    return _sorted_portal_catalog_rows(rows, fishery=fishery, control_type=control_type, gear_type=gear_type)
+
+
+def _portal_layer_client_row(row: dict[str, Any]) -> dict[str, Any]:
+    def _as_str_list(value: Any) -> list[str]:
+        return [str(item) for item in list(value or []) if str(item or '').strip()]
+
+    legacy_ids: list[int] = []
+    for item in list(row.get('legacy_ids') or []):
+        try:
+            legacy_ids.append(int(item))
+        except Exception:
+            continue
+
+    payload: dict[str, Any] = {
+        'id': int(row.get('id')) if row.get('id') is not None else None,
+        'name': str(row.get('name') or ''),
+        'status': str(row.get('status') or ''),
+        'color': str(row.get('color') or ''),
+        'description': str(row.get('description') or ''),
+        'geometry_type': str(row.get('geometry_type') or ''),
+        'legacy_ids': legacy_ids,
+        'fishery_tags': _as_str_list(row.get('fishery_tags')),
+        'gear_tags': _as_str_list(row.get('gear_tags')),
+        'control_tags': _as_str_list(row.get('control_tags')),
+        'selection_summary': str(row.get('selection_summary') or ''),
+        'panel_group': str(row.get('panel_group') or ''),
+        'panel_group_key': str(row.get('panel_group_key') or ''),
+        'panel_group_order': int(row.get('panel_group_order') or 999),
+        'default_visible': bool(row.get('default_visible', True)),
+        'service_url': str(row.get('service_url') or ''),
+    }
+    return payload
+
+
+def portal_layer_catalog_page_payload(*, fishery: str = '', control_type: str = '', gear_type: str = '') -> list[dict[str, Any]]:
+    rows = portal_layer_catalog_fast(fishery=fishery, control_type=control_type, gear_type=gear_type)
+    return [_portal_layer_client_row(row) for row in rows if isinstance(row, dict)]
 
 
 def _portal_layer_defs() -> list[dict[str, Any]]:

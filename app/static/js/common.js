@@ -1244,8 +1244,33 @@
     });
   }
 
+  function setupHistoryControls() {
+    var backButton = document.getElementById('history-back-btn');
+    var forwardButton = document.getElementById('history-forward-btn');
+    if (backButton) {
+      backButton.addEventListener('click', function () {
+        var fallbackUrl = backButton.getAttribute('data-home-url') || '/dashboard';
+        try {
+          if (window.history.length > 1) {
+            window.history.back();
+            return;
+          }
+        } catch (e) {}
+        window.location.href = fallbackUrl;
+      });
+    }
+    if (forwardButton) {
+      forwardButton.addEventListener('click', function () {
+        try {
+          window.history.forward();
+        } catch (e) {}
+      });
+    }
+  }
+
   ready(setupSecurityInteractions);
   ready(setupSidebarToggle);
+  ready(setupHistoryControls);
 
   window.KVCommon = { ready: ready, escapeHtml: escapeHtml, parseJson: parseJson, csrfToken: csrfToken, injectCsrfField: injectCsrfField, appendCsrfToForms: appendCsrfToForms, csrfHeaders: csrfHeaders, secureFetchOptions: secureFetchOptions, sourceChip: sourceChip, findingSource: findingSource, lawHelpCard: lawHelpCard, buildReadonlyFindingsHtml: buildReadonlyFindingsHtml, normalizeFeatureCollection: normalizeFeatureCollection, createPortalMap: createPortalMap };
 })();
