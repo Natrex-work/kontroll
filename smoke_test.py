@@ -101,6 +101,68 @@ def main() -> int:
             assert 'hummerdeltakernummer' in rule_keys
             assert 'hummer_periode' in rule_keys
 
+            import app.live_sources as live_sources
+            import app.registry as registry_module
+
+            orig_lookup_directory_candidates = live_sources.lookup_directory_candidates
+            orig_lookup_hummer_participant_live = live_sources.lookup_hummer_participant_live
+            orig_lookup_hummer_participant = registry_module.lookup_hummer_participant
+            try:
+                live_sources.lookup_directory_candidates = lambda phone='', name='', address='': {
+                    'found': True,
+                    'person': {
+                        'name': name or 'Ola Nordmann',
+                        'address': 'Bryggeveien 1, 3480 Tofte',
+                        'phone': phone or '90000000',
+                        'source': '1881',
+                        'source_url': 'https://example.invalid/1881'
+                    },
+                    'candidates': [{
+                        'name': name or 'Ola Nordmann',
+                        'address': 'Bryggeveien 1, 3480 Tofte',
+                        'phone': phone or '90000000',
+                        'source': '1881',
+                        'source_url': 'https://example.invalid/1881'
+                    }],
+                    'message': 'Treff i offentlig katalog.'
+                }
+                registry_module.lookup_hummer_participant = lambda participant_no='', name='': {
+                    'found': bool((name or '').strip().lower() == 'ola nordmann'),
+                    'person': {
+                        'participant_no': 'H-2026-123',
+                        'name': 'Ola Nordmann',
+                        'last_registered_display': '2026-sesongen',
+                        'fisher_type': 'fritidsfiskar',
+                        'source': 'Hummerregister',
+                        'source_url': 'https://example.invalid/hummer'
+                    } if (name or '').strip().lower() == 'ola nordmann' else {},
+                    'candidates': [{
+                        'participant_no': 'H-2026-123',
+                        'name': 'Ola Nordmann',
+                        'last_registered_display': '2026-sesongen',
+                        'fisher_type': 'fritidsfiskar',
+                        'source': 'Hummerregister',
+                        'source_url': 'https://example.invalid/hummer'
+                    }] if (name or '').strip().lower() == 'ola nordmann' else [],
+                    'message': 'Treff i lokal eller hurtigbufret hummerdeltakerliste.' if (name or '').strip().lower() == 'ola nordmann' else 'Ingen treff'
+                }
+                live_sources.lookup_hummer_participant_live = lambda participant_no='', name='': registry_module.lookup_hummer_participant(participant_no=participant_no, name=name)
+                registry_lookup = client.get('/api/registry/lookup', params={
+                    'phone': '90000000',
+                    'address': 'Bryggeveien 1',
+                    'post_place': '3480 Tofte',
+                    'name': 'Ola Nordmann'
+                })
+                assert registry_lookup.status_code == 200, registry_lookup.text
+                registry_json = registry_lookup.json()
+                assert registry_json.get('found') is True
+                assert (registry_json.get('person') or {}).get('name') == 'Ola Nordmann'
+                assert (registry_json.get('person') or {}).get('hummer_participant_no') == 'H-2026-123'
+                assert (registry_json.get('person') or {}).get('hummer_last_registered') == '2026-sesongen'
+            finally:
+                live_sources.lookup_directory_candidates = orig_lookup_directory_candidates
+                live_sources.lookup_hummer_participant_live = orig_lookup_hummer_participant_live
+                registry_module.lookup_hummer_participant = orig_lookup_hummer_participant
 
             offline_new = client.get('/cases/offline/new?local_id=local-smoke-1')
             assert offline_new.status_code == 200
@@ -138,10 +200,12 @@ def main() -> int:
             create_case = client.post('/cases/new', data={'csrf_token': dashboard_csrf}, follow_redirects=False)
             assert create_case.status_code in {302, 303}
             edit_url = create_case.headers['location']
-            assert edit_url.endswith('/edit')
+            assert edit_url.endswith('/edit?new_case=1&step=1')
 
             edit = client.get(edit_url)
             assert edit.status_code == 200
+            assert 'data-force-start-step="1"' in edit.text
+            assert 'data-start-step="1"' in edit.text
             case_id = int(edit_url.split('/')[-2])
             case_csrf = extract_csrf(edit.text)
 

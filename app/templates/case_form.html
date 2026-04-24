@@ -66,6 +66,8 @@
      data-case-number="{{ case.case_number }}"
      data-case-updated-at="{{ case.updated_at or "" }}"
      data-case-url="{% if offline_new %}/cases/offline/new{% if offline_local_id %}?local_id={{ offline_local_id|urlencode }}{% endif %}{% else %}/cases/{{ case.id }}/edit{% endif %}"
+     data-start-step="{{ request.query_params.get('step') or '' }}"
+     data-force-start-step="{{ '1' if request.query_params.get('new_case') else '0' }}"
      data-offline-new="{{ '1' if offline_new else '0' }}">
 
   <div class="stepper glass-stepper">
@@ -235,7 +237,7 @@
       <div class="card-header panel-header">
         <div>
           <h2>3. Person / fartøy</h2>
-          <div class="muted small">OCR og søk er tilpasset norske navn, adresser, postnummer, mobilnummer, fiskerimerker og hummerdeltakernummer.</div>
+          <div class="muted small">AI/OCR og automatisk oppslag er tilpasset norske navn, adresser, postnummer, mobilnummer, fiskerimerker og hummerdeltakernummer.</div>
         </div>
       </div>
       <div class="callout" id="person-mode-hint">Feltene under endres automatisk mellom fritidsfiske og kommersiell kontroll.</div>
@@ -244,7 +246,7 @@
         <div class="subcard">
           <div class="subcard-head">
             <h3>Kamera / bildefil og autofyll</h3>
-            <span class="muted small">Ta bilde av merkeskilt, blåse eller vak først. Bildet leses automatisk, og manglende navn, adresse, poststed, mobilnummer og hummerdeltakernummer forsøkes hentet automatisk fra hummerregister og offentlige katalogtreff.</span>
+            <span class="muted small">Ta bilde av merkeskilt, blåse eller vak først. Bildet leses automatisk, og manglende navn, adresse, poststed, mobilnummer og hummerdeltakernummer forsøkes hentet automatisk fra hummerregister og offentlige katalogtreff fra 1881 og Gulesider.</span>
           </div>
           <div class="actions-row wrap margin-top-s person-autofill-actions">
             <button class="btn btn-primary" type="button" id="btn-ocr-camera">Ta bilde med kamera</button>
@@ -264,7 +266,7 @@
           </details>
           <div class="callout margin-top-s hidden" id="ocr-selected-file">Ingen bildefil valgt ennå.</div>
           <div class="callout margin-top-s hidden" id="local-media-status"><span id="local-media-status-text">Bilder og lyd lagres lokalt på enheten og synkes til saken i bakgrunnen når nettverket er klart.</span> <button class="btn btn-secondary btn-small" type="button" id="btn-sync-local-media">Synk nå</button></div>
-          <div class="callout margin-top-s" id="registry-result">Når du tar bilde eller oppdaterer søkefeltene, kjøres OCR og registeroppslag automatisk. Treffer fra hummerregister og offentlige kataloger brukes fortløpende til å fylle inn opplysningene under.</div>
+          <div class="callout margin-top-s" id="registry-result">Når du tar bilde eller oppdaterer søkefeltene, kjøres OCR og registeroppslag automatisk. Treffer fra hummerregister og offentlige kataloger (1881 / Gulesider) brukes fortløpende til å fylle inn opplysningene under.</div>
           <div id="ocr-autofill-preview" class="ocr-preview hidden"></div>
           <div id="registry-candidates" class="registry-candidate-list hidden"></div>
         </div>

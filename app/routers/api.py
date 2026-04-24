@@ -219,9 +219,9 @@ def api_map_features(request: Request, layer_id: int = Query(..., ge=0), bbox: s
 
 
 @router.get('/api/registry/lookup')
-def api_registry_lookup(request: Request, phone: str = '', vessel_reg: str = '', radio_call_sign: str = '', name: str = '', tag_text: str = '', hummer_participant_no: str = ''):
+def api_registry_lookup(request: Request, phone: str = '', vessel_reg: str = '', radio_call_sign: str = '', name: str = '', address: str = '', post_place: str = '', tag_text: str = '', hummer_participant_no: str = ''):
     require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til KV Kontroll.')
-    return JSONResponse(lookup_registry(phone=phone, vessel_reg=vessel_reg, radio_call_sign=radio_call_sign, name=name, tag_text=tag_text, hummer_participant_no=hummer_participant_no))
+    return JSONResponse(lookup_registry(phone=phone, vessel_reg=vessel_reg, radio_call_sign=radio_call_sign, name=name, address=address, post_place=post_place, tag_text=tag_text, hummer_participant_no=hummer_participant_no))
 
 
 @router.get('/api/gear/summary')

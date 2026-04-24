@@ -60,7 +60,66 @@ def _merge_directory_contact(person: dict[str, Any], *, phone_lookup: str = '', 
     return item, directory_result
 
 
-def lookup_registry(*, phone: str = '', vessel_reg: str = '', radio_call_sign: str = '', name: str = '', tag_text: str = '', hummer_participant_no: str = '') -> dict[str, Any]:
+def _resolve_lookup_address(address: str = '', post_place: str = '', hints: dict[str, str] | None = None) -> tuple[str, str, str]:
+    hints = hints or {}
+    base_address = str(address or hints.get('address') or '').strip()
+    base_post_place = str(post_place or hints.get('post_place') or '').strip()
+    if base_address:
+        split_address, split_post_place = registry._split_address_post_place(base_address)
+        if split_address:
+            base_address = split_address
+        if split_post_place and not base_post_place:
+            base_post_place = split_post_place
+    combined = ', '.join(part for part in [base_address, base_post_place] if str(part or '').strip()).strip()
+    return base_address, base_post_place, combined
+
+
+def _merge_hummer_fields(person: dict[str, Any], hummer_person: dict[str, Any]) -> tuple[dict[str, Any], str]:
+    item = dict(person or {})
+    hummer_item = dict(hummer_person or {})
+    participant_no = hummer_item.get('participant_no') or hummer_item.get('hummer_participant_no') or ''
+    if participant_no and not item.get('hummer_participant_no'):
+        item['hummer_participant_no'] = participant_no
+    last_registered = hummer_item.get('last_registered_display') or hummer_item.get('last_registered_year') or hummer_item.get('registered_date_display') or ''
+    if last_registered:
+        item['hummer_last_registered'] = last_registered
+    if hummer_item.get('name') and not item.get('name'):
+        item['name'] = hummer_item.get('name')
+    if hummer_item.get('fisher_type') and not item.get('fisher_type'):
+        item['fisher_type'] = hummer_item.get('fisher_type')
+    if hummer_item.get('source_url') and not item.get('source_url'):
+        item['source_url'] = hummer_item.get('source_url')
+    return item, last_registered
+
+
+def _follow_up_hummer_lookup(person: dict[str, Any], initial_result: dict[str, Any], *, participant_lookup: str = '', live_hummer_error: str = '') -> tuple[dict[str, Any], list[dict[str, Any]], str]:
+    person_name = str((person or {}).get('name') or '').strip()
+    person_participant = str((person or {}).get('hummer_participant_no') or (person or {}).get('participant_no') or participant_lookup or '').strip()
+    if not person_name and not person_participant:
+        return initial_result or {'found': False, 'message': '', 'candidates': []}, [], live_hummer_error
+
+    result = dict(initial_result or {'found': False, 'message': '', 'candidates': []})
+    extra_candidates: list[dict[str, Any]] = []
+
+    if not result.get('found'):
+        follow_up_local = registry.lookup_hummer_participant(person_participant, person_name)
+        if follow_up_local.get('found') or follow_up_local.get('candidates'):
+            result = follow_up_local
+            extra_candidates.extend(follow_up_local.get('candidates') or [])
+
+    try:
+        follow_up_live = live_sources.lookup_hummer_participant_live(person_participant, person_name)
+    except Exception as exc:
+        if not live_hummer_error:
+            live_hummer_error = str(exc)
+        follow_up_live = {'found': False, 'message': f'Live hummeroppslag utilgjengelig: {exc}', 'candidates': []}
+    if follow_up_live.get('found') and not result.get('found'):
+        result = follow_up_live
+    extra_candidates.extend(follow_up_live.get('candidates') or [])
+    return result, extra_candidates, live_hummer_error
+
+
+def lookup_registry(*, phone: str = '', vessel_reg: str = '', radio_call_sign: str = '', name: str = '', address: str = '', post_place: str = '', tag_text: str = '', hummer_participant_no: str = '') -> dict[str, Any]:
     combined_tag_text = ' '.join([tag_text or '', radio_call_sign or '']).strip()
     hints = registry.extract_tag_hints(combined_tag_text)
 
@@ -68,21 +127,21 @@ def lookup_registry(*, phone: str = '', vessel_reg: str = '', radio_call_sign: s
     vessel_lookup = vessel_reg or hints.get('vessel_reg') or ''
     radio_lookup = radio_call_sign or hints.get('radio_call_sign') or ''
     name_lookup = name or hints.get('name') or ''
-    address_lookup = hints.get('address') or ''
+    address_lookup, post_place_lookup, combined_address_lookup = _resolve_lookup_address(address=address, post_place=post_place, hints=hints)
     participant_lookup = hummer_participant_no or hints.get('hummer_participant_no') or ''
 
     local_candidates = registry.search_people(
-        phone=phone,
-        vessel_reg=vessel_reg,
-        radio_call_sign=radio_call_sign,
-        name=name,
+        phone=phone_lookup,
+        vessel_reg=vessel_lookup,
+        radio_call_sign=radio_lookup,
+        name=name_lookup,
         tag_text=combined_tag_text,
-        hummer_participant_no=hummer_participant_no,
+        hummer_participant_no=participant_lookup,
     )
     case_candidates = db.lookup_people_from_cases(
         phone=phone_lookup,
         name=name_lookup,
-        address=address_lookup,
+        address=combined_address_lookup,
         vessel_reg=vessel_lookup,
         radio_call_sign=radio_lookup,
         hummer_participant_no=participant_lookup,
@@ -127,12 +186,12 @@ def lookup_registry(*, phone: str = '', vessel_reg: str = '', radio_call_sign: s
         candidates.extend(case_candidates)
     elif hummer_result and hummer_result.get('found'):
         hummer_person = dict(hummer_result.get('person') or {})
-        address = hummer_person.get('address') or address_lookup or ''
-        split_address, split_post = registry._split_address_post_place(address)
+        hummer_address_lookup = combined_address_lookup or address_lookup or ''
+        split_address, split_post = registry._split_address_post_place(hummer_address_lookup)
         person = {
             'name': hummer_person.get('name') or name_lookup or '',
-            'address': split_address or address,
-            'post_place': hummer_person.get('post_place') or split_post or hints.get('post_place') or '',
+            'address': split_address or hummer_address_lookup,
+            'post_place': hummer_person.get('post_place') or post_place_lookup or split_post or '',
             'phone': hummer_person.get('phone') or phone_lookup,
             'vessel_name': '',
             'vessel_reg': vessel_lookup,
@@ -148,9 +207,9 @@ def lookup_registry(*, phone: str = '', vessel_reg: str = '', radio_call_sign: s
         candidates.extend(local_candidates)
         candidates.extend(case_candidates)
     else:
-        if phone_lookup or name_lookup or address_lookup:
+        if phone_lookup or name_lookup or combined_address_lookup:
             try:
-                directory_result = live_sources.lookup_directory_candidates(phone=phone_lookup, name=name_lookup, address=address_lookup)
+                directory_result = live_sources.lookup_directory_candidates(phone=phone_lookup, name=name_lookup, address=combined_address_lookup)
             except Exception as exc:
                 directory_result = {'found': False, 'message': f'Katalogsøk utilgjengelig: {exc}', 'candidates': []}
         if directory_result and directory_result.get('found'):
@@ -181,20 +240,20 @@ def lookup_registry(*, phone: str = '', vessel_reg: str = '', radio_call_sign: s
             person,
             phone_lookup=phone_lookup,
             name_lookup=name_lookup,
-            address_lookup=address_lookup,
+            address_lookup=combined_address_lookup,
         )
+        if (person.get('name') or person.get('hummer_participant_no') or person.get('participant_no')) and not hummer_result.get('found'):
+            follow_up_result, follow_up_candidates, live_hummer_error = _follow_up_hummer_lookup(
+                person,
+                hummer_result,
+                participant_lookup=participant_lookup,
+                live_hummer_error=live_hummer_error,
+            )
+            if follow_up_result.get('found'):
+                hummer_result = follow_up_result
+            hummer_candidates.extend(follow_up_candidates)
         if hummer_result and hummer_result.get('found'):
-            hummer_person = hummer_result.get('person') or {}
-            if not person.get('hummer_participant_no'):
-                person['hummer_participant_no'] = hummer_person.get('participant_no')
-            if hummer_person.get('last_registered_display'):
-                person['hummer_last_registered'] = hummer_person.get('last_registered_display')
-            elif hummer_person.get('last_registered_year'):
-                person['hummer_last_registered'] = str(hummer_person.get('last_registered_year'))
-            if hummer_person.get('name') and not person.get('name'):
-                person['name'] = hummer_person.get('name')
-            if hummer_person.get('fisher_type') and not person.get('fisher_type'):
-                person['fisher_type'] = hummer_person.get('fisher_type')
+            person, _ = _merge_hummer_fields(person, hummer_result.get('person') or {})
         candidates.extend(directory_result.get('candidates') or [])
         candidates.extend(hummer_candidates)
         return {

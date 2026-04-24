@@ -4262,10 +4262,12 @@ function renderHummerStatus(result) {
         vessel_reg: (vesselReg.value || inferred.vessel_reg || ''),
         radio_call_sign: (radioCallSign.value || inferred.radio_call_sign || ''),
         name: lookupName.value || suspectName.value || suspectNameCommercial.value || '',
+        address: (!isCommercial ? (suspectAddress.value || '') : ''),
+        post_place: (!isCommercial ? ((suspectPostPlace ? suspectPostPlace.value : '') || '') : ''),
         tag_text: lookupText.value || '',
         hummer_participant_no: (!isCommercial ? (hummerParticipantNo.value || inferred.hummer_participant_no || '') : '')
       });
-      if (registryResult) registryResult.innerHTML = options.automatic === false ? 'Søker i register ...' : 'Søker automatisk i hummerregister og offentlige kataloger ...';
+      if (registryResult) registryResult.innerHTML = options.automatic === false ? 'Søker i hummerregister og 1881 / Gulesider ...' : 'Søker automatisk i hummerregister og offentlige kataloger (1881 / Gulesider) ...';
       updateExternalSearchLinks();
       return fetch(root.dataset.registryUrl + '?' + params.toString())
         .then(function (r) { return r.json(); })
@@ -5485,10 +5487,20 @@ function renderHummerStatus(result) {
     if (sourcesState.length) sourceList.innerHTML = sourcesState.map(sourceChip).join('');
     if (controlType.value && (species.value || fisheryType.value)) loadRules();
     syncStepNavigation();
-    try {
-      var storedStep = Number(sessionStorage.getItem(stepStorageKey) || '1');
-      if (storedStep >= 1 && storedStep <= panes.length) showStep(storedStep, { scroll: false });
-    } catch (e) {}
+    var forcedInitialStep = Number(root.dataset.startStep || '0');
+    var shouldForceInitialStep = root.dataset.forceStartStep === '1' && forcedInitialStep >= 1 && forcedInitialStep <= panes.length;
+    if (shouldForceInitialStep) {
+      try { sessionStorage.removeItem(stepStorageKey); } catch (e) {}
+      showStep(forcedInitialStep, { scroll: false });
+    } else {
+      try {
+        var storedStep = Number(sessionStorage.getItem(stepStorageKey) || '1');
+        if (storedStep >= 1 && storedStep <= panes.length) showStep(storedStep, { scroll: false });
+        else if (forcedInitialStep >= 1 && forcedInitialStep <= panes.length) showStep(forcedInitialStep, { scroll: false });
+      } catch (e) {
+        if (forcedInitialStep >= 1 && forcedInitialStep <= panes.length) showStep(forcedInitialStep, { scroll: false });
+      }
+    }
     requestLocalPersistence();
     ensureInitialOfflineDraft().then(function () {
       return restoreLocalCaseDraft();

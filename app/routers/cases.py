@@ -112,7 +112,7 @@ async def new_case(request: Request):
     enforce_csrf(request, form)
     case_id = db.create_case(created_by=user['id'], investigator_name=user['full_name'], complainant_name=user.get('last_complainant_name'), witness_name=user.get('last_witness_name'))
     db.record_audit(user['id'], 'create_case', 'case', case_id, {})
-    return RedirectResponse(f'/cases/{case_id}/edit', status_code=HTTP_303_SEE_OTHER)
+    return RedirectResponse(f'/cases/{case_id}/edit?new_case=1&step=1', status_code=HTTP_303_SEE_OTHER)
 
 
 
