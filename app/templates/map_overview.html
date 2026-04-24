@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% block title %}Kart · {{ brand_org_name }}{% endblock %}
+{% block content %}
+<section class="page-header page-header-soft sea-hero">
+  <div>
+    <h1>Kart og Område</h1>
+    <p class="muted">Kartbildet er gjort enklere og mer mobilvennlig, med tydeligere områdeliste, horisontale filtervalg og større kartflate. Trykk på et område for informasjon, regelgrunnlag og datakilde.</p>
+  </div>
+  <div class="actions-row wrap">
+    <button class="btn btn-primary" type="button" id="btn-overview-location">Bruk min posisjon</button>
+    <button class="btn btn-secondary" type="button" id="btn-overview-national">Vis hele landet</button>
+    <button class="btn btn-secondary" type="button" id="btn-overview-download-offline">Last ned offline-kart</button>
+    <a class="btn btn-secondary" href="{{ portal_map_url }}" target="_blank" rel="noopener">Åpne original kartportal</a>
+  </div>
+</section>
+
+<section class="stack gap-m">
+  <article class="card map-main-card">
+    <div class="map-filter-row" id="overview-layer-filters">
+      <label class="check-chip"><input type="checkbox" data-layer-filter="fredningsområde" checked /> Fredningsområder</label>
+      <label class="check-chip"><input type="checkbox" data-layer-filter="stengt område" checked /> Stengte felt / forbud</label>
+      <label class="check-chip"><input type="checkbox" data-layer-filter="maksimalmål område" checked /> Maksimalmål</label>
+      <label class="check-chip"><input type="checkbox" data-layer-filter="regulert område" checked /> Andre reguleringer</label>
+      <label class="check-chip"><input type="checkbox" data-layer-filter="fiskeriområde" checked /> Fiskeriområder / fiskeplasser</label>
+    </div>
+    <div class="map-symbol-legend">
+      <span class="map-symbol-chip"><span class="map-symbol user"></span> GPS-posisjon</span>
+      <span class="map-symbol-chip"><span class="map-symbol case"></span> Valgt kontrollposisjon</span>
+    </div>
+    <div class="callout margin-top-s">Kartet viser nå bare de lagtypene du har valgt i filtrene over. Trykk direkte i kartet på et område for å få opp informasjon og datakilde.</div>
+    <div class="map-relevant-panel margin-top-s">
+      <div class="map-relevant-head">
+        <strong>Temalag som vises nå</strong>
+        <span class="muted small">Oppdateres når du endrer filter eller bruker posisjon.</span>
+      </div>
+      <div class="map-relevant-list" id="overview-relevant-areas-list"><div class="muted small">Fredningsområder, stengte felt og andre kartlag listes her når kartet er klart.</div></div>
+    </div>
+    <div class="offline-packages-panel margin-top-s">
+      <div class="offline-packages-head">
+        <div>
+          <strong>Offline-kartpakker</strong>
+          <div class="muted small">Lagrede pakker kan brukes videre i appen også når dekningen er dårlig.</div>
+        </div>
+        <button class="btn btn-secondary btn-small" type="button" id="btn-overview-refresh-packages">Oppdater lagrede pakker</button>
+      </div>
+      <div class="callout margin-top-s" id="overview-offline-packages-summary">Ingen offline-kartpakker er lagret på denne enheten ennå.</div>
+      <div class="offline-packages-list" id="overview-offline-packages-list"></div>
+    </div>
+    <div id="overview-map" class="leaflet-map large-map" data-portal-catalog='{{ portal_layers|tojson }}' data-portal-url="{{ portal_map_url }}" data-portal-mapserver="{{ portal_mapserver_url }}" data-portal-vern-mapserver="{{ portal_vern_mapserver_url }}"></div>
+  </article>
+  <article class="card">
+    <h2>Områdestatus</h2>
+    <div id="overview-map-status" class="callout">Kartet viser fiskerirelaterte temalag direkte i kartet. Lagpanelet i selve kartet er skjult på mobil, så bruk filtrene over kartet og listen over aktuelle områder for å styre hva som vises. Bruk «Bruk min posisjon» når du vil kontrollere et konkret punkt mot områdene.</div>
+  </article>
+</section>
+{% endblock %}
+
+{% block page_scripts %}<script src="/static/js/map-overview.js"></script>{% endblock %}
