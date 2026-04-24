@@ -21,6 +21,13 @@ if register_heif_opener is not None:  # pragma: no cover - depends on optional p
     except Exception:
         pass
 
+try:  # pragma: no cover - optional runtime enhancement for deskewing OCR images
+    import cv2
+    import numpy as np
+except Exception:  # pragma: no cover
+    cv2 = None
+    np = None
+
 TEXT_SCORE_RE = re.compile(r'[A-Za-zÆØÅæøå0-9]')
 PHONE_HINT_RE = re.compile(r'(?:\+?47\s*)?\d[\d\s]{6,}')
 POST_HINT_RE = re.compile(r'\b\d{4}\s+[A-ZÆØÅa-zæøå][A-Za-zÆØÅæøå\- ]{2,30}\b')
@@ -112,6 +119,94 @@ def _load_image(content: bytes) -> Image.Image:
         scale = min(min_side / max(longest, 1), 2.0)
         image = image.resize((max(1, int(round(width * scale))), max(1, int(round(height * scale)))), Image.Resampling.LANCZOS)
     return image
+
+
+def _crop_to_dark_content(image: Image.Image, *, threshold: int = 220, margin: int = 40) -> Image.Image:
+    if cv2 is None or np is None:
+        return image
+    try:
+        arr = np.array(image.convert('RGB'))
+        gray = cv2.cvtColor(arr, cv2.COLOR_RGB2GRAY)
+        mask = gray < threshold
+        if not bool(mask.any()):
+            return image
+        ys, xs = np.where(mask)
+        left = max(0, int(xs.min()) - margin)
+        top = max(0, int(ys.min()) - margin)
+        right = min(arr.shape[1], int(xs.max()) + margin + 1)
+        bottom = min(arr.shape[0], int(ys.max()) + margin + 1)
+        if right - left < 140 or bottom - top < 50:
+            return image
+        return image.crop((left, top, right, bottom))
+    except Exception:
+        return image
+
+
+def _estimate_text_angle(image: Image.Image) -> float | None:
+    if cv2 is None or np is None:
+        return None
+    try:
+        work = image.convert('RGB').copy()
+        max_side = 1800
+        if max(work.size) > max_side:
+            work.thumbnail((max_side, max_side), Image.Resampling.LANCZOS)
+        arr = np.array(work)
+        gray = cv2.cvtColor(arr, cv2.COLOR_RGB2GRAY)
+        gray = cv2.GaussianBlur(gray, (3, 3), 0)
+        _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+        if cv2.countNonZero(thresh) < 180:
+            thresh = ((gray < 220).astype('uint8')) * 255
+        kernel = np.ones((3, 3), dtype='uint8')
+        thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=1)
+        coords = np.column_stack(np.where(thresh > 0))
+        if coords.size < 180:
+            return None
+        rect = cv2.minAreaRect(coords.astype('float32'))
+        angle = float(rect[-1])
+        width, height = rect[1]
+        if width < height:
+            angle = 90.0 + angle
+        if angle > 45.0:
+            angle -= 90.0
+        if angle < -45.0:
+            angle += 90.0
+        if abs(angle) < 1.2 or abs(angle) > 35.0:
+            return None
+        return angle
+    except Exception:
+        return None
+
+
+def _deskew_full_image_variants(image: Image.Image) -> list[tuple[str, Image.Image, str]]:
+    angle = _estimate_text_angle(image)
+    if angle is None:
+        return []
+    variants: list[tuple[str, Image.Image, str]] = []
+    seen_angles: set[float] = set()
+    for candidate in [angle, angle + 1.2, angle - 1.2]:
+        rounded = round(candidate, 1)
+        if rounded in seen_angles or abs(candidate) < 1.0 or abs(candidate) > 35.0:
+            continue
+        seen_angles.add(rounded)
+        try:
+            rotated = image.rotate(-candidate, expand=True, fillcolor='#ffffff')
+            margin = max(28, int(round(max(rotated.size) * 0.018)))
+            cropped = _crop_to_dark_content(rotated, threshold=220, margin=margin)
+            if cropped.height > cropped.width * 1.7:
+                cropped = cropped.rotate(90, expand=True, fillcolor='#ffffff')
+            padded = _pad_label_crop(cropped, pct=0.02)
+            variants.extend(_prepare_variants(padded, label_mode=True)[:4])
+        except Exception:
+            continue
+    deduped: list[tuple[str, Image.Image, str]] = []
+    seen: set[tuple[str, tuple[int, int], str]] = set()
+    for label, variant, config in variants:
+        key = (label, variant.size, config)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append((label, variant, config))
+    return deduped[:8]
 
 
 def _pad_label_crop(image: Image.Image, *, pct: float = 0.03) -> Image.Image:
@@ -268,11 +363,13 @@ def _clean_ocr_text(text: str) -> str:
 
 def _preferred_variants(image: Image.Image, label_crops: list[Image.Image]) -> list[tuple[str, Image.Image, str]]:
     variants: list[tuple[str, Image.Image, str]] = []
+    deskewed = _deskew_full_image_variants(image)
+    variants.extend(deskewed[:6])
     full_variants = _prepare_variants(image, label_mode=False)
-    variants.extend(full_variants[:6])
+    variants.extend(full_variants[:4 if not deskewed else 3])
     for crop in label_crops[:2]:
-        variants.extend(_prepare_variants(crop, label_mode=True)[:5])
-    variants.extend(full_variants[6:8])
+        variants.extend(_prepare_variants(crop, label_mode=True)[:4])
+    variants.extend(full_variants[4:6])
     if len(label_crops) > 2:
         variants.extend(_prepare_variants(label_crops[2], label_mode=True)[:3])
     deduped: list[tuple[str, Image.Image, str]] = []
@@ -283,7 +380,7 @@ def _preferred_variants(image: Image.Image, label_crops: list[Image.Image]) -> l
             continue
         seen.add(key)
         deduped.append((label, variant, config))
-    return deduped[:18]
+    return deduped[:16]
 
 
 def _field_value_score(field: str, value: str) -> int:
@@ -357,11 +454,12 @@ def extract_text_from_image(content: bytes, *, filename: str = '', timeout_secon
 
     attempts: list[dict[str, Any]] = []
     label_crops = _candidate_label_crops(image)
+    attempt_timeout = max(8, min(int(timeout_seconds or 0) or 18, 18))
     try:
         variants = _preferred_variants(image, label_crops)
         for label, variant, config in variants:
             try:
-                text = pytesseract.image_to_string(variant, lang='nor+eng', config=config, timeout=timeout_seconds)
+                text = pytesseract.image_to_string(variant, lang='nor+eng', config=config, timeout=attempt_timeout)
             except TesseractError:
                 text = ''
             clean_text = _clean_ocr_text(text)
@@ -381,6 +479,10 @@ def extract_text_from_image(content: bytes, *, filename: str = '', timeout_secon
                 'hints': hints,
                 '_score': score,
             })
+            if hints.get('name') and (hints.get('address') or hints.get('post_place')) and (hints.get('phone') or hints.get('hummer_participant_no') or hints.get('vessel_reg')) and score >= 215:
+                break
+            if score >= 245 and sum(1 for value in hints.values() if str(value or '').strip()) >= 4:
+                break
     except TesseractNotFoundError as exc:  # pragma: no cover - runtime specific
         raise RuntimeError('OCR-motor er ikke installert på serveren.') from exc
 

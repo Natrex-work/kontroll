@@ -4,6 +4,7 @@ import html
 import io
 import json
 import math
+import os
 import re
 from datetime import datetime
 from pathlib import Path
@@ -350,10 +351,16 @@ def _generate_tile_overview_map_image(case_row: Dict[str, Any], output_dir: Path
 
 
 def _generate_overview_map_image(case_row: Dict[str, Any], output_dir: Path, radius_km: float = 50.0) -> dict[str, Any] | None:
-    tile_map = _generate_tile_overview_map_image(case_row, output_dir, radius_km=radius_km)
-    if tile_map is not None:
-        return tile_map
-    return _generate_vector_overview_map_image(case_row, output_dir, radius_km=radius_km)
+    use_tile_first = str(os.getenv('KV_USE_TILE_OVERVIEW_MAP', '0') or '0').strip().lower() in {'1', 'true', 'yes', 'on'}
+    if use_tile_first:
+        tile_map = _generate_tile_overview_map_image(case_row, output_dir, radius_km=radius_km)
+        if tile_map is not None:
+            return tile_map
+        return _generate_vector_overview_map_image(case_row, output_dir, radius_km=radius_km)
+    vector_map = _generate_vector_overview_map_image(case_row, output_dir, radius_km=radius_km)
+    if vector_map is not None:
+        return vector_map
+    return _generate_tile_overview_map_image(case_row, output_dir, radius_km=radius_km)
 
 
 def _styles():
@@ -1453,7 +1460,10 @@ def build_case_packet(case_row: Dict[str, Any], evidence_rows: Iterable[Dict[str
     all_evidence_rows = list(evidence_rows)
     audio_rows = [dict(item) for item in all_evidence_rows if str(item.get('mime_type') or '').startswith('audio/')]
     image_rows = [dict(item) for item in all_evidence_rows if not str(item.get('mime_type') or '').startswith('audio/')]
-    overview_item = _generate_overview_map_image(case_row, GENERATED_DIR)
+    try:
+        overview_item = _generate_overview_map_image(case_row, GENERATED_DIR)
+    except Exception:
+        overview_item = None
     if overview_item:
         image_rows = [overview_item] + image_rows
     summary = build_summary(case_row, findings)

@@ -109,6 +109,7 @@ def _normalize_address_line(line: str) -> str:
         return candidate
     if VESSEL_RE.fullmatch(upper_compact) or FISHERIMERKE_RE.fullmatch(upper_compact) or HUMMER_STRICT_RE.fullmatch(upper_compact):
         return candidate
+    candidate = re.sub(r'^([A-ZÆØÅ])\s+([a-zæøå])', lambda m: m.group(1) + m.group(2), candidate)
     match = COMPACT_STREET_RE.match(candidate)
     if match and not POST_PLACE_ONLY_RE.match(candidate):
         street = ' '.join(match.group(1).split())
@@ -133,8 +134,15 @@ def _normalize_hummer_no(value: str) -> str:
     raw = str(value or '').strip().upper()
     if not raw:
         return ''
-    raw = raw.replace('–', '-').replace('—', '-')
-    compact = raw.replace(' ', '').replace('-', '')
+    raw = raw.replace('–', '-').replace('—', '-').replace('_', '-')
+    raw = re.sub(r'\s+', '', raw)
+    match = re.fullmatch(r'LOB-?HUM-?(\d{3,4})', raw)
+    if match:
+        return f'LOB-HUM-{match.group(1)}'
+    match = re.fullmatch(r'LBHN-?(\d{2})-?(\d{3,4})', raw)
+    if match:
+        return f'LBHN-{match.group(1)}-{match.group(2)}'
+    compact = raw.replace('-', '')
     if compact.isdigit():
         if len(compact) == 7 and compact.startswith('20'):
             compact = f'H{compact}'
@@ -148,10 +156,10 @@ def _normalize_hummer_no(value: str) -> str:
     match = re.fullmatch(r'([A-ZÆØÅ]{2,5})([A-ZÆØÅ]{2,5})(\d{3,4})', compact)
     if match:
         return f'{match.group(1)}-{match.group(2)}-{match.group(3)}'
-    match = re.fullmatch(r'([A-ZÆØÅ]{2,5})-?([A-ZÆØÅ]{2,5})-?(\d{3,4})', raw.replace(' ', ''))
+    match = re.fullmatch(r'([A-ZÆØÅ]{2,5})-?([A-ZÆØÅ]{2,5})-?(\d{3,4})', raw)
     if match:
         return f'{match.group(1)}-{match.group(2)}-{match.group(3)}'
-    match = re.fullmatch(r'([A-ZÆØÅ]{3,5})-?(\d{2})-?(\d{3,4})', raw.replace(' ', ''))
+    match = re.fullmatch(r'([A-ZÆØÅ]{3,5})-?(\d{2})-?(\d{3,4})', raw)
     if match:
         return f'{match.group(1)}-{match.group(2)}-{match.group(3)}'
     return ''

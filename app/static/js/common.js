@@ -424,15 +424,24 @@
     });
   }
 
-  function visibleLayersFromPrefs(layers, prefs) {
+  function visibleLayersFromPrefs(layers, prefs, markerState) {
     var hidden = {};
     var initialized = !!(prefs && prefs.initialized);
+    var presetVisible = {};
     (prefs && Array.isArray(prefs.hidden_ids) ? prefs.hidden_ids : []).forEach(function (value) {
       hidden[String(value)] = true;
     });
+    if (!initialized && markerState && Array.isArray(markerState.defaultVisibleLayerIds) && markerState.defaultVisibleLayerIds.length) {
+      markerState.defaultVisibleLayerIds.forEach(function (value) {
+        var numericId = Number(value);
+        if (isFinite(numericId)) presetVisible[String(numericId)] = true;
+      });
+    }
+    var usePreset = !initialized && Object.keys(presetVisible).length > 0;
     return (layers || []).filter(function (layer) {
       var id = String(layer && layer.id);
       if (hidden[id]) return false;
+      if (usePreset) return !!presetVisible[id];
       if (!initialized && layer && layer.default_visible === false) return false;
       return true;
     });
@@ -848,7 +857,7 @@
     state.layerPanelStorageKey = layerPanelStorageKey(el, state.markerState || {});
     state.layerPanelPrefs = loadLayerPanelPrefs(state.layerPanelStorageKey);
     state.currentLayers = Array.isArray(layers) ? layers.slice() : [];
-    state.visibleLayers = visibleLayersFromPrefs(state.currentLayers, state.layerPanelPrefs);
+    state.visibleLayers = visibleLayersFromPrefs(state.currentLayers, state.layerPanelPrefs, state.markerState || {});
     state.refreshLayers = function () { createPortalMap(el, state.currentLayers, state.markerState || {}); };
     var map = state.map;
     var ms = state.markerState || {};

@@ -3383,6 +3383,18 @@
       return !!(isHeic || (isAppleMobile && isSafari) || isLarge);
     }
 
+    function shouldAvoidAutomaticBrowserOcr(file) {
+      var ua = navigator.userAgent || '';
+      var touchPoints = Number(navigator.maxTouchPoints || 0);
+      var isAppleMobile = /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/i.test(ua) && touchPoints > 1);
+      var isSafari = /^((?!chrome|android).)*safari/i.test(ua);
+      var isSmallScreen = false;
+      try {
+        isSmallScreen = !!(window.matchMedia && window.matchMedia('(max-width: 960px)').matches);
+      } catch (e) {}
+      return !!(isAppleMobile || (isSafari && isSmallScreen));
+    }
+
     function uploadOcrSourceImage(file, recognizedText) {
       if (!file || !root || !root.dataset.caseId) return Promise.resolve(null);
       var signature = fileSignature(file);
@@ -3534,10 +3546,15 @@
       registryResult.innerHTML = 'Forbereder bildet lokalt og starter tekstlesing ...';
       var browserOffline = typeof navigator !== 'undefined' && navigator.onLine === false;
       var useServerFirst = !browserOffline || prefersServerOcrFirst(file);
+      var avoidBrowserFallback = shouldAvoidAutomaticBrowserOcr(file);
       var ocrPromise = useServerFirst
         ? (function () {
             if (registryResult) registryResult.innerHTML = 'Sender originalbildet til server-OCR (full analyse) ...';
-            return runServerOcr(file).catch(function () {
+            return runServerOcr(file).catch(function (error) {
+              if (avoidBrowserFallback) {
+                if (registryResult) registryResult.innerHTML = 'Server-OCR fant ikke tydelig tekst. Lokal OCR i mobilnettleseren hoppes over for å unngå heng. Prøv et tydeligere bilde eller last opp på nytt.';
+                throw error;
+              }
               if (registryResult) registryResult.innerHTML = 'Server-OCR fant ikke tydelig tekst. Prøver lokal OCR i nettleseren ...';
               return runBrowserOcr(file);
             });
@@ -3800,19 +3817,21 @@
       if (options.recenterTo) mapState.recenterTo = options.recenterTo;
       mapState.showDeviceMarker = mapState.manualPosition !== true;
       var zoneLayerIds = zoneMatchedLayerIds(latestZoneResult);
-      var displayLayers = mergeRelevantMapLayers(filteredMapCatalog(), zoneLayerIds);
-      var allLayerIds = mergeRelevantMapLayers(mapCatalog || [], zoneLayerIds).map(function (layer) { return Number(layer && layer.id); }).filter(function (value) { return isFinite(value); });
+      var defaultVisibleIds = mergeRelevantMapLayers(filteredMapCatalog(), zoneLayerIds).map(function (layer) { return Number(layer && layer.id); }).filter(function (value) { return isFinite(value); });
+      var displayLayers = mergeRelevantMapLayers(mapCatalog || [], zoneLayerIds);
+      var allLayerIds = displayLayers.map(function (layer) { return Number(layer && layer.id); }).filter(function (value) { return isFinite(value); });
       var fisheryPortalService = root.dataset.portalMapserver || (caseMap && caseMap.dataset ? (caseMap.dataset.portalMapserver || '') : '') || 'https://portal.fiskeridir.no/server/rest/services/fiskeridirWMS_fiskeri/MapServer';
       var vernPortalService = root.dataset.portalVernMapserver || (caseMap && caseMap.dataset ? (caseMap.dataset.portalVernMapserver || '') : '') || 'https://portal.fiskeridir.no/server/rest/services/Fiskeridir_vern/MapServer';
       mapState.fetchFeatureDetails = true;
-      mapState.featureDetailLayerIds = visibleFeatureDetailLayerIds(36, zoneLayerIds);
+      mapState.featureDetailLayerIds = [];
+      mapState.defaultVisibleLayerIds = defaultVisibleIds;
       mapState.highlightLayerIds = zoneLayerIds.slice();
       mapState.detailFetchThresholdZoom = 5;
       mapState.enableAreaPopup = true;
       mapState.showLegend = false;
-      mapState.showLayerPanel = false;
+      mapState.showLayerPanel = true;
       mapState.layerPanelDefaultOpen = false;
-      mapState.layerPanelKey = 'case-map-v73';
+      mapState.layerPanelKey = 'case-map-v82';
       mapState.rasterLayerIds = allLayerIds;
       mapState.identifyLayerIds = allLayerIds;
       mapState.mapServerUrl = fisheryPortalService;
