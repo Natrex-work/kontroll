@@ -6,7 +6,7 @@
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('/static/sw.js?v=v91').catch(function () {});
+      navigator.serviceWorker.register('/static/sw.js?v=v92').catch(function () {});
     });
   }
 
@@ -1177,7 +1177,7 @@
     var lawBrowser = parseJson(root.dataset.lawBrowser, []);
     var mapCatalog = parseJson(root.dataset.mapCatalog, []);
     var mapFilterWrap = document.getElementById('map-layer-filters');
-    var mapFilterStorageKey = 'kv-map-layer-filter-v91:' + root.dataset.caseId;
+    var mapFilterStorageKey = 'kv-map-layer-filter-v92:' + root.dataset.caseId;
     var activeLayerStatuses = { 'fredningsområde': true, 'stengt område': true, 'maksimalmål område': true, 'regulert område': true, 'fiskeriområde': true };
     try {
       localStorage.removeItem('kv-map-layer-filter:' + root.dataset.caseId);
@@ -2056,6 +2056,11 @@
       autoRecenterOnce: !hasInitialCoords && storedPositionMode !== 'manual',
       lastProgrammaticRecenterTs: 0
     };
+    var zoneCheckController = null;
+    var zoneCheckSequence = 0;
+    var lastZoneCheckKey = '';
+    var lastZoneCheckAt = 0;
+    var lastZoneCheckResult = null;
     if (mapState.manualPosition && !hasInitialCoords) {
       mapState.manualPosition = false;
       mapState.followAutoPosition = true;
@@ -3604,8 +3609,8 @@
       return loadImageForOcr(file).then(function (image) {
         var uploadMobile = mode === 'upload-mobile';
         var serverHighRes = mode === 'server-highres';
-        var maxSide = serverHighRes ? 2200 : (uploadMobile ? 1024 : (mode === 'document' ? 1280 : 1440));
-        var quality = serverHighRes ? 0.92 : (uploadMobile ? 0.74 : (mode === 'document' ? 0.82 : 0.86));
+        var maxSide = serverHighRes ? 1800 : (uploadMobile ? 1280 : (mode === 'document' ? 1400 : 1440));
+        var quality = serverHighRes ? 0.88 : (uploadMobile ? 0.78 : (mode === 'document' ? 0.84 : 0.86));
         var longest = Math.max(image.naturalWidth || image.width || 1, image.naturalHeight || image.height || 1);
         var scale = longest > maxSide ? maxSide / longest : 1;
         var width = Math.max(1, Math.round((image.naturalWidth || image.width || 1) * scale));
@@ -3840,10 +3845,14 @@
           seen[key] = true;
           return sendAttempt(candidate.file, candidate.label).catch(function (err) {
             var msg = String(err && err.message || err || '').toLowerCase();
-            if (msg.indexOf('for lang tid') !== -1 || msg.indexOf('for stort') !== -1) return Promise.reject(err);
+            if (msg.indexOf('for lang tid') !== -1 || msg.indexOf('for stort') !== -1) {
+              if (err && typeof err === 'object') err._stopOcrRetry = true;
+              return Promise.reject(err);
+            }
             return nextAttempt(index + 1, err);
           });
         }).catch(function (err) {
+          if (err && err._stopOcrRetry) return Promise.reject(err);
           return nextAttempt(index + 1, err || lastError);
         });
       }
@@ -4198,11 +4207,11 @@
       mapState.recenterZoom = options.recenterZoom || null;
       if (mapState.recenterTo) mapState.lastProgrammaticRecenterTs = Date.now();
       mapState.showDeviceMarker = mapState.manualPosition !== true;
-      var maxCaseMapLayers = 8;
+      var maxCaseMapLayers = 6;
       var zoneLayerIds = zoneMatchedLayerIds(latestZoneResult);
       var displayLayers = mergeRelevantMapLayers(filteredMapCatalog(), zoneLayerIds).slice(0, maxCaseMapLayers);
       var defaultVisibleIds = displayLayers.map(function (layer) { return Number(layer && layer.id); }).filter(function (value) { return isFinite(value); });
-      var featureDetailIds = visibleFeatureDetailLayerIds(6, zoneLayerIds);
+      var featureDetailIds = visibleFeatureDetailLayerIds(4, zoneLayerIds);
       var allLayerIds = displayLayers.map(function (layer) { return Number(layer && layer.id); }).filter(function (value) { return isFinite(value); });
       var fisheryPortalService = root.dataset.portalMapserver || (caseMap && caseMap.dataset ? (caseMap.dataset.portalMapserver || '') : '') || 'https://portal.fiskeridir.no/server/rest/services/fiskeridirWMS_fiskeri/MapServer';
       var vernPortalService = root.dataset.portalVernMapserver || (caseMap && caseMap.dataset ? (caseMap.dataset.portalVernMapserver || '') : '') || 'https://portal.fiskeridir.no/server/rest/services/Fiskeridir_vern/MapServer';
@@ -4215,7 +4224,7 @@
       mapState.showLegend = false;
       mapState.showLayerPanel = !!mapLayerPanelHost;
       mapState.layerPanelDefaultOpen = false;
-      mapState.layerPanelKey = 'case-map-v91';
+      mapState.layerPanelKey = 'case-map-v92';
       mapState.layerPanelTargetSelector = mapLayerPanelHost ? '#case-map-layer-panel-host' : '';
       mapState.rasterLayerIds = allLayerIds;
       mapState.identifyLayerIds = allLayerIds;
@@ -4223,7 +4232,7 @@
       mapState.portalFisheryService = fisheryPortalService;
       mapState.portalVernService = vernPortalService;
       mapState.rasterServicesAuto = true;
-      mapState.rasterChunkSize = 4;
+      mapState.rasterChunkSize = 8;
       mapState.rasterOpacity = 0.9;
       mapState.rasterServices = null;
       createPortalMap(caseMap, displayLayers, mapState).then(function () {
@@ -4233,7 +4242,7 @@
           mapState.autoRecenterOnce = false;
         }
         clearTimeout(mapState._offlineWarmTimer);
-        // v91: do not auto-download offline map packages on every position/layer update.
+        // v92: do not auto-download offline map packages on every position/layer update.
         // The user can still press the offline download button explicitly.
         var offlineWarmKey = currentOfflineWarmKey();
         mapState._lastOfflineWarmKey = offlineWarmKey || mapState._lastOfflineWarmKey;
@@ -4244,12 +4253,69 @@
       syncMarkerPositionInputs();
     }
 
-    function checkZone() {
+    function currentZoneRequestKey() {
+      var latKey = Number(latitude.value || 0).toFixed(4);
+      var lngKey = Number(longitude.value || 0).toFixed(4);
+      return [
+        latKey,
+        lngKey,
+        String(species.value || fisheryType.value || '').trim().toLowerCase(),
+        String(gearType.value || '').trim().toLowerCase(),
+        String(controlType.value || '').trim().toLowerCase()
+      ].join('|');
+    }
+
+    function applyZoneCheckResult(result, options) {
+      options = options || {};
+      result = result || {};
+      latestZoneResult = result || null;
+      areaStatus.value = result.match ? (result.status || 'regulert område') : 'ingen treff';
+      areaName.value = result.match ? (result.name || '') : '';
+      if (result.location_name) locationName.value = result.location_name;
+      else if (result.nearest_place) locationName.value = result.nearest_place;
+      if (zoneResult) zoneResult.innerHTML = zoneResultHtml(result);
+      updateAreaStatusDetail(result);
+      syncManualPositionNotice();
+      findingsState = findingsState.filter(function (row) {
+        return ['hummer_fredningsomrade_redskap', 'stengt_omrade_status', 'fredningsomrade_status', 'maksimalmal_omrade', 'regulert_omrade'].indexOf(row.key) === -1;
+      });
+      if (result.match && result.recommended_violation && result.recommended_violation.item) {
+        var areaItem = result.recommended_violation.item;
+        var existing = findingsState.filter(function (row) { return row.key === areaItem.key; })[0];
+        if (!existing) {
+          findingsState.push(areaItem);
+        } else {
+          existing.status = areaItem.status || existing.status;
+          if (areaItem.notes) existing.notes = areaItem.notes;
+          if (areaItem.law_text) existing.law_text = areaItem.law_text;
+          if (areaItem.summary_text) existing.summary_text = areaItem.summary_text;
+        }
+      }
+      renderFindings();
+      if (result.match && result.hits && result.hits.length) {
+        mergeSources(result.hits.map(function (hit) { return { name: hit.source || 'Karttreff', ref: hit.name || hit.layer || 'Områdetreff', url: hit.url || '' }; }));
+      }
+      renderRelevantAreaPanel(result);
+      if (!options.skipMapUpdate) updateCaseMap();
+      if (!options.skipSupplementaryLoads) {
+        loadGearSummary();
+        if (controlType.value && (species.value || fisheryType.value)) loadRules();
+      }
+      return result;
+    }
+
+    function checkZone(options) {
+      options = options || {};
       if (!latitude.value || !longitude.value) {
         if (zoneResult) zoneResult.innerHTML = 'Legg inn posisjon først.';
         updateAreaStatusDetail(null);
         renderRelevantAreaPanel(null);
-        return;
+        return Promise.resolve(null);
+      }
+      var requestKey = currentZoneRequestKey();
+      var now = Date.now();
+      if (!options.force && lastZoneCheckResult && lastZoneCheckKey === requestKey && (now - lastZoneCheckAt) < 12000) {
+        return Promise.resolve(applyZoneCheckResult(lastZoneCheckResult, { skipMapUpdate: true, skipSupplementaryLoads: true }));
       }
       var params = new URLSearchParams({
         lat: latitude.value,
@@ -4258,49 +4324,35 @@
         gear_type: gearType.value || '',
         control_type: controlType.value || ''
       });
+      if (zoneCheckController && typeof zoneCheckController.abort === 'function') {
+        try { zoneCheckController.abort(); } catch (e) {}
+      }
+      zoneCheckController = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+      var sequence = ++zoneCheckSequence;
       if (zoneResult) zoneResult.innerHTML = 'Sjekker områdestatus ...';
-      fetch(root.dataset.zonesUrl + '?' + params.toString())
-        .then(function (r) { return r.json(); })
-        .then(function (result) {
-          latestZoneResult = result || null;
-          areaStatus.value = result.match ? (result.status || 'regulert område') : 'ingen treff';
-          areaName.value = result.match ? (result.name || '') : '';
-          if (result.location_name) locationName.value = result.location_name;
-          else if (result.nearest_place) locationName.value = result.nearest_place;
-          if (zoneResult) zoneResult.innerHTML = zoneResultHtml(result);
-          updateAreaStatusDetail(result);
-          syncManualPositionNotice();
-          findingsState = findingsState.filter(function (row) {
-            return ['hummer_fredningsomrade_redskap', 'stengt_omrade_status', 'fredningsomrade_status', 'maksimalmal_omrade', 'regulert_omrade'].indexOf(row.key) === -1;
-          });
-          if (result.match && result.recommended_violation && result.recommended_violation.item) {
-            var areaItem = result.recommended_violation.item;
-            var existing = findingsState.filter(function (row) { return row.key === areaItem.key; })[0];
-            if (!existing) {
-              findingsState.push(areaItem);
-            } else {
-              existing.status = areaItem.status || existing.status;
-              if (areaItem.notes) existing.notes = areaItem.notes;
-              if (areaItem.law_text) existing.law_text = areaItem.law_text;
-              if (areaItem.summary_text) existing.summary_text = areaItem.summary_text;
-            }
-          }
-          renderFindings();
-          if (result.match && result.hits && result.hits.length) {
-            mergeSources(result.hits.map(function (hit) { return { name: hit.source || 'Karttreff', ref: hit.name || hit.layer || 'Områdetreff', url: hit.url || '' }; }));
-          }
-          renderRelevantAreaPanel(result);
-          updateCaseMap();
-          loadGearSummary();
-          if (controlType.value && (species.value || fisheryType.value)) loadRules();
+      var fetchOptions = { credentials: 'same-origin' };
+      if (zoneCheckController) fetchOptions.signal = zoneCheckController.signal;
+      return fetch(root.dataset.zonesUrl + '?' + params.toString(), fetchOptions)
+        .then(function (r) {
+          if (!r.ok) throw new Error('Områdesjekk feilet (' + r.status + ').');
+          return r.json();
         })
-        .catch(function () {
+        .then(function (result) {
+          if (sequence !== zoneCheckSequence) return null;
+          lastZoneCheckKey = requestKey;
+          lastZoneCheckAt = Date.now();
+          lastZoneCheckResult = result || null;
+          return applyZoneCheckResult(result);
+        })
+        .catch(function (err) {
+          if (err && err.name === 'AbortError') return null;
           latestZoneResult = null;
           if (zoneResult) zoneResult.innerHTML = 'Kunne ikke sjekke områdestatus.';
           updateAreaStatusDetail(null);
           syncManualPositionNotice();
           renderRelevantAreaPanel(null);
           updateCaseMap();
+          return null;
         });
     }
 

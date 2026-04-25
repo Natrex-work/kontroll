@@ -1,5 +1,5 @@
-const CACHE = 'kv-kontroll-v91-map-offline';
-const MAP_TILE_CACHE = 'kv-kontroll-v91-map-tiles';
+const CACHE = 'kv-kontroll-v92-map-offline';
+const MAP_TILE_CACHE = 'kv-kontroll-v92-map-tiles';
 const STATIC_PREFIX = '/static/';
 const API_CACHE_PREFIXES = ['/api/map/catalog', '/api/map/bundle', '/api/map/offline-package', '/api/map/features', '/api/map/identify', '/api/zones/check', '/api/rules'];
 const ASSETS = [
@@ -8,12 +8,12 @@ const ASSETS = [
   '/kart',
   '/regelverk',
   '/cases/offline/new',
-  '/static/styles.css?v=v91',
+  '/static/styles.css?v=v92',
   '/static/js/local-media.js',
   '/static/js/local-cases.js',
   '/static/js/local-map.js',
-  '/static/js/common.js?v=v91',
-  '/static/js/case-app.js?v=v91',
+  '/static/js/common.js?v=v92',
+  '/static/js/case-app.js?v=v92',
   '/static/js/map-overview.js',
   '/static/js/rules-overview.js',
   '/static/js/admin-users.js',

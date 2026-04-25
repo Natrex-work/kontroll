@@ -175,4 +175,12 @@ def main() -> int:
 
 
 if __name__ == '__main__':
-    raise SystemExit(main())
+    # Some native OCR/PDF dependencies keep background handles alive after all
+    # assertions have completed. Flush output and terminate explicitly so CI and
+    # Render smoke checks do not wait for unrelated native cleanup.
+    import os as _os
+    import sys as _sys
+    _code = main()
+    _sys.stdout.flush()
+    _sys.stderr.flush()
+    _os._exit(_code)

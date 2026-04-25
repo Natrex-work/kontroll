@@ -5,7 +5,9 @@ from email.message import EmailMessage
 from pathlib import Path
 from typing import Any
 
+from .. import db
 from ..config import settings
+from .case_service import case_has_avvik
 from .pdf_service import export_case_bundle
 
 
@@ -20,7 +22,7 @@ def send_case_package_email(case_id: int, case_row: dict[str, Any], user: dict[s
     if not smtp_configured():
         raise RuntimeError('E-post er ikke konfigurert på serveren. Sett KV_SMTP_HOST, KV_SMTP_FROM og eventuelt KV_SMTP_USERNAME/KV_SMTP_PASSWORD.')
 
-    bundle_path = export_case_bundle(case_id, case_row, user)
+    bundle_path = export_case_bundle(case_id, case_row, user, mark_sent=False)
     case_number = str(case_row.get('case_number') or f'Sak {case_id}').strip()
     msg = EmailMessage()
     msg['From'] = settings.smtp_from
@@ -54,4 +56,9 @@ def send_case_package_email(case_id: int, case_row: dict[str, Any], user: dict[s
             client.quit()
         except Exception:
             pass
+    refreshed = db.get_case(case_id) or case_row
+    next_status = refreshed.get('status') or 'Utkast'
+    if next_status in {'Utkast', 'Anmeldt'}:
+        next_status = 'Anmeldt og sendt' if case_has_avvik(refreshed) else 'Ingen reaksjon'
+    db.save_case(case_id, {'status': next_status, 'last_generated_pdf': path.name, 'end_time': refreshed.get('end_time') or db.localnow_form()})
     return {'ok': True, 'recipient': recipient, 'bundle': path.name}

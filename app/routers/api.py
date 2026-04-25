@@ -16,7 +16,7 @@ from ..pdf_export import build_text_drafts
 from ..schemas import SummarySuggestRequest, TextPolishRequest
 from ..services.ocr_service import extract_text_from_image
 OCR_MAX_UPLOAD_MB = max(2, min(20, int(os.getenv('KV_OCR_MAX_IMAGE_MB', '12') or '12')))
-MAP_BUNDLE_MAX_LAYERS = max(4, min(20, int(os.getenv('KV_MAP_BUNDLE_MAX_LAYERS', '10') or '10')))
+MAP_BUNDLE_MAX_LAYERS = max(4, min(20, int(os.getenv('KV_MAP_BUNDLE_MAX_LAYERS', '8') or '10')))
 OCR_CACHE_TTL_SECONDS = max(60, min(3600, int(os.getenv('KV_OCR_CACHE_TTL_SECONDS', '600') or '600')))
 OCR_CACHE_MAX_ENTRIES = max(8, min(128, int(os.getenv('KV_OCR_CACHE_MAX_ENTRIES', '32') or '32')))
 _OCR_RESULT_CACHE: OrderedDict[str, tuple[float, dict]] = OrderedDict()
@@ -314,7 +314,7 @@ async def api_ocr_extract(request: Request, file: UploadFile = File(...)):
         return JSONResponse(cached)
     started = time.monotonic()
     try:
-        result = await run_in_threadpool(extract_text_from_image, content or b"", filename=filename, timeout_seconds=22)
+        result = await run_in_threadpool(extract_text_from_image, content or b"", filename=filename, timeout_seconds=16)
     except ValueError as exc:
         return JSONResponse({'ok': False, 'message': str(exc), 'text': ''}, status_code=422)
     except RuntimeError as exc:

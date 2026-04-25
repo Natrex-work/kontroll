@@ -6,6 +6,7 @@ import json
 import math
 import os
 import re
+from functools import lru_cache
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Iterable, List
@@ -1654,10 +1655,15 @@ def _pt_rect(l: float, t: float, r: float, b: float) -> tuple[float, float, floa
     return x, y, w, h
 
 
+@lru_cache(maxsize=32)
+def _template_image_reader(template_name: str) -> ImageReader:
+    return ImageReader(str(_TEMPLATE_DIR / template_name))
+
+
 def _draw_template(c: rl_canvas.Canvas, template_name: str) -> None:
     path = _TEMPLATE_DIR / template_name
     if path.exists():
-        c.drawImage(ImageReader(str(path)), 0, 0, width=_PAGE_W, height=_PAGE_H, preserveAspectRatio=False, mask='auto')
+        c.drawImage(_template_image_reader(template_name), 0, 0, width=_PAGE_W, height=_PAGE_H, preserveAspectRatio=False, mask='auto')
 
 
 def _fill_box_px(c: rl_canvas.Canvas, l: float, t: float, r: float, b: float, fill=colors.white) -> None:

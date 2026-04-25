@@ -83,7 +83,7 @@ def export_interview_pdf(case_id: int, case_row: dict[str, Any], user: dict[str,
     return build_interview_only_pdf(prepared_case, evidence, settings.generated_dir)
 
 
-def export_case_bundle(case_id: int, case_row: dict[str, Any], user: dict[str, Any]) -> Path:
+def export_case_bundle(case_id: int, case_row: dict[str, Any], user: dict[str, Any], *, mark_sent: bool = True) -> Path:
     prepared_case, evidence = prepare_case_for_export(case_id, case_row, user, set_end_time=True)
     pdf_path = build_case_pdf_document(prepared_case, evidence, settings.generated_dir)
     bundle_name = f"{str(prepared_case['case_number']).replace(' ', '_')}_pakke.zip"
@@ -111,9 +111,12 @@ def export_case_bundle(case_id: int, case_row: dict[str, Any], user: dict[str, A
             mime = str(item.get('mime_type') or '')
             prefix = 'audio' if mime.startswith('audio/') else 'bilder'
             zf.write(src, arcname=f'{prefix}/{Path(filename).name}')
-    has_avvik = case_has_avvik(prepared_case)
-    next_status = prepared_case.get('status') or 'Utkast'
-    if next_status in {'Utkast', 'Anmeldt'}:
-        next_status = 'Anmeldt og sendt' if has_avvik else 'Ingen reaksjon'
-    db.save_case(case_id, {'status': next_status, 'last_generated_pdf': pdf_path.name, 'end_time': prepared_case.get('end_time') or db.localnow_form()})
+    updates = {'last_generated_pdf': pdf_path.name, 'end_time': prepared_case.get('end_time') or db.localnow_form()}
+    if mark_sent:
+        has_avvik = case_has_avvik(prepared_case)
+        next_status = prepared_case.get('status') or 'Utkast'
+        if next_status in {'Utkast', 'Anmeldt'}:
+            next_status = 'Anmeldt og sendt' if has_avvik else 'Ingen reaksjon'
+        updates['status'] = next_status
+    db.save_case(case_id, updates)
     return bundle_path

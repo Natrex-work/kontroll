@@ -95,9 +95,10 @@ def user_has_permission(user_row: Optional[Dict[str, Any]], permission: str) -> 
 
 @contextmanager
 def get_conn() -> Iterable[sqlite3.Connection]:
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30)
     conn.row_factory = dict_factory
     conn.execute('PRAGMA foreign_keys = ON')
+    conn.execute('PRAGMA busy_timeout = 10000')
     try:
         yield conn
         conn.commit()
@@ -118,6 +119,11 @@ def _ensure_column(conn: sqlite3.Connection, table_name: str, column_name: str, 
 
 def init_db() -> None:
     with get_conn() as conn:
+        try:
+            conn.execute('PRAGMA journal_mode = WAL')
+            conn.execute('PRAGMA synchronous = NORMAL')
+        except Exception:
+            pass
         conn.executescript(
             '''
             CREATE TABLE IF NOT EXISTS users (
@@ -225,6 +231,12 @@ def init_db() -> None:
                 details_json TEXT,
                 created_at TEXT NOT NULL
             );
+
+            CREATE INDEX IF NOT EXISTS idx_cases_created_by_deleted_updated ON cases(created_by, deleted_at, updated_at);
+            CREATE INDEX IF NOT EXISTS idx_cases_deleted_updated ON cases(deleted_at, updated_at);
+            CREATE INDEX IF NOT EXISTS idx_cases_status_updated ON cases(status, updated_at);
+            CREATE INDEX IF NOT EXISTS idx_evidence_case_id_created_at ON evidence(case_id, created_at);
+            CREATE INDEX IF NOT EXISTS idx_audit_log_created_at ON audit_log(created_at);
             '''
         )
 

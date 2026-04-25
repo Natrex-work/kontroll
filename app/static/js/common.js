@@ -6,7 +6,7 @@
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('/static/sw.js?v=v91').catch(function () {});
+      navigator.serviceWorker.register('/static/sw.js?v=v92').catch(function () {});
     });
   }
 
@@ -124,7 +124,7 @@
   var PORTAL_FEATURE_CACHE_MS = 900000;
   var PORTAL_FEATURE_CACHE_LIMIT = 240;
   var PORTAL_FETCH_CONCURRENCY = 2;
-  var PORTAL_FETCH_TIMEOUT_MS = 10000;
+  var PORTAL_FETCH_TIMEOUT_MS = 8500;
 
   function trimPortalFeatureCache() {
     var keys = Object.keys(portalFeatureCache);
@@ -337,7 +337,7 @@
   }
 
 
-  var LAYER_PANEL_PREFS_VERSION = 'v91';
+  var LAYER_PANEL_PREFS_VERSION = 'v92';
 
   function layerPanelStorageKey(el, markerState) {
     return 'kv-temalag:' + LAYER_PANEL_PREFS_VERSION + ':' + String((markerState && markerState.layerPanelKey) || (el && el.id) || 'map');

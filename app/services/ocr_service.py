@@ -1,15 +1,37 @@
 from __future__ import annotations
 
 from io import BytesIO
+import os
 import re
 import time
 from typing import Any
 
 from PIL import Image, ImageEnhance, ImageOps
-import pytesseract
-from pytesseract import TesseractError, TesseractNotFoundError
 
 from .. import registry
+
+pytesseract = None
+TesseractError = RuntimeError
+TesseractNotFoundError = RuntimeError
+_TESSERACT_IMPORT_ATTEMPTED = False
+
+
+def _tesseract_libs():
+    global pytesseract, TesseractError, TesseractNotFoundError, _TESSERACT_IMPORT_ATTEMPTED
+    if not _TESSERACT_IMPORT_ATTEMPTED:
+        _TESSERACT_IMPORT_ATTEMPTED = True
+        try:
+            import pytesseract as _pytesseract
+            from pytesseract import TesseractError as _TesseractError, TesseractNotFoundError as _TesseractNotFoundError
+            pytesseract = _pytesseract
+            TesseractError = _TesseractError
+            TesseractNotFoundError = _TesseractNotFoundError
+        except Exception:
+            pytesseract = None
+    if pytesseract is None:
+        raise RuntimeError('OCR-motor er ikke tilgjengelig på serveren.')
+    return pytesseract, TesseractError, TesseractNotFoundError
+
 
 try:  # pragma: no cover - optional runtime enhancement for HEIC/HEIF support
     from pillow_heif import register_heif_opener
@@ -22,12 +44,28 @@ if register_heif_opener is not None:  # pragma: no cover - depends on optional p
     except Exception:
         pass
 
-try:  # pragma: no cover - optional runtime enhancement for deskewing OCR images
-    import cv2
-    import numpy as np
-except Exception:  # pragma: no cover
-    cv2 = None
-    np = None
+# OpenCV/numpy are useful for cropping and deskewing, but importing cv2 at
+# application startup is expensive in small containers and has previously made
+# smoke tests/deploy health checks hang. Load these libraries only when an OCR
+# request actually needs them.
+cv2 = None
+np = None
+_VISION_IMPORT_ATTEMPTED = False
+
+
+def _vision_libs():
+    global cv2, np, _VISION_IMPORT_ATTEMPTED
+    if not _VISION_IMPORT_ATTEMPTED:
+        _VISION_IMPORT_ATTEMPTED = True
+        try:  # pragma: no cover - optional runtime enhancement for deskewing OCR images
+            import cv2 as _cv2
+            import numpy as _np
+            cv2 = _cv2
+            np = _np
+        except Exception:  # pragma: no cover
+            cv2 = None
+            np = None
+    return cv2, np
 
 TEXT_SCORE_RE = re.compile(r'[A-Za-zÆØÅæøå0-9]')
 PHONE_HINT_RE = re.compile(r'(?:\+?47\s*)?\d[\d\s]{6,}')
@@ -44,6 +82,21 @@ FIELD_BONUS = {
     'radio_call_sign': 30,
     'hummer_participant_no': 46,
 }
+
+
+def _env_int(name: str, default: int, *, minimum: int, maximum: int) -> int:
+    try:
+        value = int(os.getenv(name, str(default)) or default)
+    except Exception:
+        value = default
+    return max(minimum, min(maximum, value))
+
+
+OCR_MAX_SIDE = _env_int('KV_OCR_MAX_SIDE', 1500, minimum=1100, maximum=2200)
+OCR_MIN_SIDE = _env_int('KV_OCR_MIN_SIDE', 850, minimum=700, maximum=1400)
+OCR_VARIANT_LIMIT = _env_int('KV_OCR_VARIANT_LIMIT', 5, minimum=3, maximum=12)
+OCR_ATTEMPT_TIMEOUT_MAX = _env_int('KV_OCR_ATTEMPT_TIMEOUT', 5, minimum=3, maximum=10)
+OCR_ENABLE_DESKEW = os.getenv('KV_OCR_ENABLE_DESKEW', '0').lower() in {'1', 'true', 'yes', 'on'}
 
 
 def _score_text(text: str) -> int:
@@ -110,8 +163,8 @@ def _load_image(content: bytes) -> Image.Image:
         image = background
     elif image.mode != 'RGB':
         image = image.convert('RGB')
-    max_side = 1800
-    min_side = 1000
+    max_side = OCR_MAX_SIDE
+    min_side = OCR_MIN_SIDE
     width, height = image.size
     longest = max(width, height)
     if longest > max_side:
@@ -123,15 +176,16 @@ def _load_image(content: bytes) -> Image.Image:
 
 
 def _crop_to_dark_content(image: Image.Image, *, threshold: int = 220, margin: int = 40) -> Image.Image:
-    if cv2 is None or np is None:
+    local_cv2, local_np = _vision_libs()
+    if local_cv2 is None or local_np is None:
         return image
     try:
-        arr = np.array(image.convert('RGB'))
-        gray = cv2.cvtColor(arr, cv2.COLOR_RGB2GRAY)
+        arr = local_np.array(image.convert('RGB'))
+        gray = local_cv2.cvtColor(arr, local_cv2.COLOR_RGB2GRAY)
         mask = gray < threshold
         if not bool(mask.any()):
             return image
-        ys, xs = np.where(mask)
+        ys, xs = local_np.where(mask)
         left = max(0, int(xs.min()) - margin)
         top = max(0, int(ys.min()) - margin)
         right = min(arr.shape[1], int(xs.max()) + margin + 1)
@@ -144,25 +198,26 @@ def _crop_to_dark_content(image: Image.Image, *, threshold: int = 220, margin: i
 
 
 def _estimate_text_angle(image: Image.Image) -> float | None:
-    if cv2 is None or np is None:
+    local_cv2, local_np = _vision_libs()
+    if local_cv2 is None or local_np is None:
         return None
     try:
         work = image.convert('RGB').copy()
-        max_side = 1800
+        max_side = OCR_MAX_SIDE
         if max(work.size) > max_side:
             work.thumbnail((max_side, max_side), Image.Resampling.LANCZOS)
-        arr = np.array(work)
-        gray = cv2.cvtColor(arr, cv2.COLOR_RGB2GRAY)
-        gray = cv2.GaussianBlur(gray, (3, 3), 0)
-        _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-        if cv2.countNonZero(thresh) < 180:
+        arr = local_np.array(work)
+        gray = local_cv2.cvtColor(arr, local_cv2.COLOR_RGB2GRAY)
+        gray = local_cv2.GaussianBlur(gray, (3, 3), 0)
+        _, thresh = local_cv2.threshold(gray, 0, 255, local_cv2.THRESH_BINARY_INV + local_cv2.THRESH_OTSU)
+        if local_cv2.countNonZero(thresh) < 180:
             thresh = ((gray < 220).astype('uint8')) * 255
-        kernel = np.ones((3, 3), dtype='uint8')
-        thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=1)
-        coords = np.column_stack(np.where(thresh > 0))
+        kernel = local_np.ones((3, 3), dtype='uint8')
+        thresh = local_cv2.morphologyEx(thresh, local_cv2.MORPH_OPEN, kernel, iterations=1)
+        coords = local_np.column_stack(local_np.where(thresh > 0))
         if coords.size < 180:
             return None
-        rect = cv2.minAreaRect(coords.astype('float32'))
+        rect = local_cv2.minAreaRect(coords.astype('float32'))
         angle = float(rect[-1])
         width, height = rect[1]
         if width < height:
@@ -179,6 +234,8 @@ def _estimate_text_angle(image: Image.Image) -> float | None:
 
 
 def _deskew_full_image_variants(image: Image.Image) -> list[tuple[str, Image.Image, str]]:
+    if not OCR_ENABLE_DESKEW:
+        return []
     angle = _estimate_text_angle(image)
     if angle is None:
         return []
@@ -457,22 +514,26 @@ def extract_text_from_image(content: bytes, *, filename: str = '', timeout_secon
         raise ValueError(f'Kunne ikke lese bildefilen {filename or ""}.') from exc
 
     attempts: list[dict[str, Any]] = []
+    try:
+        tesseract, tesseract_error_cls, tesseract_missing_cls = _tesseract_libs()
+    except RuntimeError as exc:  # pragma: no cover - runtime specific
+        raise RuntimeError('OCR-motor er ikke installert pa serveren.') from exc
     label_crops = _candidate_label_crops(image)
     timed_out = False
     try:
-        variant_limit = 8 if max_wall_seconds <= 28 else 10
+        variant_limit = OCR_VARIANT_LIMIT if max_wall_seconds <= 28 else min(10, OCR_VARIANT_LIMIT + 2)
         variants = _preferred_variants(image, label_crops)[:variant_limit]
         for label, variant, config in variants:
             remaining = deadline - time.monotonic()
             if remaining < 3.0:
                 timed_out = True
                 break
-            attempt_timeout = max(3, min(8, int(remaining)))
+            attempt_timeout = max(3, min(OCR_ATTEMPT_TIMEOUT_MAX, int(remaining)))
             try:
-                text = pytesseract.image_to_string(variant, lang='nor+eng', config=config, timeout=attempt_timeout)
-            except TesseractNotFoundError:
+                text = tesseract.image_to_string(variant, lang='nor+eng', config=config, timeout=attempt_timeout)
+            except tesseract_missing_cls:
                 raise
-            except (TesseractError, RuntimeError):
+            except (tesseract_error_cls, RuntimeError):
                 text = ''
             clean_text = _clean_ocr_text(text)
             hints = registry.extract_tag_hints(clean_text)
@@ -495,7 +556,7 @@ def extract_text_from_image(content: bytes, *, filename: str = '', timeout_secon
                 break
             if score >= 230 and sum(1 for value in hints.values() if str(value or '').strip()) >= 4:
                 break
-    except TesseractNotFoundError as exc:  # pragma: no cover - runtime specific
+    except tesseract_missing_cls as exc:  # pragma: no cover - runtime specific
         raise RuntimeError('OCR-motor er ikke installert pa serveren.') from exc
 
     best: dict[str, Any] | None = None

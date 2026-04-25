@@ -40,7 +40,7 @@ YGG_BASE = os.getenv('KV_YGG_BASE', os.getenv('KV_PORTAL_MAPSERVER', 'https://gi
 LOVDATA_TOPICS_PATH = DATA_DIR / 'lovdata_topics.json'
 FDIR_CACHE_JSON = CACHE_DIR / 'fdir_registry_cache.json'
 FDIR_CACHE_META = CACHE_DIR / 'fdir_registry_meta.json'
-UA = 'KV-Kontroll-v41/1.0 (+field trial app)'
+UA = 'Minfiskerikontroll-v92/1.0 (+field trial app)'
 HUMMER_REGISTER_URL = 'https://tableau.fiskeridir.no/t/Internet/views/Pmeldehummarfiskarargjeldander/Pmeldehummarfiskarar?:showVizHome=no'
 HUMMER_REGISTER_FALLBACK_URL = 'https://www.fiskeridir.no/statistikk-tall-og-analyse/data-og-statistikk-om-turist--og-fritidsfiske/registrerte-hummarfiskarar'
 HUMMER_CACHE_JSON = CACHE_DIR / 'hummer_registry_cache.json'
@@ -80,6 +80,10 @@ PORTAL_POINT_CACHE_TTL = max(20.0, float(os.getenv('KV_PORTAL_POINT_CACHE_TTL', 
 PORTAL_BUNDLE_CACHE_TTL = max(120.0, float(os.getenv('KV_PORTAL_BUNDLE_CACHE_TTL', '900') or '900'))
 _PORTAL_BUNDLE_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 _PORTAL_BUNDLE_CACHE_LOCK = threading.Lock()
+ZONE_CHECK_MAX_LIVE_LAYERS = max(4, min(30, int(os.getenv('KV_ZONE_CHECK_MAX_LIVE_LAYERS', '14') or '14')))
+REVERSE_GEOCODE_CACHE_TTL = max(60.0, float(os.getenv('KV_REVERSE_GEOCODE_CACHE_TTL', '900') or '900'))
+_REVERSE_GEOCODE_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+_REVERSE_GEOCODE_CACHE_LOCK = threading.Lock()
 
 
 class LiveSourceError(RuntimeError):
@@ -538,8 +542,14 @@ def compose_live_sources(control_type: str = '', species: str = '', gear_type: s
 
 
 def reverse_geocode_live(lat: float, lng: float) -> dict[str, Any]:
+    cache_key = f'{round(float(lat), 4)}:{round(float(lng), 4)}'
+    now = time.time()
+    with _REVERSE_GEOCODE_CACHE_LOCK:
+        cached = _REVERSE_GEOCODE_CACHE.get(cache_key)
+        if cached and (now - cached[0]) <= REVERSE_GEOCODE_CACHE_TTL:
+            return dict(cached[1])
     url = 'https://nominatim.openstreetmap.org/reverse'
-    resp = _safe_get(url, params={'lat': lat, 'lon': lng, 'format': 'jsonv2', 'zoom': 14, 'addressdetails': 1})
+    resp = _safe_get(url, params={'lat': lat, 'lon': lng, 'format': 'jsonv2', 'zoom': 14, 'addressdetails': 1}, timeout=min(REQUEST_TIMEOUT, 4.0))
     data = resp.json()
     address = data.get('address') or {}
     locality = address.get('hamlet') or address.get('suburb') or address.get('neighbourhood') or address.get('village') or address.get('town') or address.get('city') or address.get('municipality') or ''
@@ -553,7 +563,7 @@ def reverse_geocode_live(lat: float, lng: float) -> dict[str, Any]:
         if value and value not in parts:
             parts.append(value)
     location_label = ', '.join(parts)
-    return {
+    payload = {
         'found': bool(data),
         'display_name': data.get('display_name') or '',
         'name': locality or municipality or county or '',
@@ -566,6 +576,12 @@ def reverse_geocode_live(lat: float, lng: float) -> dict[str, Any]:
         'source': 'OpenStreetMap Nominatim',
         'source_url': 'https://nominatim.openstreetmap.org/'
     }
+    with _REVERSE_GEOCODE_CACHE_LOCK:
+        _REVERSE_GEOCODE_CACHE[cache_key] = (time.time(), dict(payload))
+        if len(_REVERSE_GEOCODE_CACHE) > 256:
+            for key, _ in sorted(_REVERSE_GEOCODE_CACHE.items(), key=lambda item: item[1][0])[:64]:
+                _REVERSE_GEOCODE_CACHE.pop(key, None)
+    return payload
 
 
 def _ascii_header(text: str | None) -> str:
@@ -2116,6 +2132,21 @@ def fetch_portal_geojson(layer_id: int, *, force: bool = False, max_age_seconds:
         _portal_bbox_cache_put(bbox_cache_key, merged_cached)
         return merged_cached
 
+    # Mobile maps request small bounding boxes repeatedly while the user pans/zooms.
+    # Do not fall back to downloading a full portal layer for a bbox request; that
+    # can be several megabytes and makes the app feel frozen on mobile networks.
+    if bbox:
+        if _portal_cache_has_features(cached_view):
+            merged_cached = _merge_feature_collections(cached_view, local_view)
+            _portal_bbox_cache_put(bbox_cache_key, merged_cached)
+            return merged_cached
+        if _portal_cache_has_features(local_view):
+            _portal_bbox_cache_put(bbox_cache_key, local_view)
+            return local_view
+        empty = {'type': 'FeatureCollection', 'features': []}
+        _portal_bbox_cache_put(bbox_cache_key, empty)
+        return empty
+
     if LIVE_ENABLED:
         params = {
             'where': '1=1',
@@ -2415,7 +2446,11 @@ def classify_position_live(lat: float, lng: float, species: str = '', gear_type:
     priorities = {'stengt område': 4, 'fredningsområde': 3, 'maksimalmål område': 2, 'regulert område': 1}
 
     layers_to_check = portal_layer_catalog(fishery=species, control_type=control_type, gear_type=gear_type) or _portal_layer_defs()
-    attempted_all = False
+    # Limit live point checks. Local zone data is already evaluated before this
+    # function in rules_service; repeatedly probing every portal layer is the
+    # main source of slow GPS/map updates on mobile.
+    layers_to_check = [layer for layer in layers_to_check if layer.get('alertable')][:ZONE_CHECK_MAX_LIVE_LAYERS]
+    attempted_all = True
     for layer in layers_to_check:
         if not layer.get('alertable'):
             continue
