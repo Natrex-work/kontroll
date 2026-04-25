@@ -41,6 +41,15 @@ def _inline_file_headers(filename: str) -> dict[str, str]:
     return {'Content-Disposition': "inline; filename*=UTF-8''" + quote(safe_name), 'Cache-Control': 'no-store'}
 
 
+def _case_missing_html(case_id: int) -> HTMLResponse:
+    html = f'''<!doctype html>
+<html lang="nb"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Saken ble ikke funnet</title>
+<style>body{{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#eef4f8;color:#10273d;margin:0;padding:24px}}.card{{max-width:680px;margin:10vh auto;background:#fff;border:1px solid #d7e3ee;border-radius:22px;padding:24px;box-shadow:0 18px 42px rgba(16,39,61,.12)}}a,.btn{{display:inline-flex;margin-top:14px;padding:12px 16px;border-radius:999px;background:#123b5d;color:#fff;text-decoration:none;font-weight:700}}.muted{{color:#5f7186;line-height:1.45}}</style>
+</head><body><main class="card"><h1>Saken ble ikke funnet</h1><p class="muted">Sak {case_id} finnes ikke på serveren. Dette skjer ofte etter ny deploy dersom databasen ikke ligger på en persistent disk, eller hvis en lokal kladd ikke er synket før forhåndsvisning/eksport.</p><p class="muted">Gå tilbake til kontrollskjemaet og trykk lagre/synk, eller opprett en ny kontroll. I v89 forsøker appen automatisk å opprette ny serverkopi fra lokal kladd før forhåndsvisning og eksport.</p><a href="/dashboard">Til kontrolloversikten</a></main></body></html>'''
+    return HTMLResponse(html, status_code=404)
+
+
 
 def _offline_case_shell(user: dict[str, object], local_id: str = '') -> dict[str, object]:
     local_now = db.localnow_form()
@@ -177,7 +186,12 @@ async def create_case_from_draft(request: Request):
 @router.get('/cases/{case_id}/edit', response_class=HTMLResponse)
 def edit_case(request: Request, case_id: int):
     user = require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til Minfiskerikontroll.')
-    case_row = get_case_for_user(user, case_id)
+    try:
+        case_row = get_case_for_user(user, case_id)
+    except HTTPException as exc:
+        if exc.status_code == 404:
+            return _case_missing_html(case_id)
+        raise
     evidence = db.list_evidence(case_id)
     findings = db.case_to_findings(case_row)
     sources = db.case_to_sources(case_row)
@@ -310,7 +324,12 @@ def generated_file(request: Request, case_id: int, filename: str):
 @router.get('/cases/{case_id}/preview', response_class=HTMLResponse)
 async def preview_case(request: Request, case_id: int):
     user = require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til Minfiskerikontroll.')
-    case_row = get_case_for_user(user, case_id)
+    try:
+        case_row = get_case_for_user(user, case_id)
+    except HTTPException as exc:
+        if exc.status_code == 404:
+            return _case_missing_html(case_id)
+        raise
     evidence = db.list_evidence(case_id)
     preview_case_row = dict(case_row)
     preview_case_row.update(autofill_case_drafts(case_row))
@@ -335,7 +354,12 @@ async def export_case_pdf_route(request: Request, case_id: int):
     user = require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til Minfiskerikontroll.')
     form = await request.form()
     enforce_csrf(request, form)
-    case_row = get_case_for_user(user, case_id)
+    try:
+        case_row = get_case_for_user(user, case_id)
+    except HTTPException as exc:
+        if exc.status_code == 404:
+            return _case_missing_html(case_id)
+        raise
     outpath = await run_in_threadpool(export_case_pdf, case_id, case_row, user)
     refreshed_case = db.get_case(case_id) or case_row
     db.record_audit(user['id'], 'export_pdf', 'case', case_id, {'filename': outpath.name, 'has_avvik': case_has_avvik(refreshed_case)})
@@ -347,7 +371,12 @@ async def export_interview_pdf_route(request: Request, case_id: int):
     user = require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til Minfiskerikontroll.')
     form = await request.form()
     enforce_csrf(request, form)
-    case_row = get_case_for_user(user, case_id)
+    try:
+        case_row = get_case_for_user(user, case_id)
+    except HTTPException as exc:
+        if exc.status_code == 404:
+            return _case_missing_html(case_id)
+        raise
     outpath = await run_in_threadpool(export_interview_pdf, case_id, case_row, user)
     db.record_audit(user['id'], 'export_interview_pdf', 'case', case_id, {'filename': outpath.name})
     return FileResponse(path=str(outpath), media_type='application/pdf', filename=outpath.name, headers={'Cache-Control': 'no-store'})
@@ -358,7 +387,12 @@ async def export_case_bundle_route(request: Request, case_id: int):
     user = require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til Minfiskerikontroll.')
     form = await request.form()
     enforce_csrf(request, form)
-    case_row = get_case_for_user(user, case_id)
+    try:
+        case_row = get_case_for_user(user, case_id)
+    except HTTPException as exc:
+        if exc.status_code == 404:
+            return _case_missing_html(case_id)
+        raise
     bundle_path = await run_in_threadpool(export_case_bundle, case_id, case_row, user)
     refreshed_case = db.get_case(case_id) or case_row
     db.record_audit(user['id'], 'export_bundle', 'case', case_id, {'filename': bundle_path.name, 'has_avvik': case_has_avvik(refreshed_case)})

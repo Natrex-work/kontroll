@@ -2961,3 +2961,68 @@ body {
     max-height: calc(min(56vh, 420px) - 118px);
   }
 }
+
+/* v89 kartlagpanel: rett skjul/vis og bedre mobilkollaps */
+.kv-temalag-card[hidden],
+.kv-temalag-group-body[hidden] {
+  display: none !important;
+}
+
+.kv-temalag-panel-external .kv-temalag-card {
+  overflow: visible;
+}
+
+.kv-temalag-panel-external .kv-temalag-groups {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding-bottom: 16px;
+}
+
+.kv-temalag-panel-external .kv-temalag-group {
+  overflow: visible;
+}
+
+.kv-temalag-group-toggle::after {
+  content: '▾';
+  margin-left: 8px;
+  font-size: 0.86rem;
+  opacity: 0.72;
+  transform: rotate(180deg);
+  transition: transform 0.16s ease;
+}
+
+.kv-temalag-group.is-collapsed .kv-temalag-group-toggle::after {
+  transform: rotate(0deg);
+}
+
+.kv-temalag-group-toggle,
+.kv-temalag-show-all,
+.kv-temalag-hide-all,
+.kv-temalag-close,
+.kv-temalag-handle {
+  touch-action: manipulation;
+}
+
+.kv-temalag-panel-external .kv-temalag-group-toggle {
+  min-height: 56px;
+}
+
+@media (max-width: 720px) {
+  .kv-temalag-panel-external .kv-temalag-card {
+    max-height: none;
+  }
+  .kv-temalag-panel-external .kv-temalag-groups {
+    max-height: min(60vh, 520px);
+  }
+  .kv-temalag-panel-external .kv-temalag-group-actions {
+    padding-bottom: 10px;
+  }
+  .kv-temalag-panel-external .kv-temalag-group-actions .btn {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+  .kv-temalag-panel-external .kv-temalag-item {
+    grid-template-columns: auto auto minmax(0, 1fr);
+  }
+}

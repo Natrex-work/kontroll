@@ -6,7 +6,7 @@
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('/static/sw.js?v=v88').catch(function () {});
+      navigator.serviceWorker.register('/static/sw.js?v=v89').catch(function () {});
     });
   }
 
@@ -1177,7 +1177,7 @@
     var lawBrowser = parseJson(root.dataset.lawBrowser, []);
     var mapCatalog = parseJson(root.dataset.mapCatalog, []);
     var mapFilterWrap = document.getElementById('map-layer-filters');
-    var mapFilterStorageKey = 'kv-map-layer-filter-v88:' + root.dataset.caseId;
+    var mapFilterStorageKey = 'kv-map-layer-filter-v89:' + root.dataset.caseId;
     var activeLayerStatuses = { 'fredningsområde': true, 'stengt område': true, 'maksimalmål område': true, 'regulert område': true, 'fiskeriområde': true };
     try {
       localStorage.removeItem('kv-map-layer-filter:' + root.dataset.caseId);
@@ -2250,7 +2250,59 @@
       var suffixInput = form.querySelector('input[name="case_number_suffix"]');
       var match = value.match(/(\d{3})$/);
       if (suffixInput && match) suffixInput.value = match[1];
-      document.title = value + ' · Kontroll Og Oppsyn';
+      document.title = value + ' · Minfiskerikontroll';
+    }
+
+    function endpointForCase(caseId, suffix) {
+      return '/cases/' + encodeURIComponent(String(caseId || '')) + suffix;
+    }
+
+    function applyServerCaseIdentity(serverCaseId, serverCaseUrl, serverCaseNumber, savedAt) {
+      var id = String(serverCaseId || '').trim();
+      if (!id) return;
+      root.dataset.caseId = id;
+      root.dataset.caseUrl = serverCaseUrl || endpointForCase(id, '/edit');
+      root.dataset.autosaveUrl = endpointForCase(id, '/autosave').replace('/cases/', '/api/cases/');
+      root.dataset.caseUpdatedAt = savedAt || new Date().toISOString();
+      root.dataset.offlineNew = '0';
+      isOfflineNewCase = false;
+      if (form) form.setAttribute('action', endpointForCase(id, '/save'));
+      Array.prototype.forEach.call(document.querySelectorAll('a[href$="/preview"]'), function (node) {
+        node.setAttribute('href', endpointForCase(id, '/preview'));
+      });
+      Array.prototype.forEach.call(document.querySelectorAll('form[action$="/interview-pdf"]'), function (node) {
+        node.setAttribute('action', endpointForCase(id, '/interview-pdf'));
+      });
+      Array.prototype.forEach.call(document.querySelectorAll('form[action$="/bundle"]'), function (node) {
+        node.setAttribute('action', endpointForCase(id, '/bundle'));
+      });
+      Array.prototype.forEach.call(document.querySelectorAll('form[action$="/pdf"]'), function (node) {
+        node.setAttribute('action', endpointForCase(id, '/pdf'));
+      });
+      Array.prototype.forEach.call(document.querySelectorAll('form[action$="/evidence"]'), function (node) {
+        node.setAttribute('action', endpointForCase(id, '/evidence'));
+      });
+      if (serverCaseNumber) updateCaseNumberDisplay(serverCaseNumber);
+    }
+
+    function parseJsonResponse(response, fallbackMessage) {
+      return response.text().then(function (text) {
+        var payload = null;
+        try { payload = text ? JSON.parse(text) : {}; } catch (e) { payload = { detail: text || fallbackMessage || 'Ukjent feil' }; }
+        if (!response.ok || (payload && payload.ok === false)) {
+          var message = (payload && (payload.error || payload.detail || payload.message)) || fallbackMessage || ('HTTP ' + response.status);
+          var error = new Error(String(message));
+          error.status = response.status;
+          error.payload = payload || {};
+          throw error;
+        }
+        return payload || {};
+      });
+    }
+
+    function isMissingServerCaseError(error) {
+      var text = String((error && error.message) || (error && error.payload && (error.payload.detail || error.payload.error)) || '').toLowerCase();
+      return error && Number(error.status || 0) === 404 && (text.indexOf('fant ikke saken') !== -1 || text.indexOf('case') !== -1);
     }
 
     function updateLocalCaseStatus(message, isError, options) {
@@ -2524,21 +2576,13 @@
         });
       }
       localCaseSyncInFlight = true;
+      var shouldRedirectAfterCreate = options.redirectAfterCreate !== false && isOfflineNewCase;
       if (!options.silent) updateLocalCaseStatus('Oppretter saken på server og flytter lokal kladd ...', false, { forceShow: true, showSync: true, syncing: true, showDiscard: true });
       var localCaseId = String(root.dataset.caseId || '');
       persistLocalCaseDraft({ silent: true });
       var formData = serializeCaseFormData();
       return fetch(createCaseUrl, secureFetchOptions({ method: 'POST', body: formData }))
-        .then(function (r) {
-          return r.json().then(function (payload) {
-            if (!r.ok || !payload || payload.ok === false) {
-              var error = new Error(payload && payload.error || 'create_failed');
-              error.payload = payload || {};
-              throw error;
-            }
-            return payload;
-          });
-        })
+        .then(function (r) { return parseJsonResponse(r, 'Kunne ikke opprette saken på server.'); })
         .then(function (payload) {
           var serverCaseId = String(payload.case_id || '');
           var serverCaseUrl = String(payload.case_url || ('/cases/' + serverCaseId + '/edit'));
@@ -2549,8 +2593,12 @@
           if (localMediaSupported() && LocalMedia.reassignCase) tasks.push(LocalMedia.reassignCase(localCaseId, serverCaseId));
           return Promise.all(tasks).catch(function () { return []; }).then(function () {
             localCaseSyncInFlight = false;
-            updateCaseNumberDisplay(serverCaseNumber);
-            window.location.href = serverCaseUrl + (serverCaseUrl.indexOf('?') === -1 ? '?restored_local=1' : '&restored_local=1');
+            applyServerCaseIdentity(serverCaseId, serverCaseUrl, serverCaseNumber, savedAt);
+            updateLocalCaseStatus('Saken er opprettet og synket med serveren.', false, { forceShow: true, showSync: false, showDiscard: false });
+            if (shouldRedirectAfterCreate) {
+              window.location.href = serverCaseUrl + (serverCaseUrl.indexOf('?') === -1 ? '?restored_local=1' : '&restored_local=1');
+              return false;
+            }
             return true;
           });
         })
@@ -2581,7 +2629,7 @@
       if (!options.silent) updateLocalCaseStatus('Synker lokal sak til server ...', false, { forceShow: true, showSync: true, syncing: true, showDiscard: true });
       var formData = serializeCaseFormData();
       return fetch(root.dataset.autosaveUrl, secureFetchOptions({ method: 'POST', body: formData }))
-        .then(function (r) { return r.json(); })
+        .then(function (r) { return parseJsonResponse(r, 'Kunne ikke lagre saken på server.'); })
         .then(function (payload) {
           localCaseSyncInFlight = false;
           lastAutosaveFingerprint = formFingerprint();
@@ -2590,8 +2638,12 @@
             return true;
           });
         })
-        .catch(function () {
+        .catch(function (error) {
           localCaseSyncInFlight = false;
+          if (isMissingServerCaseError(error) && createCaseUrl) {
+            updateLocalCaseStatus('Serveren finner ikke saken lenger. Oppretter ny serverkopi fra denne utfylte kladden ...', true, { forceShow: true, showSync: true, syncing: true, showDiscard: true });
+            return createServerCaseFromLocalDraft(Object.assign({}, options, { force: true, redirectAfterCreate: false, silent: true }));
+          }
           persistLocalCaseDraft({ silent: true });
           updateLocalCaseStatus('Saken er lagret lokalt på enheten, men er ikke synket ennå.', true, { forceShow: true, showSync: true, showDiscard: true });
           setAutosaveStatus('Lagret lokalt', 'is-saved');
@@ -2600,13 +2652,9 @@
     }
 
     function ensureLocalCaseSyncedBeforeAction() {
-      if (!localCaseSupported()) return Promise.resolve(true);
-      return LocalCases.getDraft(root.dataset.caseId).then(function (draft) {
-        if (!draft || String(draft.sync_state || 'pending') === 'synced') return true;
-        return syncLocalCaseDraft({ force: true }).then(function (synced) {
-          if (synced) return true;
-          return window.confirm('Saken er fortsatt bare lagret lokalt på enheten. Forhåndsvisning og eksport kan mangle de siste endringene. Vil du fortsette likevel?');
-        });
+      return syncLocalCaseDraft({ force: true, redirectAfterCreate: false }).then(function (synced) {
+        if (synced) return true;
+        return window.confirm('Saken er fortsatt ikke sikkert synket med serveren. Forhåndsvisning og eksport kan mangle de siste endringene. Vil du fortsette likevel?');
       }).catch(function () { return true; });
     }
 
@@ -4022,7 +4070,7 @@
       mapState.showLegend = false;
       mapState.showLayerPanel = !!mapLayerPanelHost;
       mapState.layerPanelDefaultOpen = false;
-      mapState.layerPanelKey = 'case-map-v88';
+      mapState.layerPanelKey = 'case-map-v89';
       mapState.layerPanelTargetSelector = mapLayerPanelHost ? '#case-map-layer-panel-host' : '';
       mapState.rasterLayerIds = allLayerIds;
       mapState.identifyLayerIds = allLayerIds;
@@ -5831,12 +5879,12 @@ function renderHummerStatus(result) {
       if (node.tagName === 'A') {
         node.addEventListener('click', function (event) {
           event.preventDefault();
-          var href = node.getAttribute('href') || '';
           ensureLocalCaseSyncedBeforeAction().then(function (caseAllowed) {
             if (!caseAllowed) return;
             ensureLocalMediaSyncedBeforeAction().then(function (allowed) {
               if (!allowed) return;
-              window.open(href, '_blank', 'noopener');
+              var href = node.getAttribute('href') || '';
+              if (href) window.open(href, '_blank', 'noopener');
             });
           });
         });
@@ -5848,6 +5896,7 @@ function renderHummerStatus(result) {
           if (!caseAllowed) return;
           ensureLocalMediaSyncedBeforeAction().then(function (allowed) {
             if (!allowed) return;
+            if (window.KVCommon && typeof window.KVCommon.injectCsrfField === 'function') window.KVCommon.injectCsrfField(node);
             HTMLFormElement.prototype.submit.call(node);
           });
         });

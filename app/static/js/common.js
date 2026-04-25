@@ -6,7 +6,7 @@
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('/static/sw.js?v=v88').catch(function () {});
+      navigator.serviceWorker.register('/static/sw.js?v=v89').catch(function () {});
     });
   }
 
@@ -337,7 +337,7 @@
   }
 
 
-  var LAYER_PANEL_PREFS_VERSION = 'v88';
+  var LAYER_PANEL_PREFS_VERSION = 'v89';
 
   function layerPanelStorageKey(el, markerState) {
     return 'kv-temalag:' + LAYER_PANEL_PREFS_VERSION + ':' + String((markerState && markerState.layerPanelKey) || (el && el.id) || 'map');
@@ -542,9 +542,15 @@
 
     var visibleLookup = {};
     (visibleLayers || []).forEach(function (layer) { visibleLookup[String(layer && layer.id)] = true; });
+    var groups = buildLayerPanelGroups(allLayers, state.layerPanelSearch || '');
+    var isExternalMobilePanel = root.classList.contains('kv-temalag-panel-external') && window.matchMedia('(max-width: 720px)').matches;
+    if (isExternalMobilePanel && !prefs.groups_initialized && !String(state.layerPanelSearch || '').trim() && groups.length > 1) {
+      prefs.collapsed_groups = groups.slice(1).map(function (group) { return String(group.key); });
+      prefs.groups_initialized = true;
+      saveLayerPanelPrefs(state.layerPanelStorageKey, prefs);
+    }
     var collapsedLookup = {};
     (Array.isArray(prefs.collapsed_groups) ? prefs.collapsed_groups : []).forEach(function (key) { collapsedLookup[String(key)] = true; });
-    var groups = buildLayerPanelGroups(allLayers, state.layerPanelSearch || '');
     var groupsWrap = root.querySelector('.kv-temalag-groups');
     if (!groupsWrap) return;
     groupsWrap.innerHTML = groups.length ? groups.map(function (group) {
@@ -593,6 +599,8 @@
 
     Array.prototype.forEach.call(groupsWrap.querySelectorAll('.kv-temalag-show-all, .kv-temalag-hide-all'), function (button) {
       button.addEventListener('click', function (event) {
+        event.preventDefault();
+        event.stopPropagation();
         var groupKey = String(event.currentTarget.getAttribute('data-group-key') || '');
         var group = groups.filter(function (row) { return row.key === groupKey; })[0];
         if (!group) return;
@@ -614,6 +622,8 @@
 
     Array.prototype.forEach.call(groupsWrap.querySelectorAll('.kv-temalag-group-toggle'), function (button) {
       button.addEventListener('click', function (event) {
+        event.preventDefault();
+        event.stopPropagation();
         var groupKey = String(event.currentTarget.getAttribute('data-group-key') || '');
         state.layerPanelPrefs = state.layerPanelPrefs || {};
         var collapsed = Array.isArray(state.layerPanelPrefs.collapsed_groups) ? state.layerPanelPrefs.collapsed_groups.slice() : [];

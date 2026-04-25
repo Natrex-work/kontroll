@@ -31,9 +31,9 @@
       <span class="autosave-pill muted" id="autosave-status">Autosave ikke startet</span>
       {% if not offline_new %}
       <a class="btn btn-secondary" href="/cases/{{ case.id }}/preview" target="_blank" rel="noopener">Forhåndsvis dokumentpakke</a>
-      <form method="post" action="/cases/{{ case.id }}/interview-pdf" class="inline-form"><button class="btn btn-secondary" type="submit">Eksporter kun avhørsrapport</button></form>
-      <form method="post" action="/cases/{{ case.id }}/bundle" class="inline-form"><button class="btn btn-secondary" type="submit">Eksporter PDF og filer (ZIP)</button></form>
-      <form method="post" action="/cases/{{ case.id }}/pdf" class="inline-form"><button class="btn btn-secondary" type="submit">Avslutt og eksporter PDF</button></form>
+      <form method="post" action="/cases/{{ case.id }}/interview-pdf" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><button class="btn btn-secondary" type="submit">Eksporter kun avhørsrapport</button></form>
+      <form method="post" action="/cases/{{ case.id }}/bundle" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><button class="btn btn-secondary" type="submit">Eksporter PDF og filer (ZIP)</button></form>
+      <form method="post" action="/cases/{{ case.id }}/pdf" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><button class="btn btn-secondary" type="submit">Avslutt og eksporter PDF</button></form>
       <span class="pill">Sletting og gjenoppretting gjøres av admin</span>
       {% else %}
       <span class="pill">Lokal kladd · synk saken før forhåndsvisning og eksport</span>
@@ -57,7 +57,7 @@
      data-registry-url="/api/registry/lookup"
      data-summary-url="/api/summary/suggest"
      data-autosave-url="{% if not offline_new %}/api/cases/{{ case.id }}/autosave{% endif %}"
-     data-create-case-url="{% if offline_new %}/api/cases/create-from-draft{% endif %}"
+     data-create-case-url="/api/cases/create-from-draft"
      data-law-browser='{{ law_browser|tojson }}'
      data-map-catalog='{{ portal_layers|tojson }}'
      data-portal-mapserver="{{ portal_mapserver_url }}" data-portal-vern-mapserver="{{ portal_vern_mapserver_url }}"
@@ -81,6 +81,7 @@
   </div>
 
   <form id="case-form" method="post" action="{% if offline_new %}#{% else %}/cases/{{ case.id }}/save{% endif %}" class="stack gap-l">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
     <input type="hidden" name="findings_json" id="findings_json" value='{{ case.findings_json|e }}' />
     <input type="hidden" name="source_snapshot_json" id="source_snapshot_json" value='{{ case.source_snapshot_json|e }}' />
     <input type="hidden" name="crew_json" id="crew_json" value='{{ case.crew_json or "[]"|e }}' />
@@ -431,7 +432,7 @@
       <label class="span-2"><span>Avhørtes / mistenktes signatur</span><input form="case-form" name="suspect_signature" value="{{ case.suspect_signature or case.suspect_name or '' }}" placeholder="Skriv navn / signatur" /></label>
     </div>
     <div class="actions-row wrap margin-top-s">
-      <form method="post" action="/cases/{{ case.id }}/interview-pdf" class="inline-form"><button class="btn btn-secondary" type="submit">Eksporter kun avhørsrapport</button></form>
+      <form method="post" action="/cases/{{ case.id }}/interview-pdf" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><button class="btn btn-secondary" type="submit">Eksporter kun avhørsrapport</button></form>
     </div>
     <div class="step-actions"><button type="button" class="btn btn-secondary" data-prev-step>Tilbake</button><button type="button" class="btn btn-primary" data-next-step>Videre</button></div>
   </section>
@@ -456,9 +457,9 @@
       <button class="btn btn-secondary" type="button" id="btn-generate-summary">Autogenerer tekst</button>
       {% if not offline_new %}
       <a class="btn btn-secondary" href="/cases/{{ case.id }}/preview" target="_blank" rel="noopener">Forhåndsvis dokumentpakke</a>
-      <form method="post" action="/cases/{{ case.id }}/interview-pdf" class="inline-form"><button class="btn btn-secondary" type="submit">Eksporter kun avhørsrapport</button></form>
-      <form method="post" action="/cases/{{ case.id }}/bundle" class="inline-form"><button class="btn btn-secondary" type="submit">Eksporter PDF og filer (ZIP)</button></form>
-      <form method="post" action="/cases/{{ case.id }}/pdf" class="inline-form"><button class="btn btn-primary" type="submit">Avslutt og eksporter PDF</button></form>
+      <form method="post" action="/cases/{{ case.id }}/interview-pdf" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><button class="btn btn-secondary" type="submit">Eksporter kun avhørsrapport</button></form>
+      <form method="post" action="/cases/{{ case.id }}/bundle" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><button class="btn btn-secondary" type="submit">Eksporter PDF og filer (ZIP)</button></form>
+      <form method="post" action="/cases/{{ case.id }}/pdf" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><button class="btn btn-primary" type="submit">Avslutt og eksporter PDF</button></form>
       {% else %}
       <span class="pill">Synk saken før forhåndsvisning, PDF og ZIP</span>
       {% endif %}
@@ -506,5 +507,5 @@
   }
 })();
 </script>
-<script src="/static/js/case-app.js?v=v88"></script>
+<script src="/static/js/case-app.js?v=v89"></script>
 {% endblock %}
