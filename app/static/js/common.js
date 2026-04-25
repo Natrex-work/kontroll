@@ -6,7 +6,7 @@
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('/static/sw.js?v=v87').catch(function () {});
+      navigator.serviceWorker.register('/static/sw.js?v=v88').catch(function () {});
     });
   }
 
@@ -337,7 +337,7 @@
   }
 
 
-  var LAYER_PANEL_PREFS_VERSION = 'v87';
+  var LAYER_PANEL_PREFS_VERSION = 'v88';
 
   function layerPanelStorageKey(el, markerState) {
     return 'kv-temalag:' + LAYER_PANEL_PREFS_VERSION + ':' + String((markerState && markerState.layerPanelKey) || (el && el.id) || 'map');
@@ -481,13 +481,15 @@
         '</div>'
       ].join('');
       state.layerPanelRoot = root;
-      root.querySelector('.kv-temalag-handle').addEventListener('click', function () {
+      root.querySelector('.kv-temalag-handle').addEventListener('click', function (event) {
+        event.preventDefault();
         state.layerPanelPrefs = state.layerPanelPrefs || {};
         state.layerPanelPrefs.open = !root.classList.contains('is-open');
         saveLayerPanelPrefs(state.layerPanelStorageKey, state.layerPanelPrefs);
         syncLayerPanel(state, state.map, state.currentLayers || [], state.visibleLayers || []);
       });
-      root.querySelector('.kv-temalag-close').addEventListener('click', function () {
+      root.querySelector('.kv-temalag-close').addEventListener('click', function (event) {
+        event.preventDefault();
         state.layerPanelPrefs = state.layerPanelPrefs || {};
         state.layerPanelPrefs.open = false;
         saveLayerPanelPrefs(state.layerPanelStorageKey, state.layerPanelPrefs);
@@ -561,12 +563,15 @@
           '</label>'
         ].join('');
       }).join('');
+      var collapsed = !!collapsedLookup[group.key];
       return [
-        '<details class="kv-temalag-group" data-group-key="' + escapeHtml(group.key) + '" ' + (collapsedLookup[group.key] ? '' : 'open') + '>',
-        '<summary><span class="kv-temalag-group-title">' + escapeHtml(group.label) + '</span><span class="kv-temalag-group-count">' + visibleCount + '/' + group.layers.length + '</span></summary>',
-        '<div class="kv-temalag-group-actions"><button type="button" class="btn btn-secondary btn-small kv-temalag-show-all" data-group-key="' + escapeHtml(group.key) + '">Vis alle</button><button type="button" class="btn btn-secondary btn-small kv-temalag-hide-all" data-group-key="' + escapeHtml(group.key) + '">Skjul alle</button></div>',
+        '<section class="kv-temalag-group ' + (collapsed ? 'is-collapsed' : 'is-open') + '" data-group-key="' + escapeHtml(group.key) + '">',
+        '<button type="button" class="kv-temalag-group-toggle" data-group-key="' + escapeHtml(group.key) + '" aria-expanded="' + (collapsed ? 'false' : 'true') + '"><span class="kv-temalag-group-title">' + escapeHtml(group.label) + '</span><span class="kv-temalag-group-count">' + visibleCount + '/' + group.layers.length + '</span></button>',
+        '<div class="kv-temalag-group-body" ' + (collapsed ? 'hidden' : '') + '>',
+        '<div class="kv-temalag-group-actions"><button type="button" class="btn btn-secondary btn-small kv-temalag-show-all" data-group-key="' + escapeHtml(group.key) + '">Vis alle i gruppen</button><button type="button" class="btn btn-secondary btn-small kv-temalag-hide-all" data-group-key="' + escapeHtml(group.key) + '">Skjul alle i gruppen</button></div>',
         '<div class="kv-temalag-items">' + itemsHtml + '</div>',
-        '</details>'
+        '</div>',
+        '</section>'
       ].join('');
     }).join('') : '<div class="offline-package-empty">Ingen lag matcher søket.</div>';
 
@@ -588,13 +593,13 @@
 
     Array.prototype.forEach.call(groupsWrap.querySelectorAll('.kv-temalag-show-all, .kv-temalag-hide-all'), function (button) {
       button.addEventListener('click', function (event) {
-        var groupKey = String(event.target.getAttribute('data-group-key') || '');
+        var groupKey = String(event.currentTarget.getAttribute('data-group-key') || '');
         var group = groups.filter(function (row) { return row.key === groupKey; })[0];
         if (!group) return;
         state.layerPanelPrefs = state.layerPanelPrefs || {};
         var hiddenLookup = {};
         (Array.isArray(state.layerPanelPrefs.hidden_ids) ? state.layerPanelPrefs.hidden_ids : []).forEach(function (value) { hiddenLookup[String(value)] = true; });
-        var showAll = event.target.classList.contains('kv-temalag-show-all');
+        var showAll = event.currentTarget.classList.contains('kv-temalag-show-all');
         group.layers.forEach(function (layer) {
           var key = String(layer && layer.id);
           if (showAll) delete hiddenLookup[key];
@@ -607,18 +612,19 @@
       });
     });
 
-    Array.prototype.forEach.call(groupsWrap.querySelectorAll('.kv-temalag-group'), function (details) {
-      details.addEventListener('toggle', function (event) {
-        var groupKey = String(event.target.getAttribute('data-group-key') || '');
+    Array.prototype.forEach.call(groupsWrap.querySelectorAll('.kv-temalag-group-toggle'), function (button) {
+      button.addEventListener('click', function (event) {
+        var groupKey = String(event.currentTarget.getAttribute('data-group-key') || '');
         state.layerPanelPrefs = state.layerPanelPrefs || {};
         var collapsed = Array.isArray(state.layerPanelPrefs.collapsed_groups) ? state.layerPanelPrefs.collapsed_groups.slice() : [];
         var lookup = {};
         collapsed.forEach(function (value) { lookup[String(value)] = true; });
-        if (event.target.open) delete lookup[groupKey];
+        if (lookup[groupKey]) delete lookup[groupKey];
         else lookup[groupKey] = true;
         state.layerPanelPrefs.collapsed_groups = Object.keys(lookup);
         state.layerPanelPrefs.initialized = true;
         saveLayerPanelPrefs(state.layerPanelStorageKey, state.layerPanelPrefs);
+        syncLayerPanel(state, map, allLayers, state.visibleLayers || visibleLayers || []);
       });
     });
   }

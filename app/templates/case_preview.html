@@ -22,15 +22,15 @@
     <div class="actions-row wrap">
       <a class="btn btn-secondary" href="/cases/{{ case.id }}/edit">Tilbake til sak</a>
       <button class="btn btn-secondary" form="preview-edit-form" type="submit">Lagre tekstendringer</button>
-      <form method="post" action="/cases/{{ case.id }}/interview-pdf" class="inline-form"><button class="btn btn-secondary" type="submit">Eksporter kun avhørsrapport</button></form>
-      <form method="post" action="/cases/{{ case.id }}/bundle" class="inline-form"><button class="btn btn-secondary" type="submit">Eksporter PDF og filer (ZIP)</button></form>
-      <form method="post" action="/cases/{{ case.id }}/pdf" class="inline-form"><button class="btn btn-primary" type="submit">Eksporter PDF</button></form>
+      <form method="post" action="/cases/{{ case.id }}/interview-pdf" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><button class="btn btn-secondary" type="submit">Eksporter kun avhørsrapport</button></form>
+      <form method="post" action="/cases/{{ case.id }}/bundle" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><button class="btn btn-secondary" type="submit">Eksporter PDF og filer (ZIP)</button></form>
+      <form method="post" action="/cases/{{ case.id }}/pdf" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><button class="btn btn-primary" type="submit">Eksporter PDF</button></form>
     </div>
   </div>
 </details>
 
 {% if request.query_params.get('saved') %}<div class="alert alert-success">Forhåndsvisningstekst er lagret.</div>{% endif %}
-<form id="preview-edit-form" method="post" action="/cases/{{ case.id }}/preview/save"></form>
+<form id="preview-edit-form" method="post" action="/cases/{{ case.id }}/preview/save"><input type="hidden" name="csrf_token" value="{{ csrf_token }}" /></form>
 
 <section class="card preview-nav-card margin-bottom-l">
   <div class="preview-nav">

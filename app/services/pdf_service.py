@@ -12,7 +12,46 @@ from .case_service import autofill_case_drafts, case_has_avvik
 
 
 def build_case_preview_packet(case_row: dict[str, Any], evidence: list[dict[str, Any]]) -> dict[str, Any]:
-    return build_case_packet(case_row, evidence)
+    try:
+        return build_case_packet(case_row, evidence)
+    except Exception as exc:
+        # Preview must not crash the whole control flow. Return a minimal packet so
+        # the user can still go back, edit the case, and retry export.
+        title = str(case_row.get('case_number') or 'Kontrollsak')
+        return {
+            'documents': [
+                {'number': '01', 'title': 'Dokumentliste'},
+                {'number': '02', 'title': 'Anmeldelse'},
+                {'number': '03', 'title': 'Egenrapport'},
+                {'number': '04', 'title': 'Avhør / forklaring'},
+                {'number': '05', 'title': 'Rapport om ransaking / beslag'},
+                {'number': '06', 'title': 'Illustrasjonsrapport'},
+            ],
+            'primary_document_title': 'Anmeldelse',
+            'has_offences': False,
+            'title': title,
+            'summary': '',
+            'short_complaint': 'Forhåndsvisningen kunne ikke bygges automatisk. Kontroller at saken har saksnummer, kontrolltype, posisjon og lagrede kontrollpunkter. Teknisk feil: ' + str(exc),
+            'own_report': str(case_row.get('notes') or ''),
+            'interview_report': str(case_row.get('hearing_text') or ''),
+            'seizure_report': str(case_row.get('seizure_notes') or ''),
+            'illustration_texts': ['Ingen illustrasjoner registrert i saken.'],
+            'legal_refs': [],
+            'findings': [],
+            'sources': [],
+            'evidence': [],
+            'audio_files': [],
+            'interview_entries': [],
+            'notes': str(case_row.get('notes') or ''),
+            'hearing_text': str(case_row.get('hearing_text') or ''),
+            'seizure_text': str(case_row.get('seizure_notes') or ''),
+            'meta_rows': [
+                ('Saksnummer', str(case_row.get('case_number') or '-')),
+                ('Etterforsker', str(case_row.get('investigator_name') or '-')),
+                ('Kontrollsted', str(case_row.get('location_name') or '-')),
+            ],
+            'preview_error': str(exc),
+        }
 
 
 def prepare_case_for_export(case_id: int, case_row: dict[str, Any], user: dict[str, Any], *, set_end_time: bool) -> tuple[dict[str, Any], list[dict[str, Any]]]:

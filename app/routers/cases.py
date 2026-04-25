@@ -308,13 +308,13 @@ def generated_file(request: Request, case_id: int, filename: str):
 
 
 @router.get('/cases/{case_id}/preview', response_class=HTMLResponse)
-def preview_case(request: Request, case_id: int):
+async def preview_case(request: Request, case_id: int):
     user = require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til Minfiskerikontroll.')
     case_row = get_case_for_user(user, case_id)
     evidence = db.list_evidence(case_id)
     preview_case_row = dict(case_row)
     preview_case_row.update(autofill_case_drafts(case_row))
-    packet = build_case_preview_packet(preview_case_row, evidence)
+    packet = await run_in_threadpool(build_case_preview_packet, preview_case_row, evidence)
     return render_template(request, 'case_preview.html', case=preview_case_row, evidence=evidence, packet=packet)
 
 

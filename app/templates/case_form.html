@@ -209,8 +209,8 @@
           <span class="map-symbol-chip"><span class="map-symbol case"></span> Kontrollposisjon / rød nål</span>
         </div>
         <div class="map-visual-toggle-row">
-          <label class="check-chip"><input type="checkbox" id="toggle-zone-hit-overlay" checked /> Vis treffområder / stengte felt i kartet</label>
-          <span class="muted small">Velg ekstra kartlag under kartet. Lagvelgeren åpnes og lukkes uten å dekke kartflaten.</span>
+          <label class="check-chip"><input type="checkbox" id="toggle-zone-hit-overlay" checked /> <span id="toggle-zone-hit-overlay-text">Treffområder er synlige i kartet</span></label>
+          <span class="muted small">Velg ekstra kartlag under kartet. Trykk «Velg kartlag», åpne/lukk grupper, og bruk Vis/Skjul per gruppe uten at kartflaten dekkes.</span>
         </div>
         <div class="callout margin-top-s" id="map-selection-status">Kartet viser relevante fiskerirelaterte lag fra karttjenesten direkte i kontrollbildet. Bruk filtrene over kartet for å veksle mellom fredningsområder, stengte felt og andre reguleringer. Områdevurdering bruker kontrollposisjonen (rød nål).</div>
         <div class="map-relevant-panel margin-top-s" id="case-relevant-areas">
@@ -506,5 +506,5 @@
   }
 })();
 </script>
-<script src="/static/js/case-app.js?v=v87"></script>
+<script src="/static/js/case-app.js?v=v88"></script>
 {% endblock %}

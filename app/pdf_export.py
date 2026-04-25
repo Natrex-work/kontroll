@@ -1164,21 +1164,17 @@ def build_summary(case_row: Dict[str, Any], findings: list[Dict[str, Any]]) -> s
         lines.append(f'{idx}. {point}')
     return '\n'.join(lines).strip()
 
-def _basis_opening_phrase(case_row: Dict[str, Any]) -> str:
-    basis = (case_row.get('case_basis') or 'patruljeobservasjon').strip()
-    raw_source = str(case_row.get('basis_source_name') or '').strip()
-    normalized = raw_source.lower()
-    default_sources = {
-        '',
-        'kystvaktpatrulje',
-        'kv patrulje',
-        'kystvakten lettbåt',
-        'kystvaktens lettbåt',
-    }
-    if basis not in {'tips', 'anmeldelse'} and normalized not in default_sources:
-        return f'Det ble fra lettbåt fra {raw_source} gjennomført'
-    return 'Det ble fra Kystvakten lettbåt gjennomført'
+def _service_unit(case_row: Dict[str, Any]) -> str:
+    for key in ('service_unit', 'tjenestested', 'basis_source_name'):
+        value = str(case_row.get(key) or '').strip()
+        if value and value.lower() not in {'kystvaktpatrulje', 'kv patrulje'}:
+            return value
+    return 'Minfiskerikontroll'
 
+
+def _basis_opening_phrase(case_row: Dict[str, Any]) -> str:
+    unit = _service_unit(case_row)
+    return f'Kontrollen ble gjennomført av {unit}'
 
 
 def build_control_reason(case_row: Dict[str, Any], findings: list[Dict[str, Any]]) -> str:
@@ -1856,7 +1852,7 @@ def _header_meta_box(c: rl_canvas.Canvas, case_row: Dict[str, Any], doc_no: str,
     _draw_text_px(c, 'Side', 979, 214, 1040, 226, font_name='Helvetica-Bold', font_size=6.2)
     _draw_text_px(c, page_text, 1043, 214, 1122, 242, font_name='Helvetica', font_size=8.5, align='center', valign='middle')
     _draw_text_px(c, 'Tjenestested', 814, 247, 970, 259, font_name='Helvetica-Bold', font_size=6.2)
-    _draw_text_px(c, 'KV NORNEN', 814, 262, 1120, 294, font_name='Helvetica', font_size=8.5)
+    _draw_text_px(c, _service_unit(case_row), 814, 262, 1120, 294, font_name='Helvetica', font_size=8.5)
 
 
 def _common_body_frame(c: rl_canvas.Canvas) -> None:
@@ -1900,13 +1896,14 @@ def _draw_simple_table(c: rl_canvas.Canvas, l: float, t: float, widths: list[flo
         x_positions.append(x_positions[-1] + w)
     total_r = x_positions[-1]
     _stroke_box_px(c, l, t, total_r, t + row_h)
-    cx = l
     for idx, head in enumerate(headers):
-        _draw_label_value(c, x_positions[idx], t, x_positions[idx + 1], t + row_h, head, '', value_size=font_size)
+        _stroke_box_px(c, x_positions[idx], t, x_positions[idx + 1], t + row_h)
+        _draw_text_px(c, str(head or ''), x_positions[idx] + 4, t + 5, x_positions[idx + 1] - 4, t + row_h - 5, font_name='Helvetica-Bold', font_size=font_size, leading=font_size + 1.5)
     y = t + row_h
     for row in rows:
         for idx, cell in enumerate(row):
-            _draw_label_value(c, x_positions[idx], y, x_positions[idx + 1], y + row_h, '', cell, value_size=font_size)
+            _stroke_box_px(c, x_positions[idx], y, x_positions[idx + 1], y + row_h)
+            _draw_text_px(c, str(cell or ''), x_positions[idx] + 4, y + 5, x_positions[idx + 1] - 4, y + row_h - 5, font_name='Helvetica', font_size=font_size, leading=font_size + 1.5)
         y += row_h
     return y
 
@@ -2117,7 +2114,7 @@ def _draw_seizure_page(c: rl_canvas.Canvas, case_row: Dict[str, Any], packet: Di
     _draw_label_value(c, 880, y + 28, 1128, y + 96, 'Samtykke gitt av', '')
     _draw_label_value(c, 118, y + 96, 440, y + 140, 'Rans./beslag dato klokkeslett', _fmt_datetime_packet(case_row.get('end_time') or case_row.get('start_time')))
     _draw_label_value(c, 440, y + 96, 808, y + 140, 'Ledet av', _fmt_value(case_row.get('investigator_name')))
-    _draw_label_value(c, 808, y + 96, 1128, y + 140, 'Tjenestested', 'KV NORNEN')
+    _draw_label_value(c, 808, y + 96, 1128, y + 140, 'Tjenestested', _service_unit(case_row))
     _draw_label_value(c, 118, y + 140, 1128, y + 176, 'Vitner', _fmt_value(case_row.get('witness_name')))
     _draw_label_value(c, 118, y + 176, 1128, y + 214, 'Andre tilstedeværende under ransaking/beslag', _fmt_value(case_row.get('suspect_name')))
     _draw_label_value(c, 118, y + 214, 640, y + 252, 'Adresse for ransaking/beslag', _fmt_value(case_row.get('location_name')))
@@ -2343,7 +2340,7 @@ def _draw_seizure_page(c: rl_canvas.Canvas, case_row: Dict[str, Any], packet: Di
     _draw_label_value(c, 890, y + 28, 1128, y + 96, 'Samtykke gitt av', '')
     _draw_label_value(c, 118, y + 96, 440, y + 140, 'Rans./beslag dato klokkeslett', _fmt_datetime_packet(case_row.get('end_time') or case_row.get('start_time')))
     _draw_label_value(c, 440, y + 96, 808, y + 140, 'Ledet av', _fmt_value(case_row.get('investigator_name')))
-    _draw_label_value(c, 808, y + 96, 1128, y + 140, 'Tjenestested', 'KV NORNEN')
+    _draw_label_value(c, 808, y + 96, 1128, y + 140, 'Tjenestested', _service_unit(case_row))
     _draw_label_value(c, 118, y + 140, 1128, y + 176, 'Vitner', _fmt_value(case_row.get('witness_name')))
     _draw_label_value(c, 118, y + 176, 1128, y + 214, 'Andre tilstedeværende under ransaking/beslag', _fmt_value(case_row.get('suspect_name')))
     _draw_label_value(c, 118, y + 214, 640, y + 252, 'Adresse for ransaking/beslag', _fmt_value(case_row.get('location_name')))
@@ -2757,3 +2754,104 @@ def build_interview_only_pdf(case_row: Dict[str, Any], evidence_rows: Iterable[D
     story.append(Paragraph(_format_text_for_pdf(_build_interview_report(case_row)), styles['body']))
     doc.build(story, onFirstPage=_header_footer_v21, onLaterPages=_header_footer_v21)
     return outpath
+
+# --- v88: make the police-form/template renderer the primary PDF export again ---
+# The simple ReportLab story renderer above is kept only as a safety fallback.  The
+# main export must use the form backgrounds in app/pdf_templates so that the
+# generated PDF follows the same document order/fields as the attached police forms.
+_build_case_pdf_story_fallback_v88 = build_case_pdf
+_build_interview_pdf_story_fallback_v88 = build_interview_only_pdf
+
+
+def _required_template_pages_v88() -> list[str]:
+    return [
+        'page-01.png',  # Dokumentliste
+        'page-02.png',  # Anmeldelse / hoveddokument
+        'page-04.png',  # Egenrapport
+        'page-05.png',  # Avhor forste side
+        'page-06.png',  # Avhor fortsettelse
+        'page-07.png',  # Ransaking/beslag
+        'page-08.png',  # Illustrasjoner
+    ]
+
+
+def _template_pages_ready_v88() -> bool:
+    try:
+        return all((_TEMPLATE_DIR / name).exists() for name in _required_template_pages_v88())
+    except Exception:
+        return False
+
+
+def _build_case_pdf_template_v88(case_row: Dict[str, Any], evidence_rows: Iterable[Dict[str, Any]], output_dir: Path) -> Path:
+    if not _template_pages_ready_v88():
+        missing = [name for name in _required_template_pages_v88() if not (_TEMPLATE_DIR / name).exists()]
+        raise FileNotFoundError('Mangler PDF-malsider: ' + ', '.join(missing))
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    filename = f"{str(case_row['case_number']).replace(' ', '_')}.pdf"
+    outpath = output_dir / filename
+    packet = build_case_packet(case_row, evidence_rows)
+
+    c = rl_canvas.Canvas(str(outpath), pagesize=A4)
+    c.setTitle(f"Anmeldelsespakke {case_row['case_number']}")
+    c.setAuthor(case_row.get('investigator_name') or 'Minfiskerikontroll')
+
+    _draw_template(c, 'page-01.png')
+    _header_meta_box(c, case_row, '01', 1, 1)
+    _common_body_frame(c)
+    _draw_document_list_body(c, case_row, packet)
+    c.showPage()
+
+    _draw_complaint_pages(c, case_row, packet)
+    c.showPage()
+
+    _draw_own_report_pages(c, case_row)
+    c.showPage()
+
+    _draw_interview_pages(c, case_row)
+    c.showPage()
+
+    _draw_seizure_page(c, case_row, packet)
+    c.showPage()
+
+    _draw_illustration_pages(c, case_row, packet)
+
+    c.save()
+    return outpath
+
+
+def build_case_pdf(case_row: Dict[str, Any], evidence_rows: Iterable[Dict[str, Any]], output_dir: Path) -> Path:  # type: ignore[override]
+    try:
+        return _build_case_pdf_template_v88(case_row, evidence_rows, output_dir)
+    except Exception:
+        # Last-resort fallback: the app should return a PDF instead of a gateway/500
+        # error even if a template asset is missing or a field overflows unexpectedly.
+        try:
+            output_dir.mkdir(parents=True, exist_ok=True)
+            broken = output_dir / f"{str(case_row.get('case_number') or 'sak').replace(' ', '_')}.pdf"
+            if broken.exists() and broken.stat().st_size == 0:
+                broken.unlink()
+        except Exception:
+            pass
+        return _build_case_pdf_story_fallback_v88(case_row, evidence_rows, output_dir)
+
+
+def _build_interview_only_pdf_template_v88(case_row: Dict[str, Any], evidence_rows: Iterable[Dict[str, Any]], output_dir: Path) -> Path:
+    if not (_TEMPLATE_DIR / 'page-05.png').exists():
+        raise FileNotFoundError('Mangler PDF-malside: page-05.png')
+    output_dir.mkdir(parents=True, exist_ok=True)
+    filename = f"{str(case_row['case_number']).replace(' ', '_')}_avhor.pdf"
+    outpath = output_dir / filename
+    c = rl_canvas.Canvas(str(outpath), pagesize=A4)
+    c.setTitle(f"Avhorsrapport {case_row['case_number']}")
+    c.setAuthor(case_row.get('investigator_name') or 'Minfiskerikontroll')
+    _draw_interview_pages(c, case_row)
+    c.save()
+    return outpath
+
+
+def build_interview_only_pdf(case_row: Dict[str, Any], evidence_rows: Iterable[Dict[str, Any]], output_dir: Path) -> Path:  # type: ignore[override]
+    try:
+        return _build_interview_only_pdf_template_v88(case_row, evidence_rows, output_dir)
+    except Exception:
+        return _build_interview_pdf_story_fallback_v88(case_row, evidence_rows, output_dir)

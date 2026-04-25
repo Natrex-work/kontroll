@@ -1401,6 +1401,35 @@ input, select, textarea { font-size: 16px; }
   font-weight: 800;
   color: var(--primary);
 }
+.kv-temalag-group-toggle {
+  appearance: none;
+  border: 0;
+  width: 100%;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  cursor: pointer;
+  font-weight: 800;
+  color: var(--primary);
+  text-align: left;
+}
+
+.kv-temalag-group-toggle:focus-visible {
+  outline: 3px solid rgba(36, 82, 123, 0.24);
+  outline-offset: -3px;
+}
+
+.kv-temalag-group.is-open .kv-temalag-group-toggle {
+  border-bottom: 1px solid rgba(20, 47, 79, 0.08);
+}
+
+.kv-temalag-group.is-collapsed .kv-temalag-group-title::before {
+  opacity: 0.45;
+}
+
 
 .kv-temalag-group summary::-webkit-details-marker {
   display: none;
@@ -1428,6 +1457,10 @@ input, select, textarea { font-size: 16px; }
   font-size: 0.8rem;
   color: #5b6b7f;
   font-weight: 700;
+}
+
+.kv-temalag-group-body {
+  display: block;
 }
 
 .kv-temalag-group-actions {
@@ -2852,7 +2885,7 @@ body {
   }
 }
 
-/* v87 eksternt kartlagpanel og mobil OCR-forbedringer */
+/* v88 eksternt kartlagpanel og mobil OCR-forbedringer */
 .map-layer-panel-host {
   margin-top: 12px;
 }
@@ -2909,5 +2942,22 @@ body {
 
   .kv-temalag-panel-external .kv-temalag-groups {
     max-height: calc(min(42vh, 320px) - 118px);
+  }
+}
+
+
+/* v88 kartlagpanel: enklere åpne/lukke på mobil */
+.kv-temalag-panel-external .kv-temalag-group-actions {
+  flex-wrap: wrap;
+}
+.kv-temalag-panel-external .kv-temalag-group-actions .btn {
+  flex: 1 1 140px;
+}
+@media (max-width: 720px) {
+  .kv-temalag-panel-external .kv-temalag-card {
+    max-height: min(56vh, 420px);
+  }
+  .kv-temalag-panel-external .kv-temalag-groups {
+    max-height: calc(min(56vh, 420px) - 118px);
   }
 }
