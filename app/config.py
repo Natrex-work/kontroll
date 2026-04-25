@@ -91,6 +91,13 @@ _session_https_only = _env_flag('KV_SESSION_HTTPS_ONLY', PRODUCTION_MODE)
 if _session_same_site == 'none' and not _session_https_only:
     _session_same_site = 'lax'
 
+# Keep upload and request limits aligned for mobile OCR and evidence uploads.
+_DEFAULT_MAX_UPLOAD_MB = max(1, _env_int('KV_MAX_UPLOAD_MB', 30, minimum=1, maximum=60))
+_DEFAULT_MAX_REQUEST_MB = max(
+    _DEFAULT_MAX_UPLOAD_MB,
+    _env_int('KV_MAX_REQUEST_MB', _DEFAULT_MAX_UPLOAD_MB, minimum=2, maximum=80),
+)
+
 
 @dataclass(frozen=True)
 class Settings:
@@ -133,8 +140,8 @@ class Settings:
 settings = Settings(
     app_name=os.getenv('KV_APP_NAME', 'Kontroll'),
     brand_org_name=os.getenv('KV_BRAND_ORG_NAME', 'Minfiskerikontroll').strip() or 'Minfiskerikontroll',
-    app_version=os.getenv('KV_APP_VERSION', '86.0.0'),
-    app_version_label=os.getenv('KV_APP_VERSION_LABEL', 'v86'),
+    app_version=os.getenv('KV_APP_VERSION', '87.0.0'),
+    app_version_label=os.getenv('KV_APP_VERSION_LABEL', 'v87'),
     base_dir=BASE_DIR,
     templates_dir=BASE_DIR / 'app' / 'templates',
     static_dir=BASE_DIR / 'app' / 'static',
@@ -148,8 +155,8 @@ settings = Settings(
     session_idle_minutes=_env_int('KV_SESSION_IDLE_MINUTES', 30 if PRODUCTION_MODE else 120, minimum=5, maximum=24 * 60),
     session_absolute_minutes=_env_int('KV_SESSION_ABSOLUTE_MINUTES', 12 * 60, minimum=30, maximum=7 * 24 * 60),
     log_level=os.getenv('KV_LOG_LEVEL', 'INFO').upper(),
-    max_upload_size_mb=max(1, _env_int('KV_MAX_UPLOAD_MB', 150, minimum=1, maximum=250)),
-    max_request_size_mb=max(2, _env_int('KV_MAX_REQUEST_MB', 30, minimum=2, maximum=300)),
+    max_upload_size_mb=_DEFAULT_MAX_UPLOAD_MB,
+    max_request_size_mb=_DEFAULT_MAX_REQUEST_MB,
     min_password_length=max(10, _env_int('KV_MIN_PASSWORD_LENGTH', 12, minimum=10, maximum=128)),
     allowed_hosts=tuple(_allowed_hosts),
     production_mode=PRODUCTION_MODE,

@@ -1,1 +1,1 @@
-"""Service layer for KV Kontroll."""
+"""Service layer for Minfiskerikontroll."""

@@ -13,7 +13,7 @@ router = APIRouter()
 
 @router.get('/dashboard', response_class=HTMLResponse)
 def dashboard(request: Request, status_filter: str = 'all'):
-    user = require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til KV Kontroll.')
+    user = require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til Minfiskerikontroll.')
     cases = db.list_cases(user, status_filter=status_filter)
     counts = db.case_counts(user)
     return render_template(request, 'dashboard.html', cases=cases, counts=counts, status_filter=status_filter)
@@ -33,7 +33,7 @@ def rules_overview(request: Request):
 
 @router.get('/kontroller', response_class=HTMLResponse)
 def controls_overview(request: Request, status_filter: str = 'all'):
-    user = require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til KV Kontroll.')
+    user = require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til Minfiskerikontroll.')
     cases = db.list_cases(user, status_filter=status_filter)
     counts = db.case_counts(user)
     return render_template(request, 'controls_overview.html', cases=cases, counts=counts, status_filter=status_filter)

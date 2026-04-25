@@ -915,30 +915,33 @@ def _sentenceize(value: Any) -> str:
 
 def _normalize_area_generated_note(note: Any, case_row: Dict[str, Any], item: Dict[str, Any]) -> str:
     clean = _clean_generated_phrase(note)
-    area_name = _clean_generated_phrase(_area_name_value(case_row) or item.get('area_name') or item.get('name') or item.get('label') or 'aktuelt område')
+    area_name = _clean_generated_phrase(_area_name_value(case_row) or item.get('area_name') or item.get('name') or item.get('label') or '')
     area_status = _clean_generated_phrase(_area_status_value(case_row) or item.get('area_status') or item.get('status') or '')
     gear_text = _clean_generated_phrase(case_row.get('gear_type') or item.get('gear_type') or 'redskapet') or 'redskapet'
 
     if clean:
-        clean = re.sub(r'^I oppgitt posisjon ble .*? kontrollert i [^.]+\.?\s*', '', clean, flags=re.IGNORECASE)
-        clean = re.sub(r'^Posisjonen ligger i [^.]+\.?\s*', '', clean, flags=re.IGNORECASE)
-        clean = re.sub(r'^Valgt redskap \(([^)]+)\) er ikke blant redskapene som er tillatt i området\.?', r'Følgende redskap er ikke tillatt i dette området: .', clean, flags=re.IGNORECASE)
-        clean = re.sub(r'^Valgt redskap \(([^)]+)\) må vurderes som ulovlig eller særskilt regulert i området\.?', r'Følgende redskap er forbudt eller særskilt regulert i dette området: .', clean, flags=re.IGNORECASE)
-        clean = re.sub(r'^Dette redskapet er ikke tillatt i hummerfredningsområdet\.?', f'Følgende redskap er ikke tillatt i hummerfredningsområdet: {gear_text.lower()}.', clean, flags=re.IGNORECASE)
-        clean = re.sub(r'^Området er registrert som ([^.]+)\.?', r'Området er registrert som .', clean, flags=re.IGNORECASE)
-        clean = re.sub(r'^For dette området gjaldt følgende reguleringer og begrensninger:\s*', '', clean, flags=re.IGNORECASE)
+        clean = re.sub(r'^I oppgitt posisjon ble .*? kontrollert(?: der det befant seg)? i [^.]+\.??\s*', '', clean, flags=re.IGNORECASE)
+        clean = re.sub(r'^Posisjonen ligger i [^.]+\.??\s*', '', clean, flags=re.IGNORECASE)
+        clean = re.sub('^Valgt redskap \\(([^)]+)\\) er ikke blant redskapene som er tillatt i omr\u00e5det\\.?', 'F\u00f8lgende redskap er ikke tillatt i dette omr\u00e5det: \\1.', clean, flags=re.IGNORECASE)
+        clean = re.sub('^Valgt redskap \\(([^)]+)\\) m\u00e5 vurderes som ulovlig eller s\u00e6rskilt regulert i omr\u00e5det\\.?', 'F\u00f8lgende redskap er forbudt eller s\u00e6rskilt regulert i dette omr\u00e5det: \\1.', clean, flags=re.IGNORECASE)
+        clean = re.sub('^Dette redskapet er ikke tillatt i hummerfredningsomr\u00e5det\\.?', 'F\u00f8lgende redskap er ikke tillatt i hummerfredningsomr\u00e5det: ' + gear_text.lower() + '.', clean, flags=re.IGNORECASE)
+        clean = re.sub('^Omr\u00e5det er registrert som ([^.]+)\\.?', 'Omr\u00e5det er registrert som \\1.', clean, flags=re.IGNORECASE)
+        clean = re.sub('^For dette omr\u00e5det gjaldt f\u00f8lgende reguleringer og begrensninger:\\s*', '', clean, flags=re.IGNORECASE)
+        clean = re.sub('^Kontroller at valgt redskap er tillatt i omr\u00e5det\\.?', 'Det m\u00e5 kontrolleres om valgt redskap er tillatt i omr\u00e5det.', clean, flags=re.IGNORECASE)
         clean = _sentenceize(clean)
 
-    intro = f'I oppgitt posisjon ble {gear_text.lower()} observert og kontrollert'
-    if area_name:
-        intro += f' der det befant seg i området {area_name}'
-        if area_status:
-            intro += f' ({area_status})'
-    intro = _sentenceize(intro)
+    parts: list[str] = [f'I oppgitt posisjon ble f\u00f8lgende redskap observert og kontrollert: {gear_text.lower()}.']
+    if area_name and area_status:
+        parts.append(f'Kontrollposisjonen ligger innenfor {area_name}, registrert som {area_status}.')
+    elif area_name:
+        parts.append(f'Kontrollposisjonen ligger innenfor {area_name}.')
+    elif area_status:
+        parts.append(f'Omr\u00e5det er registrert som {area_status}.')
     if clean:
-        return f"{intro} For dette området gjaldt følgende reguleringer og begrensninger: {clean.rstrip('.')} .".replace(' .', '.')
-    return f"{intro} For dette området gjaldt følgende reguleringer og begrensninger."
-
+        parts.append(clean)
+    else:
+        parts.append('I dette omr\u00e5det gjelder s\u00e6rskilte forbud eller begrensninger som m\u00e5 vurderes opp mot valgt art, redskap og aktivitet.')
+    return ' '.join(part.strip() for part in parts if part and part.strip()).replace(' .', '.')
 
 def _dedupe_preserve(values: list[str]) -> list[str]:
     seen: set[str] = set()
@@ -1558,7 +1561,7 @@ def build_case_pdf(case_row: Dict[str, Any], evidence_rows: Iterable[Dict[str, A
         topMargin=1.2 * cm,
         bottomMargin=1.2 * cm,
         title=f"Anmeldelsespakke {case_row['case_number']}",
-        author=case_row.get('investigator_name') or 'KV Kontroll',
+        author=case_row.get('investigator_name') or 'Minfiskerikontroll',
     )
     story: List[Any] = []
 
@@ -2215,7 +2218,7 @@ def build_case_pdf(case_row: Dict[str, Any], evidence_rows: Iterable[Dict[str, A
 
     c = rl_canvas.Canvas(str(outpath), pagesize=A4)
     c.setTitle(f"Anmeldelsespakke {case_row['case_number']}")
-    c.setAuthor(case_row.get('investigator_name') or 'KV Kontroll')
+    c.setAuthor(case_row.get('investigator_name') or 'Minfiskerikontroll')
 
     # document list
     _draw_template(c, 'page-01.png')
@@ -2408,7 +2411,7 @@ def build_interview_only_pdf(case_row: Dict[str, Any], evidence_rows: Iterable[D
     outpath = output_dir / filename
     c = rl_canvas.Canvas(str(outpath), pagesize=A4)
     c.setTitle(f"Avhørsrapport {case_row['case_number']}")
-    c.setAuthor(case_row.get('investigator_name') or 'KV Kontroll')
+    c.setAuthor(case_row.get('investigator_name') or 'Minfiskerikontroll')
     _draw_interview_pages(c, case_row)
     c.save()
     return outpath

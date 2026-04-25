@@ -1,1 +1,1 @@
-"""Route modules for KV Kontroll."""
+"""Route modules for Minfiskerikontroll."""

@@ -6,7 +6,7 @@
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('/static/sw.js?v=v86').catch(function () {});
+      navigator.serviceWorker.register('/static/sw.js?v=v87').catch(function () {});
     });
   }
 
@@ -1534,7 +1534,7 @@
 
     function currentOfflineWarmKey() {
       var bbox = currentMapBbox();
-      var layerIds = filteredMapCatalog().map(function (layer) { return Number(layer.id); }).filter(function (value) { return isFinite(value); }).sort(function (a, b) { return a - b; });
+      var layerIds = mergeRelevantMapLayers(filteredMapCatalog(), zoneMatchedLayerIds(latestZoneResult)).slice(0, 12).map(function (layer) { return Number(layer.id); }).filter(function (value) { return isFinite(value); }).sort(function (a, b) { return a - b; });
       if (!bbox || !layerIds.length) return '';
       return layerIds.join(',') + '|' + bbox.map(roundForOffline).join(',');
     }
@@ -3454,6 +3454,9 @@
       return [file && file.name || '', file && file.size || 0, file && file.lastModified || 0].join('|');
     }
 
+    var OCR_SERVER_TIMEOUT_MS = 32000;
+    var OCR_ORIGINAL_MAX_BYTES = 8 * 1024 * 1024;
+
     function buildOcrUploadFile(file, mode) {
       mode = mode || 'original';
       if (!file) return Promise.reject(new Error('Bildefilen mangler.'));
@@ -3465,7 +3468,8 @@
       return preprocessImageForOcr(file, processMode).then(function (blob) {
         var suffix = mode === 'server-highres' ? '-ocr-hires.jpg' : '-ocr.jpg';
         return new File([blob], (String(file.name || 'ocr').replace(/\.[^.]+$/, '') || 'ocr') + suffix, { type: 'image/jpeg', lastModified: Date.now() });
-      }).catch(function () {
+      }).catch(function (err) {
+        if (mode !== 'original') return Promise.reject(err || new Error('Kunne ikke optimalisere bildet for OCR.'));
         return file;
       });
     }
@@ -3518,6 +3522,10 @@
               return { ok: response.ok, status: response.status, payload: payload };
             });
           })
+          .catch(function (err) {
+            if (err && err.name === 'AbortError') throw new Error('Server-OCR brukte for lang tid.');
+            throw err;
+          })
           .finally(function () { if (timer) clearTimeout(timer); });
       }
       return new Promise(function (resolve, reject) {
@@ -3547,15 +3555,9 @@
           try { payload = JSON.parse(xhr.responseText || '{}'); } catch (e) { payload = {}; }
           resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, payload: payload });
         };
-        xhr.onerror = function () {
-          reject(new Error('Kunne ikke laste opp bildet til server-OCR.'));
-        };
-        xhr.onabort = function () {
-          reject(new Error('Server-OCR ble avbrutt.'));
-        };
-        xhr.ontimeout = function () {
-          reject(new Error('Server-OCR brukte for lang tid.'));
-        };
+        xhr.onerror = function () { reject(new Error('Kunne ikke laste opp bildet til server-OCR.')); };
+        xhr.onabort = function () { reject(new Error('Server-OCR ble avbrutt.')); };
+        xhr.ontimeout = function () { reject(new Error('Server-OCR brukte for lang tid.')); };
         xhr.send(formData);
       });
     }
@@ -3591,7 +3593,7 @@
         formData.append('file', uploadFile, uploadFile.name || ('ocr-' + Date.now() + '.jpg'));
         return postFormDataJson('/api/ocr/extract', formData, {
           useXhr: shouldUseXhrOcrUpload(uploadFile),
-          timeoutMs: 45000,
+          timeoutMs: OCR_SERVER_TIMEOUT_MS,
           onProgress: function (loaded, total) {
             if (!registryResult || !total) return;
             var pct = Math.max(1, Math.min(100, Math.round((loaded / total) * 100)));
@@ -3606,9 +3608,10 @@
           return {
             text: normalizedText,
             raw_text: rawText,
-            strategy: (result.payload.strategy || 'server') + ' · ' + label,
+            strategy: (result.payload.strategy || 'server') + ' - ' + label,
             source: 'server',
-            hints: (result.payload && result.payload.hints) || extractLookupHintsFromText(rawText || normalizedText)
+            hints: (result.payload && result.payload.hints) || extractLookupHintsFromText(rawText || normalizedText),
+            elapsed_ms: result.payload.elapsed_ms || null
           };
         });
       }
@@ -3616,24 +3619,28 @@
       if (registryResult) registryResult.innerHTML = 'Forbereder bildet for server-OCR ...';
       var seen = {};
       var mobileFirst = shouldUseXhrOcrUpload(file) || prefersServerOcrFirst(file);
-      var attempts = mobileFirst ? [
-        function () { return buildOcrUploadFile(file, 'document').then(function (uploadFile) { return { file: uploadFile, label: 'optimalisert mobilbilde' }; }); },
-        function () { return buildOcrUploadFile(file, 'server-highres').then(function (uploadFile) { return { file: uploadFile, label: 'forbedret original' }; }); },
-        function () { return Promise.resolve(file).then(function (uploadFile) { return { file: uploadFile, label: 'originalbilde' }; }); }
-      ] : [
-        function () { return Promise.resolve(file).then(function (uploadFile) { return { file: uploadFile, label: 'originalbilde' }; }); },
-        function () { return buildOcrUploadFile(file, 'server-highres').then(function (uploadFile) { return { file: uploadFile, label: 'forbedret original' }; }); },
-        function () { return buildOcrUploadFile(file, 'document').then(function (uploadFile) { return { file: uploadFile, label: 'dokumentmodus' }; }); }
-      ];
+      var originalAllowed = Number(file && file.size || 0) > 0 && Number(file && file.size || 0) <= OCR_ORIGINAL_MAX_BYTES;
+      var attempts = [];
+      if (mobileFirst) {
+        attempts.push(function () { return buildOcrUploadFile(file, 'document').then(function (uploadFile) { return { file: uploadFile, label: 'optimalisert mobilbilde' }; }); });
+        attempts.push(function () { return buildOcrUploadFile(file, 'server-highres').then(function (uploadFile) { return { file: uploadFile, label: 'forbedret original' }; }); });
+      } else {
+        if (originalAllowed) attempts.push(function () { return Promise.resolve({ file: file, label: 'originalbilde' }); });
+        attempts.push(function () { return buildOcrUploadFile(file, 'server-highres').then(function (uploadFile) { return { file: uploadFile, label: 'forbedret original' }; }); });
+        attempts.push(function () { return buildOcrUploadFile(file, 'document').then(function (uploadFile) { return { file: uploadFile, label: 'dokumentmodus' }; }); });
+      }
 
       function nextAttempt(index, lastError) {
         if (index >= attempts.length) return Promise.reject(lastError || new Error('Server-OCR ga ikke lesbar tekst.'));
         return attempts[index]().then(function (candidate) {
           if (!candidate || !candidate.file) return nextAttempt(index + 1, lastError);
+          if (String(candidate.label || '') === 'originalbilde' && !originalAllowed) return nextAttempt(index + 1, lastError);
           var key = fileAttemptKey(candidate.file);
           if (seen[key]) return nextAttempt(index + 1, lastError);
           seen[key] = true;
           return sendAttempt(candidate.file, candidate.label).catch(function (err) {
+            var msg = String(err && err.message || err || '').toLowerCase();
+            if (msg.indexOf('for lang tid') !== -1 || msg.indexOf('for stort') !== -1) return Promise.reject(err);
             return nextAttempt(index + 1, err);
           });
         }).catch(function (err) {
@@ -3719,7 +3726,7 @@
       var avoidBrowserFallback = shouldAvoidAutomaticBrowserOcr(file);
       var ocrPromise = useServerFirst
         ? (function () {
-            if (registryResult) registryResult.innerHTML = 'Sender originalbildet til server-OCR (full analyse) ...';
+            if (registryResult) registryResult.innerHTML = 'Forbereder og sender optimalisert bilde til server-OCR ...';
             return runServerOcr(file).catch(function (error) {
               if (avoidBrowserFallback) {
                 if (registryResult) registryResult.innerHTML = 'Server-OCR fant ikke tydelig tekst. Lokal OCR i mobilnettleseren hoppes over for å unngå heng. Prøv et tydeligere bilde eller last opp på nytt.';
@@ -3744,8 +3751,8 @@
           });
         })
         .catch(function (err) {
-          registryResult.innerHTML = 'OCR feilet: ' + escapeHtml(err.message || err);
-          throw err;
+          if (registryResult) registryResult.innerHTML = 'OCR feilet: ' + escapeHtml(err.message || err);
+          return null;
         });
     }
 
@@ -3986,14 +3993,16 @@
       };
       if (options.recenterTo) mapState.recenterTo = options.recenterTo;
       mapState.showDeviceMarker = mapState.manualPosition !== true;
+      var maxCaseMapLayers = 12;
       var zoneLayerIds = zoneMatchedLayerIds(latestZoneResult);
-      var defaultVisibleIds = mergeRelevantMapLayers(filteredMapCatalog(), zoneLayerIds).map(function (layer) { return Number(layer && layer.id); }).filter(function (value) { return isFinite(value); });
-      var displayLayers = mergeRelevantMapLayers(mapCatalog || [], zoneLayerIds);
+      var displayLayers = mergeRelevantMapLayers(filteredMapCatalog(), zoneLayerIds).slice(0, maxCaseMapLayers);
+      var defaultVisibleIds = displayLayers.map(function (layer) { return Number(layer && layer.id); }).filter(function (value) { return isFinite(value); });
+      var featureDetailIds = visibleFeatureDetailLayerIds(10, zoneLayerIds);
       var allLayerIds = displayLayers.map(function (layer) { return Number(layer && layer.id); }).filter(function (value) { return isFinite(value); });
       var fisheryPortalService = root.dataset.portalMapserver || (caseMap && caseMap.dataset ? (caseMap.dataset.portalMapserver || '') : '') || 'https://portal.fiskeridir.no/server/rest/services/fiskeridirWMS_fiskeri/MapServer';
       var vernPortalService = root.dataset.portalVernMapserver || (caseMap && caseMap.dataset ? (caseMap.dataset.portalVernMapserver || '') : '') || 'https://portal.fiskeridir.no/server/rest/services/Fiskeridir_vern/MapServer';
       mapState.fetchFeatureDetails = true;
-      mapState.featureDetailLayerIds = [];
+      mapState.featureDetailLayerIds = featureDetailIds;
       mapState.defaultVisibleLayerIds = defaultVisibleIds;
       mapState.highlightLayerIds = zoneLayerIds.slice();
       mapState.detailFetchThresholdZoom = 5;
@@ -4001,7 +4010,7 @@
       mapState.showLegend = false;
       mapState.showLayerPanel = !!mapLayerPanelHost;
       mapState.layerPanelDefaultOpen = false;
-      mapState.layerPanelKey = 'case-map-v86';
+      mapState.layerPanelKey = 'case-map-v87';
       mapState.layerPanelTargetSelector = mapLayerPanelHost ? '#case-map-layer-panel-host' : '';
       mapState.rasterLayerIds = allLayerIds;
       mapState.identifyLayerIds = allLayerIds;
@@ -4009,7 +4018,7 @@
       mapState.portalFisheryService = fisheryPortalService;
       mapState.portalVernService = vernPortalService;
       mapState.rasterServicesAuto = true;
-      mapState.rasterChunkSize = 18;
+      mapState.rasterChunkSize = 8;
       mapState.rasterOpacity = 0.9;
       mapState.rasterServices = null;
       createPortalMap(caseMap, displayLayers, mapState).then(function () {
@@ -4756,9 +4765,10 @@ function renderHummerStatus(result) {
         if (!ruleText) {
           ruleText = sentenceize('I dette området gjelder særskilte forbud eller begrensninger' + (subjectBits.length ? ' for ' + subjectBits.join(' og ') : '') + '.');
         }
-        var intro = 'I oppgitt posisjon ble ' + gearLabel.toLowerCase() + ' observert og kontrollert der det befant seg i området ' + label + ' (' + status + ').';
-        var statusText = 'For dette området gjaldt følgende reguleringer og begrensninger:';
-        return '- ' + sentenceize(intro) + ' ' + statusText + ' ' + ruleText;
+        var intro = 'I oppgitt posisjon ble følgende redskap observert og kontrollert: ' + gearLabel.toLowerCase() + '.';
+        var areaLine = label ? ('Kontrollposisjonen ligger innenfor ' + label + (status ? ' (' + status + ')' : '') + '.') : '';
+        var statusText = 'I dette området gjelder følgende forbud eller begrensninger:';
+        return '- ' + [sentenceize(intro), sentenceize(areaLine), statusText, ruleText].filter(Boolean).join(' ');
       }
 
       var points = avvik.map(function (item, idx) {

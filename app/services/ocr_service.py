@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from io import BytesIO
 import re
+import time
 from typing import Any
 
 from PIL import Image, ImageEnhance, ImageOps
@@ -109,8 +110,8 @@ def _load_image(content: bytes) -> Image.Image:
         image = background
     elif image.mode != 'RGB':
         image = image.convert('RGB')
-    max_side = 2200
-    min_side = 1200
+    max_side = 1800
+    min_side = 1000
     width, height = image.size
     longest = max(width, height)
     if longest > max_side:
@@ -447,6 +448,9 @@ def _merge_best_hints(attempts: list[dict[str, Any]]) -> dict[str, str]:
 def extract_text_from_image(content: bytes, *, filename: str = '', timeout_seconds: int = 25) -> dict[str, Any]:
     if not content:
         raise ValueError('Bildefilen er tom.')
+    started = time.monotonic()
+    max_wall_seconds = max(10.0, min(float(timeout_seconds or 25), 32.0))
+    deadline = started + max_wall_seconds
     try:
         image = _load_image(content)
     except Exception as exc:  # pragma: no cover - depends on image format support in runtime
@@ -454,13 +458,21 @@ def extract_text_from_image(content: bytes, *, filename: str = '', timeout_secon
 
     attempts: list[dict[str, Any]] = []
     label_crops = _candidate_label_crops(image)
-    attempt_timeout = max(8, min(int(timeout_seconds or 0) or 18, 18))
+    timed_out = False
     try:
-        variants = _preferred_variants(image, label_crops)
+        variant_limit = 8 if max_wall_seconds <= 28 else 10
+        variants = _preferred_variants(image, label_crops)[:variant_limit]
         for label, variant, config in variants:
+            remaining = deadline - time.monotonic()
+            if remaining < 3.0:
+                timed_out = True
+                break
+            attempt_timeout = max(3, min(8, int(remaining)))
             try:
                 text = pytesseract.image_to_string(variant, lang='nor+eng', config=config, timeout=attempt_timeout)
-            except TesseractError:
+            except TesseractNotFoundError:
+                raise
+            except (TesseractError, RuntimeError):
                 text = ''
             clean_text = _clean_ocr_text(text)
             hints = registry.extract_tag_hints(clean_text)
@@ -479,12 +491,12 @@ def extract_text_from_image(content: bytes, *, filename: str = '', timeout_secon
                 'hints': hints,
                 '_score': score,
             })
-            if hints.get('name') and (hints.get('address') or hints.get('post_place')) and (hints.get('phone') or hints.get('hummer_participant_no') or hints.get('vessel_reg')) and score >= 215:
+            if hints.get('name') and (hints.get('address') or hints.get('post_place')) and (hints.get('phone') or hints.get('hummer_participant_no') or hints.get('vessel_reg')) and score >= 200:
                 break
-            if score >= 245 and sum(1 for value in hints.values() if str(value or '').strip()) >= 4:
+            if score >= 230 and sum(1 for value in hints.values() if str(value or '').strip()) >= 4:
                 break
     except TesseractNotFoundError as exc:  # pragma: no cover - runtime specific
-        raise RuntimeError('OCR-motor er ikke installert på serveren.') from exc
+        raise RuntimeError('OCR-motor er ikke installert pa serveren.') from exc
 
     best: dict[str, Any] | None = None
     best_score = -1
@@ -502,6 +514,8 @@ def extract_text_from_image(content: bytes, *, filename: str = '', timeout_secon
     if _score_text(normalized_text) < 18 and _score_text(best_text) >= 18:
         normalized_text = best_text
     if _score_text(normalized_text) < 18:
+        if timed_out:
+            raise ValueError('OCR brukte for lang tid uten a finne tydelig tekst. Prov et skarpere og tettere bilde.')
         raise ValueError('Ingen tydelig tekst ble funnet i bildet.')
     return {
         'text': normalized_text,
@@ -513,7 +527,8 @@ def extract_text_from_image(content: bytes, *, filename: str = '', timeout_secon
             'score': int(item.get('_score') or 0),
         } for item in attempts],
         'label_crop_detected': bool(label_crops),
+        'timed_out': timed_out,
+        'elapsed_ms': int((time.monotonic() - started) * 1000),
     }
-
 
 __all__ = ['extract_text_from_image']

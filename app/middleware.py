@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import PlainTextResponse, Response
+from starlette.responses import JSONResponse, PlainTextResponse, Response
 
 from .config import settings
 from .security import effective_scheme
@@ -18,7 +18,10 @@ class BodySizeLimitMiddleware(BaseHTTPMiddleware):
                 except ValueError:
                     content_length = 0
                 if content_length > settings.max_request_size_mb * 1024 * 1024:
-                    return PlainTextResponse('Forespørselen er for stor.', status_code=413)
+                    message = f'Foresporselen er for stor. Maks tillatt storrelse er {settings.max_request_size_mb} MB.'
+                    if request.url.path.startswith('/api/'):
+                        return JSONResponse({'ok': False, 'message': message}, status_code=413)
+                    return PlainTextResponse(message, status_code=413)
         return await call_next(request)
 
 

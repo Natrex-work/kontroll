@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile
 from pathlib import Path
+import os
+import time
 from fastapi.responses import JSONResponse
+from starlette.concurrency import run_in_threadpool
 
 from .. import live_sources
 from ..dependencies import require_any_permission, require_permission
@@ -10,6 +13,9 @@ from ..security import enforce_csrf
 from ..pdf_export import build_text_drafts
 from ..schemas import SummarySuggestRequest, TextPolishRequest
 from ..services.ocr_service import extract_text_from_image
+OCR_MAX_UPLOAD_MB = max(2, min(20, int(os.getenv('KV_OCR_MAX_IMAGE_MB', '12') or '12')))
+MAP_BUNDLE_MAX_LAYERS = max(4, min(20, int(os.getenv('KV_MAP_BUNDLE_MAX_LAYERS', '10') or '10')))
+
 from ..services.registry_service import gear_summary, lookup_registry
 from .. import registry
 from ..services.rules_service import check_zone_status, get_rule_bundle_with_live_sources
@@ -48,7 +54,7 @@ def _basis_opening_phrase(case_basis: str, source_name: str = '') -> str:
 
 @router.post('/api/text/polish')
 def api_text_polish(request: Request, payload: TextPolishRequest):
-    require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til KV Kontroll.')
+    require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til Minfiskerikontroll.')
     enforce_csrf(request)
     mode = str(payload.mode or 'generic').strip()
     text_in = str(payload.text or '').strip()
@@ -160,11 +166,19 @@ def api_map_bundle(request: Request, bbox: str = '', layer_ids: str = ''):
                 parsed_ids.append(int(part))
             except Exception:
                 continue
+    truncated_layer_ids = False
+    if len(parsed_ids) > MAP_BUNDLE_MAX_LAYERS:
+        parsed_ids = parsed_ids[:MAP_BUNDLE_MAX_LAYERS]
+        truncated_layer_ids = True
     try:
         data = live_sources.fetch_portal_bundle(layer_ids=parsed_ids or None, bbox=parsed_bbox)
+        if isinstance(data, dict):
+            data.setdefault('ok', True)
+            data.setdefault('requested_layer_ids', parsed_ids)
+            data.setdefault('truncated_layer_ids', truncated_layer_ids)
         return JSONResponse(data)
     except Exception as exc:
-        return JSONResponse({'type': 'FeatureCollection', 'features': [], 'layers': [], 'error': str(exc), 'bbox': list(parsed_bbox) if parsed_bbox else None}, status_code=200)
+        return JSONResponse({'ok': False, 'type': 'FeatureCollection', 'features': [], 'layers': [], 'error': str(exc), 'bbox': list(parsed_bbox) if parsed_bbox else None, 'requested_layer_ids': parsed_ids, 'truncated_layer_ids': truncated_layer_ids}, status_code=200)
 
 
 
@@ -190,14 +204,18 @@ def api_map_offline_package(request: Request, bbox: str = '', layer_ids: str = '
                 parsed_ids.append(int(part))
             except Exception:
                 continue
+    truncated_layer_ids = False
+    if len(parsed_ids) > MAP_BUNDLE_MAX_LAYERS:
+        parsed_ids = parsed_ids[:MAP_BUNDLE_MAX_LAYERS]
+        truncated_layer_ids = True
     if not parsed_bbox:
         return JSONResponse({'ok': False, 'message': 'Mangler kartutsnitt.', 'bundle': {'type': 'FeatureCollection', 'features': [], 'layers': []}}, status_code=400)
     offline_bbox = _expand_bbox(parsed_bbox, factor=float(expand or 1.6))
     try:
         bundle = live_sources.fetch_portal_bundle(layer_ids=parsed_ids or None, bbox=offline_bbox, max_age_seconds=24 * 3600)
-        return JSONResponse({'ok': True, 'bundle': bundle, 'requested_bbox': list(parsed_bbox), 'offline_bbox': list(offline_bbox), 'layer_ids': parsed_ids})
+        return JSONResponse({'ok': True, 'bundle': bundle, 'requested_bbox': list(parsed_bbox), 'offline_bbox': list(offline_bbox), 'layer_ids': parsed_ids, 'truncated_layer_ids': truncated_layer_ids})
     except Exception as exc:
-        return JSONResponse({'ok': False, 'message': str(exc), 'bundle': {'type': 'FeatureCollection', 'features': [], 'layers': []}, 'requested_bbox': list(parsed_bbox), 'offline_bbox': list(offline_bbox), 'layer_ids': parsed_ids}, status_code=200)
+        return JSONResponse({'ok': False, 'message': str(exc), 'bundle': {'type': 'FeatureCollection', 'features': [], 'layers': []}, 'requested_bbox': list(parsed_bbox), 'offline_bbox': list(offline_bbox), 'layer_ids': parsed_ids, 'truncated_layer_ids': truncated_layer_ids}, status_code=200)
 
 @router.get('/api/map/features')
 def api_map_features(request: Request, layer_id: int = Query(..., ge=0), bbox: str = ''):
@@ -220,19 +238,19 @@ def api_map_features(request: Request, layer_id: int = Query(..., ge=0), bbox: s
 
 @router.get('/api/registry/lookup')
 def api_registry_lookup(request: Request, phone: str = '', vessel_reg: str = '', radio_call_sign: str = '', name: str = '', address: str = '', post_place: str = '', tag_text: str = '', hummer_participant_no: str = ''):
-    require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til KV Kontroll.')
+    require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til Minfiskerikontroll.')
     return JSONResponse(lookup_registry(phone=phone, vessel_reg=vessel_reg, radio_call_sign=radio_call_sign, name=name, address=address, post_place=post_place, tag_text=tag_text, hummer_participant_no=hummer_participant_no))
 
 
 @router.get('/api/gear/summary')
 def api_gear_summary(request: Request, phone: str = '', name: str = '', address: str = '', species: str = '', gear_type: str = '', area_name: str = '', control_type: str = '', area_status: str = '', vessel_reg: str = '', radio_call_sign: str = '', hummer_participant_no: str = '', case_id: int | None = None):
-    require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til KV Kontroll.')
+    require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til Minfiskerikontroll.')
     return JSONResponse(gear_summary(phone=phone, name=name, address=address, species=species, gear_type=gear_type, area_name=area_name, control_type=control_type, area_status=area_status, vessel_reg=vessel_reg, radio_call_sign=radio_call_sign, hummer_participant_no=hummer_participant_no, case_id=case_id))
 
 
 @router.post('/api/ocr/extract')
 async def api_ocr_extract(request: Request, file: UploadFile = File(...)):
-    require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til KV Kontroll.')
+    require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til Minfiskerikontroll.')
     enforce_csrf(request)
     filename = sanitize_original_filename(file.filename or 'ocr-bilde.jpg')
     content_type = str(file.content_type or '').strip().lower()
@@ -243,19 +261,30 @@ async def api_ocr_extract(request: Request, file: UploadFile = File(...)):
     if suffix not in allowed_suffixes:
         raise HTTPException(status_code=400, detail='OCR støtter bare bildefiler.')
     content = await file.read()
-    validate_saved_file_size(len(content or b''))
+    size_bytes = len(content or b"")
+    validate_saved_file_size(size_bytes)
+    ocr_max_bytes = OCR_MAX_UPLOAD_MB * 1024 * 1024
+    if size_bytes > ocr_max_bytes:
+        return JSONResponse({
+            'ok': False,
+            'message': f'Bildet er for stort for OCR ({OCR_MAX_UPLOAD_MB} MB maks). Bruk kamerabildet/optimalisert bilde eller velg et mindre utsnitt.',
+            'text': '',
+        }, status_code=413)
+    started = time.monotonic()
     try:
-        result = extract_text_from_image(content or b'', filename=filename, timeout_seconds=55)
+        result = await run_in_threadpool(extract_text_from_image, content or b"", filename=filename, timeout_seconds=28)
     except ValueError as exc:
         return JSONResponse({'ok': False, 'message': str(exc), 'text': ''}, status_code=422)
     except RuntimeError as exc:
         return JSONResponse({'ok': False, 'message': str(exc), 'text': ''}, status_code=503)
-    return JSONResponse({'ok': True, **result, 'hints': result.get('hints') or registry.extract_tag_hints(result.get('text') or '')})
+    elapsed_ms = int((time.monotonic() - started) * 1000)
+    payload = {'ok': True, **result, 'hints': result.get('hints') or registry.extract_tag_hints(result.get('text') or ''), 'elapsed_ms': elapsed_ms}
+    return JSONResponse(payload)
 
 
 @router.post('/api/summary/suggest')
 def api_summary_suggest(request: Request, payload: SummarySuggestRequest):
-    require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til KV Kontroll.')
+    require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til Minfiskerikontroll.')
     enforce_csrf(request)
     case_row = {'summary': '', 'case_basis': payload.case_basis or 'patruljeobservasjon', 'control_type': payload.control_type or '', 'species': payload.species or '', 'fishery_type': payload.fishery_type or payload.species or '', 'gear_type': payload.gear_type or '', 'location_name': payload.location_name or '', 'area_name': payload.area_name or '', 'area_status': payload.area_status or '', 'suspect_name': payload.suspect_name or '', 'basis_details': payload.basis_details or '', 'start_time': payload.start_time or '', 'latitude': payload.latitude, 'longitude': payload.longitude}
     drafts = build_text_drafts(case_row, payload.findings)
