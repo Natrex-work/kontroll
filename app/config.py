@@ -133,8 +133,8 @@ class Settings:
 settings = Settings(
     app_name=os.getenv('KV_APP_NAME', 'Kontroll'),
     brand_org_name=os.getenv('KV_BRAND_ORG_NAME', 'Minfiskerikontroll').strip() or 'Minfiskerikontroll',
-    app_version=os.getenv('KV_APP_VERSION', '77.0.0'),
-    app_version_label=os.getenv('KV_APP_VERSION_LABEL', 'v77'),
+    app_version=os.getenv('KV_APP_VERSION', '86.0.0'),
+    app_version_label=os.getenv('KV_APP_VERSION_LABEL', 'v86'),
     base_dir=BASE_DIR,
     templates_dir=BASE_DIR / 'app' / 'templates',
     static_dir=BASE_DIR / 'app' / 'static',

@@ -2851,3 +2851,63 @@ body {
     overflow: auto;
   }
 }
+
+/* v86 eksternt kartlagpanel og mobil OCR-forbedringer */
+.map-layer-panel-host {
+  margin-top: 12px;
+}
+
+.kv-temalag-panel-external {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  max-width: none;
+  align-items: stretch;
+  z-index: auto;
+}
+
+.kv-temalag-panel-external .kv-temalag-handle {
+  width: 100%;
+  justify-content: space-between;
+}
+
+.kv-temalag-panel-external .kv-temalag-card {
+  width: 100%;
+  max-height: 360px;
+}
+
+.kv-temalag-panel-external .kv-temalag-groups {
+  max-height: calc(360px - 118px);
+}
+
+.map-visual-toggle-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-top: 10px;
+}
+
+@media (max-width: 960px) {
+  .map-layer-panel-host {
+    margin-top: 10px;
+  }
+
+  .kv-temalag-panel-external {
+    left: auto;
+    right: auto;
+    top: auto;
+    bottom: auto;
+    width: 100%;
+    max-width: none;
+  }
+
+  .kv-temalag-panel-external .kv-temalag-card {
+    width: 100%;
+    max-height: min(42vh, 320px);
+  }
+
+  .kv-temalag-panel-external .kv-temalag-groups {
+    max-height: calc(min(42vh, 320px) - 118px);
+  }
+}

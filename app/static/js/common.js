@@ -6,7 +6,7 @@
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('/static/sw.js?v=v85').catch(function () {});
+      navigator.serviceWorker.register('/static/sw.js?v=v86').catch(function () {});
     });
   }
 
@@ -337,7 +337,7 @@
   }
 
 
-  var LAYER_PANEL_PREFS_VERSION = 'v85';
+  var LAYER_PANEL_PREFS_VERSION = 'v86';
 
   function layerPanelStorageKey(el, markerState) {
     return 'kv-temalag:' + LAYER_PANEL_PREFS_VERSION + ':' + String((markerState && markerState.layerPanelKey) || (el && el.id) || 'map');
@@ -447,6 +447,68 @@
     });
   }
 
+  function resolveLayerPanelMount(state, map) {
+    var markerState = state && state.markerState ? state.markerState : {};
+    var target = markerState.layerPanelTargetEl || null;
+    if (!target && markerState.layerPanelTargetSelector) {
+      try {
+        target = document.querySelector(String(markerState.layerPanelTargetSelector || ''));
+      } catch (e) {
+        target = null;
+      }
+    }
+    if (target && target.nodeType === 1) {
+      return { element: target, external: true };
+    }
+    var container = map && typeof map.getContainer === 'function' ? map.getContainer() : null;
+    return { element: container, external: false };
+  }
+
+  function ensureLayerPanelRoot(state, mountInfo) {
+    var root = state.layerPanelRoot;
+    if (!root) {
+      root = document.createElement('div');
+      root.className = 'kv-temalag-panel';
+      root.innerHTML = [
+        '<button type="button" class="kv-temalag-handle" aria-expanded="false"><span>Velg kartlag</span><span class="kv-temalag-handle-icon">▾</span></button>',
+        '<div class="kv-temalag-card">',
+        '<div class="kv-temalag-head">',
+        '<div><strong>Velg kartlag i kartet</strong><div class="small muted kv-temalag-summary"></div></div>',
+        '<button type="button" class="kv-temalag-close" aria-label="Skjul temalag">×</button>',
+        '</div>',
+        '<div class="kv-temalag-search-wrap"><input type="search" class="kv-temalag-search" placeholder="Søk i lag" /></div>',
+        '<div class="kv-temalag-groups"></div>',
+        '</div>'
+      ].join('');
+      state.layerPanelRoot = root;
+      root.querySelector('.kv-temalag-handle').addEventListener('click', function () {
+        state.layerPanelPrefs = state.layerPanelPrefs || {};
+        state.layerPanelPrefs.open = !root.classList.contains('is-open');
+        saveLayerPanelPrefs(state.layerPanelStorageKey, state.layerPanelPrefs);
+        syncLayerPanel(state, state.map, state.currentLayers || [], state.visibleLayers || []);
+      });
+      root.querySelector('.kv-temalag-close').addEventListener('click', function () {
+        state.layerPanelPrefs = state.layerPanelPrefs || {};
+        state.layerPanelPrefs.open = false;
+        saveLayerPanelPrefs(state.layerPanelStorageKey, state.layerPanelPrefs);
+        syncLayerPanel(state, state.map, state.currentLayers || [], state.visibleLayers || []);
+      });
+      root.querySelector('.kv-temalag-search').addEventListener('input', function (event) {
+        state.layerPanelSearch = String(event.target.value || '');
+        syncLayerPanel(state, state.map, state.currentLayers || [], state.visibleLayers || []);
+      });
+    }
+    if (mountInfo && mountInfo.element && root.parentNode !== mountInfo.element) {
+      mountInfo.element.appendChild(root);
+    }
+    root.classList.toggle('kv-temalag-panel-external', !!(mountInfo && mountInfo.external));
+    if (window.L && L.DomEvent && !(mountInfo && mountInfo.external)) {
+      L.DomEvent.disableClickPropagation(root);
+      if (L.DomEvent.disableScrollPropagation) L.DomEvent.disableScrollPropagation(root);
+    }
+    return root;
+  }
+
   function syncLayerPanel(state, map, allLayers, visibleLayers) {
     if (!map || !state) return;
     if (state.markerState && state.markerState.showLayerPanel === false) {
@@ -454,45 +516,9 @@
       state.layerPanelRoot = null;
       return;
     }
-    var container = map.getContainer();
-    if (!container) return;
-    if (!state.layerPanelRoot) {
-      var root = document.createElement('div');
-      root.className = 'kv-temalag-panel';
-      root.innerHTML = [
-        '<button type="button" class="kv-temalag-handle" aria-expanded="false"><span>Temalag</span><span class="kv-temalag-handle-icon">▾</span></button>',
-        '<div class="kv-temalag-card">',
-        '<div class="kv-temalag-head">',
-        '<div><strong>Temalag</strong><div class="small muted kv-temalag-summary"></div></div>',
-        '<button type="button" class="kv-temalag-close" aria-label="Skjul temalag">×</button>',
-        '</div>',
-        '<div class="kv-temalag-search-wrap"><input type="search" class="kv-temalag-search" placeholder="Søk i lag" /></div>',
-        '<div class="kv-temalag-groups"></div>',
-        '</div>'
-      ].join('');
-      container.appendChild(root);
-      state.layerPanelRoot = root;
-      if (window.L && L.DomEvent) {
-        L.DomEvent.disableClickPropagation(root);
-        if (L.DomEvent.disableScrollPropagation) L.DomEvent.disableScrollPropagation(root);
-      }
-      root.querySelector('.kv-temalag-handle').addEventListener('click', function () {
-        state.layerPanelPrefs = state.layerPanelPrefs || {};
-        state.layerPanelPrefs.open = !root.classList.contains('is-open');
-        saveLayerPanelPrefs(state.layerPanelStorageKey, state.layerPanelPrefs);
-        syncLayerPanel(state, map, state.currentLayers || [], state.visibleLayers || []);
-      });
-      root.querySelector('.kv-temalag-close').addEventListener('click', function () {
-        state.layerPanelPrefs = state.layerPanelPrefs || {};
-        state.layerPanelPrefs.open = false;
-        saveLayerPanelPrefs(state.layerPanelStorageKey, state.layerPanelPrefs);
-        syncLayerPanel(state, map, state.currentLayers || [], state.visibleLayers || []);
-      });
-      root.querySelector('.kv-temalag-search').addEventListener('input', function (event) {
-        state.layerPanelSearch = String(event.target.value || '');
-        syncLayerPanel(state, map, state.currentLayers || [], state.visibleLayers || []);
-      });
-    }
+    var mountInfo = resolveLayerPanelMount(state, map);
+    if (!mountInfo.element) return;
+    var root = ensureLayerPanelRoot(state, mountInfo);
 
     var prefs = state.layerPanelPrefs || {};
     var defaultOpen = !window.matchMedia('(max-width: 960px)').matches;
@@ -501,8 +527,6 @@
     state.layerPanelPrefs = prefs;
     saveLayerPanelPrefs(state.layerPanelStorageKey, prefs);
 
-    var root = state.layerPanelRoot;
-    if (!root) return;
     root.classList.toggle('is-open', prefs.open !== false);
     var handle = root.querySelector('.kv-temalag-handle');
     var card = root.querySelector('.kv-temalag-card');
@@ -598,6 +622,7 @@
       });
     });
   }
+
 
   function createPortalMap(el, layers, markerState) {
     if (!el || !window.L) return Promise.resolve(null);

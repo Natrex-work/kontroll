@@ -208,6 +208,10 @@
           <span class="map-symbol-chip"><span class="map-symbol user"></span> GPS-posisjon</span>
           <span class="map-symbol-chip"><span class="map-symbol case"></span> Kontrollposisjon / rød nål</span>
         </div>
+        <div class="map-visual-toggle-row">
+          <label class="check-chip"><input type="checkbox" id="toggle-zone-hit-overlay" checked /> Vis treffområder / stengte felt i kartet</label>
+          <span class="muted small">Velg ekstra kartlag under kartet. Lagvelgeren åpnes og lukkes uten å dekke kartflaten.</span>
+        </div>
         <div class="callout margin-top-s" id="map-selection-status">Kartet viser relevante fiskerirelaterte lag fra karttjenesten direkte i kontrollbildet. Bruk filtrene over kartet for å veksle mellom fredningsområder, stengte felt og andre reguleringer. Områdevurdering bruker kontrollposisjonen (rød nål).</div>
         <div class="map-relevant-panel margin-top-s" id="case-relevant-areas">
           <div class="map-relevant-head">
@@ -229,6 +233,7 @@
           <div class="offline-packages-list" id="offline-packages-list"></div>
         </div>
         <div id="case-position-map" class="leaflet-map case-map" data-portal-catalog='{{ portal_layers|tojson }}' data-portal-mapserver="{{ portal_mapserver_url }}" data-portal-vern-mapserver="{{ portal_vern_mapserver_url }}"></div>
+        <div class="map-layer-panel-host" id="case-map-layer-panel-host"></div>
       </div>
       <div class="step-actions"><button type="button" class="btn btn-secondary" data-prev-step>Tilbake</button><button type="button" class="btn btn-primary" data-next-step>Videre</button></div>
     </section>
@@ -501,5 +506,5 @@
   }
 })();
 </script>
-<script src="/static/js/case-app.js?v=v85"></script>
+<script src="/static/js/case-app.js?v=v86"></script>
 {% endblock %}

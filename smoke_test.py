@@ -102,6 +102,13 @@ def main() -> int:
             assert dashboard.headers.get('x-frame-options') == 'DENY'
             dashboard_csrf = extract_csrf(dashboard.text)
 
+            create_case = client.post('/cases/new', data={'csrf_token': dashboard_csrf}, follow_redirects=False)
+            assert create_case.status_code in {302, 303}, create_case.text
+            edit = client.get(create_case.headers['location'])
+            assert edit.status_code == 200, edit.text
+            assert 'case-map-layer-panel-host' in edit.text
+            assert 'toggle-zone-hit-overlay' in edit.text
+
             kart = client.get('/kart')
             assert kart.status_code == 200
             map_catalog = client.get('/api/map/catalog')
@@ -123,7 +130,7 @@ def main() -> int:
             zone_hit_json = zone_hit.json()
             assert zone_hit_json.get('match') is True
             assert any((item.get('layer_ids') or [item.get('layer_id')]) for item in zone_hit_json.get('hits') or [])
-            assert any((item.get('feature') or {{}}).get('geometry') for item in zone_hit_json.get('hits') or [])
+            assert any((item.get('feature') or {}).get('geometry') for item in zone_hit_json.get('hits') or [])
 
             legacy_bundle = client.get('/api/map/bundle', params={
                 'bbox': '10.3355,59.33525,10.7355,59.73525',
@@ -237,6 +244,11 @@ LBHN 26 123''')
                 assert synthetic_hints.get('post_place') == '8123 HAVN'
                 assert synthetic_hints.get('phone') == '90123456'
                 assert synthetic_hints.get('hummer_participant_no') == 'LBHN-26-123'
+                ocr_api = client.post('/api/ocr/extract', headers={'X-CSRF-Token': dashboard_csrf}, files={'file': ('syntetisk-ocr.jpg', build_synthetic_ocr_image_bytes(), 'image/jpeg')})
+                assert ocr_api.status_code == 200, ocr_api.text
+                ocr_api_json = ocr_api.json()
+                assert ocr_api_json.get('ok') is True
+                assert (ocr_api_json.get('hints') or {}).get('name') == 'Ola Nordmann'
 
             summary_suggest = client.post('/api/summary/suggest', json={
                 'case_basis': 'patruljeobservasjon',

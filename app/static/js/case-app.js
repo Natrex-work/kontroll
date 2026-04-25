@@ -6,7 +6,7 @@
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('/static/sw.js?v=v85').catch(function () {});
+      navigator.serviceWorker.register('/static/sw.js?v=v86').catch(function () {});
     });
   }
 
@@ -1509,7 +1509,7 @@
       if (fisherySel) parts.push(fisherySel);
       if (gearSel) parts.push(gearSel);
       var summary = parts.length ? (' Valgt profil: <strong>' + escapeHtml(parts.join(' / ')) + '</strong>.') : '';
-      mapSelectionStatus.innerHTML = 'Kartet viser ' + layerCount + ' relevante temalag direkte i kartet.' + summary + ' Lagpanelet i selve kartet er skjult for å gi fri kartflate på mobil. Bruk filtrene over kartet og listen under for å se aktuelle områder og reguleringer.';
+      mapSelectionStatus.innerHTML = 'Kartet viser ' + layerCount + ' relevante temalag direkte i kartet.' + summary + ' Treffområder kan slås av og på over kartet, og lagvelgeren under kartet kan åpnes/lukkes uten å dekke selve kartflaten.';
       renderRelevantAreaPanel(latestZoneResult);
     }
     function syncLayerFiltersUi() {
@@ -1985,6 +1985,8 @@
     var cameraCaptureVideo = document.getElementById('camera-capture-video');
     var cameraCaptureStatus = document.getElementById('camera-capture-status');
     var caseRelevantAreasList = document.getElementById('case-relevant-areas-list');
+    var mapLayerPanelHost = document.getElementById('case-map-layer-panel-host');
+    var toggleZoneHitOverlay = document.getElementById('toggle-zone-hit-overlay');
 
     var leisureFields = document.getElementById('leisure-fields');
     var commercialFields = document.getElementById('commercial-fields');
@@ -2013,6 +2015,13 @@
       storedPositionMode = '';
     }
     if (storedPositionMode !== 'manual' && storedPositionMode !== 'auto') storedPositionMode = '';
+    var zoneOverlayStorageKey = 'kv-case-zone-overlay:' + root.dataset.caseId;
+    var zoneOverlayEnabled = true;
+    try {
+      var storedZoneOverlay = String(localStorage.getItem(zoneOverlayStorageKey) || '').trim();
+      if (storedZoneOverlay === '0') zoneOverlayEnabled = false;
+    } catch (e) {}
+    if (toggleZoneHitOverlay) toggleZoneHitOverlay.checked = zoneOverlayEnabled;
     var hasInitialCoords = Boolean(latitude.value && longitude.value);
     var mapState = {
       lat: Number(latitude.value || 0),
@@ -2069,6 +2078,11 @@
         try { caseMap._kvLeafletMap.removeLayer(state.zoneHitOverlay); } catch (e) {}
         state.zoneHitOverlay = null;
       }
+      state.zoneHitBounds = null;
+    }
+
+    function zoneHitOverlayActive() {
+      return zoneOverlayEnabled !== false;
     }
 
     function zoneHitFeatureCollection(result) {
@@ -2096,6 +2110,7 @@
 
     function syncZoneHitOverlay(result) {
       clearZoneHitOverlay();
+      if (!zoneHitOverlayActive()) return;
       if (!caseMap || !caseMap._kvLeafletMap || !window.L) return;
       var collection = zoneHitFeatureCollection(result);
       if (!collection.features.length) return;
@@ -2106,7 +2121,7 @@
         style: function (feature) {
           var props = feature && feature.properties ? feature.properties : {};
           var color = props.__layer_color || zoneHitColor(props.__layer_status || '');
-          return { color: color, weight: 5, opacity: 1, fillColor: color, fillOpacity: 0.18 };
+          return { color: color, weight: 5, opacity: 1, fillColor: color, fillOpacity: 0.16, dashArray: '10 6' };
         },
         pointToLayer: function (feature, latlng) {
           var props = feature && feature.properties ? feature.properties : {};
@@ -2116,6 +2131,11 @@
       }).addTo(caseMap._kvLeafletMap);
       if (overlay && typeof overlay.bringToFront === 'function') overlay.bringToFront();
       state.zoneHitOverlay = overlay;
+      try {
+        state.zoneHitBounds = overlay && typeof overlay.getBounds === 'function' ? overlay.getBounds() : null;
+      } catch (e) {
+        state.zoneHitBounds = null;
+      }
       caseMap._kvPortalState = state;
     }
     function persistPositionMode(mode) {
@@ -3474,6 +3494,72 @@
       return !!(isAppleMobile || (isSafari && isSmallScreen));
     }
 
+    function shouldUseXhrOcrUpload(file) {
+      var ua = navigator.userAgent || '';
+      var touchPoints = Number(navigator.maxTouchPoints || 0);
+      var isAppleMobile = /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/i.test(ua) && touchPoints > 1);
+      var isSafari = /^((?!chrome|android).)*safari/i.test(ua);
+      var isLarge = Number(file && file.size || 0) > (2 * 1024 * 1024);
+      return !!(isAppleMobile || isSafari || isLarge);
+    }
+
+    function postFormDataJson(url, formData, options) {
+      options = options || {};
+      var timeoutMs = Math.max(8000, Number(options.timeoutMs || 45000));
+      var onProgress = typeof options.onProgress === 'function' ? options.onProgress : null;
+      if (!(options.useXhr === true) || typeof XMLHttpRequest === 'undefined') {
+        var controller = typeof AbortController === 'function' ? new AbortController() : null;
+        var timer = controller ? setTimeout(function () { try { controller.abort(); } catch (e) {} }, timeoutMs) : null;
+        return fetch(url, Object.assign(secureFetchOptions({ method: 'POST', body: formData }), controller ? { signal: controller.signal } : {}))
+          .then(function (response) {
+            return response.text().catch(function () { return ''; }).then(function (payloadText) {
+              var payload = {};
+              try { payload = JSON.parse(payloadText || '{}'); } catch (e) { payload = {}; }
+              return { ok: response.ok, status: response.status, payload: payload };
+            });
+          })
+          .finally(function () { if (timer) clearTimeout(timer); });
+      }
+      return new Promise(function (resolve, reject) {
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', url, true);
+        xhr.withCredentials = true;
+        xhr.timeout = timeoutMs;
+        try {
+          var headers = csrfHeaders();
+          if (headers && typeof headers.forEach === 'function') {
+            headers.forEach(function (value, key) {
+              xhr.setRequestHeader(key, value);
+            });
+          } else {
+            var token = csrfToken();
+            if (token) xhr.setRequestHeader('X-CSRF-Token', token);
+          }
+        } catch (e) {}
+        if (xhr.upload && onProgress) {
+          xhr.upload.onprogress = function (event) {
+            if (!event || !event.lengthComputable) return;
+            try { onProgress(event.loaded, event.total); } catch (e) {}
+          };
+        }
+        xhr.onload = function () {
+          var payload = {};
+          try { payload = JSON.parse(xhr.responseText || '{}'); } catch (e) { payload = {}; }
+          resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, payload: payload });
+        };
+        xhr.onerror = function () {
+          reject(new Error('Kunne ikke laste opp bildet til server-OCR.'));
+        };
+        xhr.onabort = function () {
+          reject(new Error('Server-OCR ble avbrutt.'));
+        };
+        xhr.ontimeout = function () {
+          reject(new Error('Server-OCR brukte for lang tid.'));
+        };
+        xhr.send(formData);
+      });
+    }
+
     function uploadOcrSourceImage(file, recognizedText) {
       if (!file || !root || !root.dataset.caseId) return Promise.resolve(null);
       var signature = fileSignature(file);
@@ -3503,34 +3589,38 @@
         if (registryResult) registryResult.innerHTML = 'Sender bildet til server-OCR (' + escapeHtml(label) + ') ...';
         var formData = new FormData();
         formData.append('file', uploadFile, uploadFile.name || ('ocr-' + Date.now() + '.jpg'));
-        var controller = typeof AbortController === 'function' ? new AbortController() : null;
-        var timer = controller ? setTimeout(function () { try { controller.abort(); } catch (e) {} }, 50000) : null;
-        return fetch('/api/ocr/extract', Object.assign(secureFetchOptions({ method: 'POST', body: formData }), controller ? { signal: controller.signal } : {}))
-          .then(function (response) {
-            return response.json().catch(function () { return {}; }).then(function (payload) {
-              return { ok: response.ok, payload: payload || {} };
-            });
-          })
-          .finally(function () { if (timer) clearTimeout(timer); })
-          .then(function (result) {
-            var normalizedText = normalizeOcrText(result && result.payload ? (result.payload.text || '') : '');
-            if (!result.ok || !result.payload || !normalizedText) {
-              throw new Error((result.payload && (result.payload.detail || result.payload.message)) || 'Server-OCR ga ikke lesbar tekst.');
-            }
-            var rawText = normalizeOcrText(result.payload.raw_text || normalizedText);
-            return {
-              text: normalizedText,
-              raw_text: rawText,
-              strategy: (result.payload.strategy || 'server') + ' · ' + label,
-              source: 'server',
-              hints: (result.payload && result.payload.hints) || extractLookupHintsFromText(rawText || normalizedText)
-            };
-          });
+        return postFormDataJson('/api/ocr/extract', formData, {
+          useXhr: shouldUseXhrOcrUpload(uploadFile),
+          timeoutMs: 45000,
+          onProgress: function (loaded, total) {
+            if (!registryResult || !total) return;
+            var pct = Math.max(1, Math.min(100, Math.round((loaded / total) * 100)));
+            registryResult.innerHTML = 'Laster opp bildet til server-OCR (' + escapeHtml(label) + ') ...<div class="small muted">' + pct + '%</div>';
+          }
+        }).then(function (result) {
+          var normalizedText = normalizeOcrText(result && result.payload ? (result.payload.text || '') : '');
+          if (!result.ok || !result.payload || !normalizedText) {
+            throw new Error((result.payload && (result.payload.detail || result.payload.message)) || 'Server-OCR ga ikke lesbar tekst.');
+          }
+          var rawText = normalizeOcrText(result.payload.raw_text || normalizedText);
+          return {
+            text: normalizedText,
+            raw_text: rawText,
+            strategy: (result.payload.strategy || 'server') + ' · ' + label,
+            source: 'server',
+            hints: (result.payload && result.payload.hints) || extractLookupHintsFromText(rawText || normalizedText)
+          };
+        });
       }
 
       if (registryResult) registryResult.innerHTML = 'Forbereder bildet for server-OCR ...';
       var seen = {};
-      var attempts = [
+      var mobileFirst = shouldUseXhrOcrUpload(file) || prefersServerOcrFirst(file);
+      var attempts = mobileFirst ? [
+        function () { return buildOcrUploadFile(file, 'document').then(function (uploadFile) { return { file: uploadFile, label: 'optimalisert mobilbilde' }; }); },
+        function () { return buildOcrUploadFile(file, 'server-highres').then(function (uploadFile) { return { file: uploadFile, label: 'forbedret original' }; }); },
+        function () { return Promise.resolve(file).then(function (uploadFile) { return { file: uploadFile, label: 'originalbilde' }; }); }
+      ] : [
         function () { return Promise.resolve(file).then(function (uploadFile) { return { file: uploadFile, label: 'originalbilde' }; }); },
         function () { return buildOcrUploadFile(file, 'server-highres').then(function (uploadFile) { return { file: uploadFile, label: 'forbedret original' }; }); },
         function () { return buildOcrUploadFile(file, 'document').then(function (uploadFile) { return { file: uploadFile, label: 'dokumentmodus' }; }); }
@@ -3553,6 +3643,7 @@
 
       return nextAttempt(0, null);
     }
+
 
     function runBrowserOcr(file) {
       var attempts = [];
@@ -3908,9 +3999,10 @@
       mapState.detailFetchThresholdZoom = 5;
       mapState.enableAreaPopup = true;
       mapState.showLegend = false;
-      mapState.showLayerPanel = true;
+      mapState.showLayerPanel = !!mapLayerPanelHost;
       mapState.layerPanelDefaultOpen = false;
-      mapState.layerPanelKey = 'case-map-v85';
+      mapState.layerPanelKey = 'case-map-v86';
+      mapState.layerPanelTargetSelector = mapLayerPanelHost ? '#case-map-layer-panel-host' : '';
       mapState.rasterLayerIds = allLayerIds;
       mapState.identifyLayerIds = allLayerIds;
       mapState.mapServerUrl = fisheryPortalService;
@@ -4173,6 +4265,14 @@
           syncMapSelectionStatus();
           updateCaseMap();
         });
+      });
+    }
+    if (toggleZoneHitOverlay) {
+      toggleZoneHitOverlay.checked = zoneOverlayEnabled !== false;
+      toggleZoneHitOverlay.addEventListener('change', function () {
+        zoneOverlayEnabled = !!toggleZoneHitOverlay.checked;
+        try { localStorage.setItem(zoneOverlayStorageKey, zoneOverlayEnabled ? '1' : '0'); } catch (e) {}
+        syncZoneHitOverlay(latestZoneResult);
       });
     }
     function applyManualCoordinateFields() {
