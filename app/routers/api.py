@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile
 from pathlib import Path
+from collections import OrderedDict
+import hashlib
 import os
 import time
 from fastapi.responses import JSONResponse
@@ -15,6 +17,9 @@ from ..schemas import SummarySuggestRequest, TextPolishRequest
 from ..services.ocr_service import extract_text_from_image
 OCR_MAX_UPLOAD_MB = max(2, min(20, int(os.getenv('KV_OCR_MAX_IMAGE_MB', '12') or '12')))
 MAP_BUNDLE_MAX_LAYERS = max(4, min(20, int(os.getenv('KV_MAP_BUNDLE_MAX_LAYERS', '10') or '10')))
+OCR_CACHE_TTL_SECONDS = max(60, min(3600, int(os.getenv('KV_OCR_CACHE_TTL_SECONDS', '600') or '600')))
+OCR_CACHE_MAX_ENTRIES = max(8, min(128, int(os.getenv('KV_OCR_CACHE_MAX_ENTRIES', '32') or '32')))
+_OCR_RESULT_CACHE: OrderedDict[str, tuple[float, dict]] = OrderedDict()
 
 from ..services.registry_service import gear_summary, lookup_registry
 from .. import registry
@@ -22,6 +27,37 @@ from ..services.rules_service import check_zone_status, get_rule_bundle_with_liv
 from ..validation import sanitize_original_filename, validate_saved_file_size
 
 router = APIRouter()
+
+
+def _get_ocr_cache(key: str) -> dict | None:
+    now = time.monotonic()
+    expired: list[str] = []
+    for cache_key, (created, _payload) in list(_OCR_RESULT_CACHE.items()):
+        if now - created > OCR_CACHE_TTL_SECONDS:
+            expired.append(cache_key)
+    for cache_key in expired:
+        _OCR_RESULT_CACHE.pop(cache_key, None)
+    row = _OCR_RESULT_CACHE.get(key)
+    if not row:
+        return None
+    created, payload = row
+    if now - created > OCR_CACHE_TTL_SECONDS:
+        _OCR_RESULT_CACHE.pop(key, None)
+        return None
+    _OCR_RESULT_CACHE.move_to_end(key)
+    out = dict(payload)
+    out['cached'] = True
+    return out
+
+
+def _put_ocr_cache(key: str, payload: dict) -> None:
+    if not payload or not str(payload.get('text') or '').strip():
+        return
+    _OCR_RESULT_CACHE[key] = (time.monotonic(), dict(payload))
+    _OCR_RESULT_CACHE.move_to_end(key)
+    while len(_OCR_RESULT_CACHE) > OCR_CACHE_MAX_ENTRIES:
+        _OCR_RESULT_CACHE.popitem(last=False)
+
 
 
 def _parse_optional_float_query(value: str | float | int | None, *, field_name: str, min_value: float, max_value: float) -> float | None:
@@ -270,15 +306,22 @@ async def api_ocr_extract(request: Request, file: UploadFile = File(...)):
             'message': f'Bildet er for stort for OCR ({OCR_MAX_UPLOAD_MB} MB maks). Bruk kamerabildet/optimalisert bilde eller velg et mindre utsnitt.',
             'text': '',
         }, status_code=413)
+    cache_key = hashlib.sha256(content or b'').hexdigest()
+    cached = _get_ocr_cache(cache_key)
+    if cached is not None:
+        cached.setdefault('ok', True)
+        cached.setdefault('elapsed_ms', 0)
+        return JSONResponse(cached)
     started = time.monotonic()
     try:
-        result = await run_in_threadpool(extract_text_from_image, content or b"", filename=filename, timeout_seconds=28)
+        result = await run_in_threadpool(extract_text_from_image, content or b"", filename=filename, timeout_seconds=22)
     except ValueError as exc:
         return JSONResponse({'ok': False, 'message': str(exc), 'text': ''}, status_code=422)
     except RuntimeError as exc:
         return JSONResponse({'ok': False, 'message': str(exc), 'text': ''}, status_code=503)
     elapsed_ms = int((time.monotonic() - started) * 1000)
-    payload = {'ok': True, **result, 'hints': result.get('hints') or registry.extract_tag_hints(result.get('text') or ''), 'elapsed_ms': elapsed_ms}
+    payload = {'ok': True, **result, 'hints': result.get('hints') or registry.extract_tag_hints(result.get('text') or ''), 'elapsed_ms': elapsed_ms, 'cached': False}
+    _put_ocr_cache(cache_key, payload)
     return JSONResponse(payload)
 
 

@@ -19,8 +19,11 @@ def initialize_application_data() -> None:
     ensure_bootstrap_admin()
     if settings.session_secret == 'dev-session-secret-change-me':
         logger.warning('SESSION_SECRET bruker standard utviklingsverdi. Sett en unik verdi i .env eller miljøet før ordinær bruk.')
+    logger.info('Lagring: db=%s, uploads=%s, generated=%s', settings.db_path, settings.upload_dir, settings.generated_dir)
     if settings.production_mode and str(settings.db_path).startswith(str(BASE_DIR)):
         logger.warning('KV_DB_PATH peker til lokal appmappe. Uten Render-disk kan brukere og saker forsvinne ved restart. Sett KV_DB_PATH/KV_UPLOAD_DIR/KV_GENERATED_DIR til /var/data/...')
+    elif settings.production_mode and not str(settings.db_path).startswith('/var/data'):
+        logger.warning('KV_DB_PATH peker ikke til /var/data. Kontroller at valgt lagringssti er persistent i driftsmiljøet: %s', settings.db_path)
     if not db.list_users():
         logger.warning('Ingen brukere finnes. Opprett første administrator med KV_BOOTSTRAP_ADMIN_* eller `python manage.py create-admin`.')
 

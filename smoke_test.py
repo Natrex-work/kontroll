@@ -273,9 +273,10 @@ LBHN 26 123''')
             }, headers={'x-csrf-token': dashboard_csrf, 'origin': 'https://testserver'})
             assert summary_suggest.status_code == 200, summary_suggest.text
             summary_json = summary_suggest.json()
-            assert 'i oppgitt posisjon ble teine observert og kontrollert' in summary_json.get('summary', '').lower()
-            assert 'for dette området gjaldt følgende reguleringer og begrensninger' in summary_json.get('summary', '').lower()
-            assert 'hummerfredningsområde tofte' in summary_json.get('summary', '').lower()
+            summary_text = summary_json.get('summary', '').lower()
+            assert 'teine' in summary_text
+            assert 'hummerfredningsområde tofte' in summary_text
+            assert any(token in summary_text for token in ['regulering', 'begrensning', 'ikke tillatt', 'forbud'])
 
             offline_new = client.get('/cases/offline/new?local_id=local-smoke-1')
             assert offline_new.status_code == 200

@@ -187,7 +187,7 @@ def _generate_vector_overview_map_image(case_row: Dict[str, Any], output_dir: Pa
     draw.rounded_rectangle((legend_x, legend_y, width - 32, legend_y + 130), radius=16, fill='#ffffff', outline='#d6e1eb')
     draw.text((legend_x + 18, legend_y + 12), 'Tegnforklaring', fill='#10273d')
     legend = [
-        ('#24527b', 'Radius ca. 50 km'),
+        ('#24527b', f'Radius ca. {int(round(radius_km))} km'),
         ('#c1121f', 'Kontrollposisjon'),
         ('#f4a261', 'Frednings-/reguleringsområde'),
         ('#e63946', 'Stengt / forbudsområde'),
@@ -197,12 +197,13 @@ def _generate_vector_overview_map_image(case_row: Dict[str, Any], output_dir: Pa
         draw.rectangle((legend_x + 18, y + 4, legend_x + 34, y + 14), fill=color, outline=color)
         draw.text((legend_x + 44, y), label, fill='#33485c')
 
-    outpath = output_dir / f"{str(case_row.get('case_number') or 'sak').replace(' ', '_')}_overview_map.png"
+    radius_label = str(int(round(radius_km))).replace(' ', '_')
+    outpath = output_dir / f"{str(case_row.get('case_number') or 'sak').replace(' ', '_')}_overview_map_{radius_label}km.png"
     img.save(outpath)
     return {
         'filename': outpath.name,
         'original_filename': outpath.name,
-        'caption': 'Oversiktskart kontrollposisjon (ca. 50 km radius)',
+        'caption': f"Oversiktskart kontrollposisjon (ca. {int(round(radius_km))} km radius)",
         'finding_key': 'oversiktskart',
         'law_text': str(case_row.get('area_status') or case_row.get('area_name') or '').strip(),
         'violation_reason': 'Automatisk generert kartoversikt med kontrollposisjon og nærliggende regulerte områder.',
@@ -327,7 +328,7 @@ def _generate_tile_overview_map_image(case_row: Dict[str, Any], output_dir: Path
     draw2.text((34, 50), subtitle, fill=(56, 80, 106, 255))
     draw2.rounded_rectangle((885, 96, 1170, 184), radius=14, fill=(255,255,255,230), outline=(180,194,209,255))
     draw2.text((904, 108), 'Tegnforklaring', fill=(16,39,61,255))
-    legend = [((36,82,123), 'Radius ca. 50 km'), ((193,18,31), 'Kontrollposisjon'), ((244,162,97), 'Frednings-/reguleringsområde'), ((230,57,70), 'Stengt / forbudsområde')]
+    legend = [((36,82,123), f'Radius ca. {int(round(radius_km))} km'), ((193,18,31), 'Kontrollposisjon'), ((244,162,97), 'Frednings-/reguleringsområde'), ((230,57,70), 'Stengt / forbudsområde')]
     for idx, (col, label) in enumerate(legend):
         y = 132 + idx * 18
         draw2.rectangle((904, y + 4, 918, y + 14), fill=col + (255,), outline=col + (255,))
@@ -335,15 +336,16 @@ def _generate_tile_overview_map_image(case_row: Dict[str, Any], output_dir: Path
     draw2.rounded_rectangle((18, 776, 470, 804), radius=10, fill=(255,255,255,225), outline=(180,194,209,255))
     draw2.text((30, 784), 'Kartbakgrunn © OpenStreetMap-bidragsytere', fill=(66, 82, 100, 255))
 
-    outpath = output_dir / f"{str(case_row.get('case_number') or 'sak').replace(' ', '_')}_overview_map.png"
+    radius_label = str(int(round(radius_km))).replace(' ', '_')
+    outpath = output_dir / f"{str(case_row.get('case_number') or 'sak').replace(' ', '_')}_overview_map_{radius_label}km.png"
     out.convert('RGB').save(outpath)
     return {
         'filename': outpath.name,
         'original_filename': outpath.name,
-        'caption': 'Oversiktskart kontrollposisjon (ca. 50 km radius)',
+        'caption': f"Oversiktskart kontrollposisjon (ca. {int(round(radius_km))} km radius)",
         'finding_key': 'oversiktskart',
         'law_text': str(case_row.get('area_status') or case_row.get('area_name') or '').strip(),
-        'violation_reason': 'Automatisk generert kartoversikt med kontrollposisjon, stedsnavn og nærliggende regulerte områder.',
+        'violation_reason': f"Automatisk generert kartoversikt med kontrollposisjon, stedsnavn og regulerte områder i ca. {int(round(radius_km))} km radius.",
         'created_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC'),
         'generated_path': str(outpath),
         'preview_url': (f"/cases/{case_row.get('id')}/generated/{outpath.name}" if case_row.get('id') is not None else None),
@@ -1442,7 +1444,7 @@ def _build_illustration_texts(evidence_rows: list[Dict[str, Any]]) -> list[str]:
         reason = str(item.get('violation_reason') or '').strip()
         law = str(item.get('law_text') or '').strip()
         if str(item.get('finding_key') or '') == 'oversiktskart':
-            texts.append(f"Illustrasjon {idx}: Oversiktskart med kontrollposisjon og cirka 50 km radius. {reason}".strip())
+            texts.append(f"Illustrasjon {idx}: Oversiktskart med kontrollposisjon. {reason}".strip())
             continue
         parts = [f"Illustrasjon {idx}: {label}"]
         if reason:
@@ -2098,9 +2100,9 @@ def _draw_interview_pages(c: rl_canvas.Canvas, case_row: Dict[str, Any]) -> None
             c.showPage()
 
 
-def _draw_seizure_page(c: rl_canvas.Canvas, case_row: Dict[str, Any], packet: Dict[str, Any]) -> None:
+def _draw_seizure_page(c: rl_canvas.Canvas, case_row: Dict[str, Any], packet: Dict[str, Any], doc_number: str = '05') -> None:
     _draw_template(c, 'page-07.png')
-    _header_meta_box(c, case_row, '05', 1, 1)
+    _header_meta_box(c, case_row, str(doc_number or '05'), 1, 1)
     _common_body_frame(c)
     _draw_sak_section(c, case_row, 302, location_label='Fra dato kl.', include_identity=False)
     y = 372
@@ -2173,7 +2175,7 @@ def _draw_image_fit(c: rl_canvas.Canvas, path: Path, l: float, t: float, r: floa
         _draw_text_px(c, f'Kunne ikke vise bildefil: {path.name}', l + 4, t + 4, r - 4, b - 4, font_name='Helvetica', font_size=8)
 
 
-def _draw_illustration_pages(c: rl_canvas.Canvas, case_row: Dict[str, Any], packet: Dict[str, Any]) -> None:
+def _draw_illustration_pages(c: rl_canvas.Canvas, case_row: Dict[str, Any], packet: Dict[str, Any], doc_number: str = '06') -> None:
     evidence = list(packet.get('evidence') or [])
     if not evidence:
         evidence = [{'caption': 'Ingen illustrasjoner registrert', 'filename': '', 'generated_path': ''}]
@@ -2181,7 +2183,7 @@ def _draw_illustration_pages(c: rl_canvas.Canvas, case_row: Dict[str, Any], pack
     total = len(chunks)
     for idx, chunk in enumerate(chunks, start=1):
         _draw_template(c, 'page-08.png' if idx == 1 else 'page-09.png')
-        _header_meta_box(c, case_row, '06', idx, total)
+        _header_meta_box(c, case_row, str(doc_number or '06'), idx, total)
         _common_body_frame(c)
         _draw_sak_section(c, case_row, 302, location_label='Fra dato kl.', include_identity=False)
         _draw_section_caption(c, 118, 372, 1128, 400, 'Illustrasjoner')
@@ -2324,9 +2326,9 @@ def _draw_interview_pages(c: rl_canvas.Canvas, case_row: Dict[str, Any]) -> None
             c.showPage()
 
 
-def _draw_seizure_page(c: rl_canvas.Canvas, case_row: Dict[str, Any], packet: Dict[str, Any]) -> None:  # type: ignore[override]
+def _draw_seizure_page(c: rl_canvas.Canvas, case_row: Dict[str, Any], packet: Dict[str, Any], doc_number: str = '05') -> None:  # type: ignore[override]
     _draw_template(c, 'page-07.png')
-    _header_meta_box(c, case_row, '05', 1, 1)
+    _header_meta_box(c, case_row, str(doc_number or '05'), 1, 1)
     _common_body_frame(c)
     compact_bottom = _draw_sak_section_compact(c, case_row, 302)
     y = compact_bottom + 10
@@ -2368,13 +2370,13 @@ def _draw_seizure_page(c: rl_canvas.Canvas, case_row: Dict[str, Any], packet: Di
     _draw_label_value(c, 623, 1538, 1128, 1604, 'Vitnets underskrift', _fmt_value(case_row.get('witness_signature') or case_row.get('witness_name')))
 
 
-def _draw_illustration_pages(c: rl_canvas.Canvas, case_row: Dict[str, Any], packet: Dict[str, Any]) -> None:  # type: ignore[override]
+def _draw_illustration_pages(c: rl_canvas.Canvas, case_row: Dict[str, Any], packet: Dict[str, Any], doc_number: str = '06') -> None:  # type: ignore[override]
     evidence = list(packet.get('evidence') or []) or [{'caption': 'Ingen illustrasjoner registrert', 'filename': '', 'generated_path': ''}]
     chunks = [evidence[i:i + 2] for i in range(0, len(evidence), 2)]
     total = len(chunks)
     for idx, chunk in enumerate(chunks, start=1):
         _draw_template(c, 'page-08.png' if idx == 1 else 'page-09.png')
-        _header_meta_box(c, case_row, '06', idx, total)
+        _header_meta_box(c, case_row, str(doc_number or '06'), idx, total)
         _common_body_frame(c)
         compact_bottom = _draw_sak_section_compact(c, case_row, 302)
         _draw_section_caption(c, 118, compact_bottom + 10, 1128, compact_bottom + 38, 'Illustrasjoner')
@@ -2811,10 +2813,12 @@ def _build_case_pdf_template_v88(case_row: Dict[str, Any], evidence_rows: Iterab
     _draw_interview_pages(c, case_row)
     c.showPage()
 
-    _draw_seizure_page(c, case_row, packet)
+    seizure_doc_no = '04' if _interview_not_conducted(case_row) else '05'
+    illustration_doc_no = '05' if _interview_not_conducted(case_row) else '06'
+    _draw_seizure_page(c, case_row, packet, doc_number=seizure_doc_no)
     c.showPage()
 
-    _draw_illustration_pages(c, case_row, packet)
+    _draw_illustration_pages(c, case_row, packet, doc_number=illustration_doc_no)
 
     c.save()
     return outpath
@@ -2851,6 +2855,263 @@ def _build_interview_only_pdf_template_v88(case_row: Dict[str, Any], evidence_ro
 
 
 def build_interview_only_pdf(case_row: Dict[str, Any], evidence_rows: Iterable[Dict[str, Any]], output_dir: Path) -> Path:  # type: ignore[override]
+    try:
+        return _build_interview_only_pdf_template_v88(case_row, evidence_rows, output_dir)
+    except Exception:
+        return _build_interview_pdf_story_fallback_v88(case_row, evidence_rows, output_dir)
+
+# --- v91: interview safeguards, illustration ordering, detailed map and no-empty interview report ---
+_build_own_report_before_v91 = _build_own_report
+_build_interview_report_before_v91 = _build_interview_report
+_build_case_packet_before_v91 = build_case_packet
+_build_text_drafts_before_v91 = build_text_drafts
+_build_summary_before_v91 = build_summary
+
+
+def _v91_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    try:
+        return int(value or 0) == 1
+    except Exception:
+        return str(value or '').strip().lower() in {'1', 'true', 'yes', 'on'}
+
+
+def _interview_not_conducted(case_row: Dict[str, Any]) -> bool:
+    return _v91_bool(case_row.get('interview_not_conducted'))
+
+
+def _interview_not_conducted_reason(case_row: Dict[str, Any]) -> str:
+    return str(case_row.get('interview_not_conducted_reason') or 'Ikke fått kontakt med vedkommende.').strip() or 'Ikke fått kontakt med vedkommende.'
+
+
+def _finding_label_v91(item: Dict[str, Any], idx: int = 0) -> str:
+    return str(item.get('label') or item.get('key') or (f'kontrollpunkt {idx}' if idx else 'kontrollpunkt')).strip()
+
+
+def _build_interview_guidance_v91(case_row: Dict[str, Any], findings: list[Dict[str, Any]]) -> str:
+    override = str(case_row.get('interview_guidance_text') or '').strip()
+    if override:
+        return override
+    avvik = [item for item in findings if str(item.get('status') or '').strip().lower() == 'avvik']
+    rows: list[str] = [
+        'Innledende punkter før forklaring:',
+        '- Avklar identitet, rolle og tilknytning til person, fartøy, redskap og kontrollposisjon.',
+        '- Forklar kort hva saken gjelder, hvilke observasjoner som er gjort, og hvilke dokumenter/bilder som eventuelt forevises.',
+        '- Dersom personen avhøres som mistenkt: noter at vedkommende er gjort kjent med rollen i saken, at forklaring er frivillig, og at vedkommende kan rådføre seg med forsvarer. Noter om orienteringen er forstått.',
+        '- La personen forklare seg fritt før konkrete spørsmål om de enkelte avvikene.',
+        '',
+        'Spørsmål knyttet til registrerte avvik:',
+    ]
+    if not avvik:
+        rows.append('- Ingen avvik er registrert i kontrollpunktene. Vurder om forklaring likevel er nødvendig for å klargjøre faktum.')
+    for idx, item in enumerate(avvik, start=1):
+        label = _finding_label_v91(item, idx)
+        note = str(item.get('notes') or item.get('auto_note') or item.get('summary_text') or '').strip()
+        law = str(item.get('law_text') or item.get('help_text') or item.get('source_ref') or '').strip()
+        rows.append(f'{idx}. {label}')
+        if note:
+            rows.append(f'   Observasjon/foreløpig vurdering: {note}')
+        if law:
+            rows.append(f'   Regel-/hjemmelstekst i saken: {law}')
+        rows.extend([
+            '   Spørsmål: Forklar din tilknytning til redskapet/aktiviteten og hvem som har satt eller brukt dette.',
+            '   Spørsmål: Når og hvor ble redskapet/aktiviteten satt ut eller gjennomført?',
+            '   Spørsmål: Hvilke regler, stengte felt, fredningsområder, merkekrav eller tillatelser var du kjent med?',
+            '   Spørsmål: Finnes det registrering, tillatelse, kvittering, sporingsdata, bilder eller annen dokumentasjon som bør legges frem?',
+        ])
+        for dev in item.get('deviation_units') or []:
+            if not isinstance(dev, dict):
+                continue
+            ref = str(dev.get('seizure_ref') or dev.get('gear_ref') or '').strip()
+            violation = str(dev.get('violation') or '').strip()
+            if ref or violation:
+                rows.append(f'   Beslag/ref {ref or "-"}: {violation or "avvik registrert"}. Be om forklaring på eierskap, bruk og hendelsesforløp.')
+    rows.extend(['', 'Avslutning:', '- Gå gjennom sammendraget og noter om forklaringen godtas, korrigeres eller nektes signert.', '- Noter om personen ønsker å legge frem dokumentasjon eller komme med merknader.'])
+    return '\n'.join(rows).strip()
+
+
+def _is_ocr_source_evidence(item: Dict[str, Any]) -> bool:
+    caption = str(item.get('caption') or item.get('original_filename') or '').strip().lower()
+    return caption.startswith('ocr-kilde') or 'ocr' in str(item.get('finding_key') or '').strip().lower()
+
+
+def _seizure_sort_number(value: Any) -> tuple[int, str]:
+    raw = str(value or '').strip()
+    match = re.search(r'(\d+)', raw)
+    if match:
+        try:
+            return (int(match.group(1)), raw)
+        except Exception:
+            pass
+    return (999999, raw)
+
+
+def _sort_evidence_rows_v91(rows: list[Dict[str, Any]]) -> list[Dict[str, Any]]:
+    def key(item: Dict[str, Any]) -> tuple[int, int, str, str]:
+        fk = str(item.get('finding_key') or '').strip().lower()
+        caption = str(item.get('caption') or '').strip().lower()
+        if fk == 'oversiktskart':
+            radius_rank = 0 if '50' in caption else 1
+            return (0, radius_rank, caption, '')
+        if _is_ocr_source_evidence(item):
+            return (1, 0, caption, '')
+        num, raw = _seizure_sort_number(item.get('seizure_ref'))
+        return (2, num, raw, caption)
+    return sorted([dict(item) for item in rows], key=key)
+
+
+def _build_own_report(case_row: Dict[str, Any], findings: list[Dict[str, Any]]) -> str:  # type: ignore[override]
+    if str(case_row.get('own_report_override') or '').strip():
+        return str(case_row.get('own_report_override') or '').strip()
+    base = _build_own_report_before_v91(case_row, findings)
+    formal_intro = 'Rapporten gjelder kontroll utført som ledd i fiskerioppsyn. Formålet var å klarlegge faktum, sikre notoritet rundt observasjoner og dokumentere vurderinger knyttet til etterlevelse av aktuelt regelverk.'
+    if formal_intro.lower() not in base.lower():
+        base = formal_intro + '\n\n' + base
+    if _interview_not_conducted(case_row):
+        base += '\n\nAvhør/forklaring er ikke gjennomført. Registrert årsak: ' + _interview_not_conducted_reason(case_row)
+    return base.strip()
+
+
+def _build_interview_report(case_row: Dict[str, Any]) -> str:  # type: ignore[override]
+    if _interview_not_conducted(case_row):
+        return ''
+    return _build_interview_report_before_v91(case_row)
+
+
+def build_summary(case_row: Dict[str, Any], findings: list[Dict[str, Any]]) -> str:  # type: ignore[override]
+    avvik = [item for item in findings if str(item.get('status') or '').strip().lower() == 'avvik']
+    when = _fmt_datetime(case_row.get('start_time'))
+    location = _location_line(case_row)
+    subject = str(case_row.get('suspect_name') or 'kontrollert person/fartøy').strip()
+    control_theme = _control_theme(case_row) or 'kontrolltema'
+    rows = [
+        f'Den {when} ble det gjennomført kontroll ved {location}.',
+        f'Kontrollen gjaldt {control_theme.lower()} og omfattet {subject}.',
+    ]
+    if case_row.get('area_status') or case_row.get('area_name'):
+        rows.append(f"Kontrollposisjonen er registrert i/ved {str(case_row.get('area_name') or 'aktuelt område').strip()} ({str(case_row.get('area_status') or 'områdestatus ikke angitt').strip()}).")
+    if avvik:
+        rows.append('Følgende avvik/funn er registrert for videre vurdering:')
+        for idx, item in enumerate(avvik, start=1):
+            note = str(item.get('notes') or item.get('auto_note') or item.get('summary_text') or '').strip()
+            rows.append(f'{idx}. {_finding_label_v91(item, idx)}' + (f' - {note}' if note else '.'))
+    else:
+        rows.append('Det er ikke registrert avvik i kontrollpunktene på tidspunktet for oppsummeringen.')
+    if _interview_not_conducted(case_row):
+        rows.append('Avhør/forklaring er ikke gjennomført. Registrert årsak: ' + _interview_not_conducted_reason(case_row))
+    return '\n'.join(rows).strip()
+
+
+def build_text_drafts(case_row: Dict[str, Any], findings: list[Dict[str, Any]]) -> Dict[str, str]:  # type: ignore[override]
+    drafts = _build_text_drafts_before_v91(case_row, findings)
+    drafts['summary'] = build_summary(case_row, findings)
+    if not str(drafts.get('basis_details') or '').strip():
+        theme = _control_theme(case_row) or 'aktuelt kontrolltema'
+        drafts['basis_details'] = f'Det ble iverksatt fiskerikontroll for å klarlegge faktiske forhold og kontrollere etterlevelse av regelverk knyttet til {theme.lower()}.'
+    drafts['notes'] = _build_own_report(case_row, findings)
+    return drafts
+
+
+def _add_v91_map_items(case_row: Dict[str, Any], evidence_rows: list[Dict[str, Any]]) -> list[Dict[str, Any]]:
+    maps: list[Dict[str, Any]] = []
+    for radius in (50.0, 5.0):
+        try:
+            item = _generate_overview_map_image(case_row, GENERATED_DIR, radius_km=radius)
+            if item:
+                if radius <= 10:
+                    item['caption'] = f'Nærkart kontrollposisjon (ca. {int(round(radius))} km radius)'
+                    item['violation_reason'] = f'Automatisk generert nærkart med mer detaljert utsnitt rundt kontrollposisjonen i ca. {int(round(radius))} km radius.'
+                maps.append(item)
+        except Exception:
+            continue
+    # Remove any map item already inserted by the previous packet builder before replacing order.
+    non_maps = [dict(item) for item in evidence_rows if str(item.get('finding_key') or '').strip().lower() != 'oversiktskart']
+    return _sort_evidence_rows_v91(maps + non_maps)
+
+
+def build_case_packet(case_row: Dict[str, Any], evidence_rows: Iterable[Dict[str, Any]]) -> Dict[str, Any]:  # type: ignore[override]
+    packet = _build_case_packet_before_v91(case_row, evidence_rows)
+    findings = [dict(item, display_notes=_finding_display_note(item)) for item in _safe_findings(case_row)]
+    all_evidence_rows = list(evidence_rows)
+    audio_rows = [dict(item) for item in all_evidence_rows if str(item.get('mime_type') or '').startswith('audio/')]
+    image_rows = [dict(item) for item in all_evidence_rows if not str(item.get('mime_type') or '').startswith('audio/')]
+    image_rows = _add_v91_map_items(case_row, image_rows)
+    packet['evidence'] = image_rows
+    packet['audio_files'] = audio_rows
+    packet['illustration_texts'] = _build_illustration_texts(image_rows)
+    packet['own_report'] = _build_own_report(case_row, findings)
+    packet['interview_not_conducted'] = _interview_not_conducted(case_row)
+    packet['interview_not_conducted_reason'] = _interview_not_conducted_reason(case_row)
+    packet['interview_guidance'] = _build_interview_guidance_v91(case_row, findings)
+    if _interview_not_conducted(case_row):
+        packet['interview_report'] = ''
+        docs = [dict(doc) for doc in packet.get('documents', []) if 'avhør' not in str(doc.get('title') or '').lower()]
+        for idx, doc in enumerate(docs, start=1):
+            doc['number'] = f'{idx:02d}'
+        packet['documents'] = docs
+    else:
+        packet['interview_report'] = _build_interview_report(case_row)
+    packet['summary'] = build_summary(case_row, findings)
+    return packet
+
+
+def _build_case_pdf_template_v91(case_row: Dict[str, Any], evidence_rows: Iterable[Dict[str, Any]], output_dir: Path) -> Path:
+    if not _template_pages_ready_v88():
+        missing = [name for name in _required_template_pages_v88() if not (_TEMPLATE_DIR / name).exists()]
+        raise FileNotFoundError('Mangler PDF-malsider: ' + ', '.join(missing))
+    output_dir.mkdir(parents=True, exist_ok=True)
+    filename = f"{str(case_row['case_number']).replace(' ', '_')}.pdf"
+    outpath = output_dir / filename
+    packet = build_case_packet(case_row, evidence_rows)
+
+    c = rl_canvas.Canvas(str(outpath), pagesize=A4)
+    c.setTitle(f"Anmeldelsespakke {case_row['case_number']}")
+    c.setAuthor(case_row.get('investigator_name') or 'Minfiskerikontroll')
+
+    _draw_template(c, 'page-01.png')
+    _header_meta_box(c, case_row, '01', 1, 1)
+    _common_body_frame(c)
+    _draw_document_list_body(c, case_row, packet)
+    c.showPage()
+
+    _draw_complaint_pages(c, case_row, packet)
+    c.showPage()
+
+    _draw_own_report_pages(c, case_row)
+    c.showPage()
+
+    if not _interview_not_conducted(case_row):
+        _draw_interview_pages(c, case_row)
+        c.showPage()
+
+    seizure_doc_no = '04' if _interview_not_conducted(case_row) else '05'
+    illustration_doc_no = '05' if _interview_not_conducted(case_row) else '06'
+    _draw_seizure_page(c, case_row, packet, doc_number=seizure_doc_no)
+    c.showPage()
+
+    _draw_illustration_pages(c, case_row, packet, doc_number=illustration_doc_no)
+    c.save()
+    return outpath
+
+
+def build_case_pdf(case_row: Dict[str, Any], evidence_rows: Iterable[Dict[str, Any]], output_dir: Path) -> Path:  # type: ignore[override]
+    try:
+        return _build_case_pdf_template_v91(case_row, evidence_rows, output_dir)
+    except Exception:
+        return _build_case_pdf_story_fallback_v88(case_row, evidence_rows, output_dir)
+
+
+def build_interview_only_pdf(case_row: Dict[str, Any], evidence_rows: Iterable[Dict[str, Any]], output_dir: Path) -> Path:  # type: ignore[override]
+    if _interview_not_conducted(case_row):
+        output_dir.mkdir(parents=True, exist_ok=True)
+        filename = f"{str(case_row['case_number']).replace(' ', '_')}_avhor_ikke_gjennomfort.pdf"
+        outpath = output_dir / filename
+        doc = SimpleDocTemplate(str(outpath), pagesize=A4, leftMargin=1.6*cm, rightMargin=1.6*cm, topMargin=2.0*cm, bottomMargin=1.5*cm)
+        styles = _story_styles_v21()
+        story = [Paragraph('Avhør ikke gjennomført', styles['title']), Paragraph(_format_text_for_pdf(_interview_not_conducted_reason(case_row)), styles['body'])]
+        doc.build(story, onFirstPage=_header_footer_v21, onLaterPages=_header_footer_v21)
+        return outpath
     try:
         return _build_interview_only_pdf_template_v88(case_row, evidence_rows, output_dir)
     except Exception:

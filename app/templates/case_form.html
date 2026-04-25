@@ -49,6 +49,7 @@
 {% if case_number_saved %}<div class="alert alert-success">Saksnummeret er oppdatert.</div>{% endif %}
 {% if case_number_error == 'duplicate' %}<div class="alert alert-error">Det saksnummeret finnes allerede. Velg et annet tresifret løpenummer.</div>{% endif %}
 
+{% if missing_server_case %}<div class="alert alert-error">Serveren fant ikke denne saken. Appen åpner derfor en lokal gjenopprettingskladd. Hvis saken finnes lokalt på denne iPhonen, blir innholdet forsøkt gjenopprettet automatisk. Trykk «Synk sak nå» før forhåndsvisning og eksport.</div>{% endif %}
 {% if offline_new %}<div class="alert">Dette er en lokal sakskladd på enheten. Saken får endelig saksnummer når du synker den til serveren.</div>{% endif %}
 <div id="case-app"
      data-case-id="{{ offline_local_id or case.id }}"
@@ -86,6 +87,7 @@
     <input type="hidden" name="source_snapshot_json" id="source_snapshot_json" value='{{ case.source_snapshot_json|e }}' />
     <input type="hidden" name="crew_json" id="crew_json" value='{{ case.crew_json or "[]"|e }}' />
     <input type="hidden" name="external_actors_json" id="external_actors_json" value='{{ case.external_actors_json or "[]"|e }}' />
+    <input type="hidden" name="persons_json" id="persons_json" value='{{ case.persons_json or "[]"|e }}' />
     <input type="hidden" name="interview_sessions_json" id="interview_sessions_json" value='{{ case.interview_sessions_json or "[]"|e }}' />
 
     <section class="card card-panel step-pane active" data-step="1">
@@ -243,7 +245,7 @@
       <div class="card-header panel-header">
         <div>
           <h2>3. Person / fartøy</h2>
-          <div class="muted small">AI/OCR og automatisk oppslag er tilpasset norske navn, adresser, postnummer, mobilnummer, fiskerimerker og hummerdeltakernummer.</div>
+          <div class="muted small">OCR og automatisk oppslag er tilpasset norske navn, adresser, postnummer, mobilnummer, fiskerimerker og hummerdeltakernummer.</div>
         </div>
       </div>
       <div class="callout" id="person-mode-hint">Feltene under endres automatisk mellom fritidsfiske og kommersiell kontroll.</div>
@@ -306,6 +308,20 @@
         <label><span>Radiokallesignal</span><input name="radio_call_sign" id="radio_call_sign" value="{{ case.radio_call_sign or '' }}" /></label>
       </div>
 
+      <div class="subcard margin-top-m" id="persons-section">
+        <div class="subcard-head">
+          <div>
+            <h3>Flere involverte personer</h3>
+            <div class="muted small">Legg til flere mistenkte, vitner, eier, fører eller andre relevante personer. Disse kan brukes videre i avhør.</div>
+          </div>
+          <div class="actions-row wrap">
+            <button class="btn btn-secondary btn-small" type="button" id="btn-add-suspect">Legg til mistenkt</button>
+            <button class="btn btn-secondary btn-small" type="button" id="btn-add-witness-person">Legg til vitne</button>
+          </div>
+        </div>
+        <div id="persons-list" class="stack gap-m margin-top-s"></div>
+      </div>
+
       <div class="step-actions"><button type="button" class="btn btn-secondary" data-prev-step>Tilbake</button><button type="button" class="btn btn-primary" data-next-step>Videre</button></div>
     </section>
 
@@ -330,7 +346,7 @@
     <div class="card-header panel-header">
       <div>
         <h2>5. Illustrasjonsrapport</h2>
-        <div class="muted small">Ved lovbrudd kan kontrollpunkt kobles direkte til bildebevis. Oversiktskart med ca. 50 km radius legges automatisk først i illustrasjonsrapporten ved eksport.</div>
+        <div class="muted small">Ved lovbrudd kan kontrollpunkt kobles direkte til bildebevis. Oversiktskart legges automatisk først i illustrasjonsrapporten ved eksport, først som områdekart og deretter som nærkart. OCR-bilder legges etter kartene før øvrige avviksbilder.</div>
       </div>
     </div>
     <div id="selected-finding-card" class="callout">Velg et kontrollpunkt med avvik i steg 4 for å forhåndsfylle hjemmel og begrunnelse.</div>
@@ -378,6 +394,15 @@
 
   <section class="card card-panel step-pane" data-step="6">
     <div class="card-header panel-header"><h2>6. Avhør</h2></div>
+
+    <div class="callout margin-bottom-m" id="interview-not-conducted-panel">
+      <label class="check-chip">
+        <input form="case-form" type="checkbox" name="interview_not_conducted" id="interview_not_conducted" value="1" {% if case.interview_not_conducted %}checked{% endif %} />
+        Avhør ikke gjennomført
+      </label>
+      <label class="margin-top-s block" id="interview-not-conducted-reason-wrap"><span>Årsak / standardtekst</span><textarea form="case-form" name="interview_not_conducted_reason" id="interview_not_conducted_reason" rows="2">{{ case.interview_not_conducted_reason or 'Ikke fått kontakt med vedkommende.' }}</textarea></label>
+      <div class="small muted margin-top-s">Når dette er krysset av, fylles ikke avhørsrapporten ut i dokumentpakken. Årsaken tas inn som merknad i egenrapport/oppsummering.</div>
+    </div>
     <div class="split-panel">
       <div class="subcard">
         <div class="subcard-head">
@@ -422,6 +447,18 @@
         </div>
       </div>
     </div>
+
+    <div class="subcard margin-top-m" id="interview-guidance-panel">
+      <div class="subcard-head">
+        <div>
+          <h3>Forslag til avhørspunkter og rettssikkerhetsmomenter</h3>
+          <div class="muted small">Genereres fra registrerte avvik, kontrollpunkter og personer. Punktene er forslag og må kontrolleres faglig før bruk.</div>
+        </div>
+        <button class="btn btn-secondary btn-small" type="button" id="btn-generate-interview-guidance">Generer punkter</button>
+      </div>
+      <textarea form="case-form" name="interview_guidance_text" id="interview_guidance_text" rows="7" placeholder="Genererte momenter og spørsmål vises her.">{{ case.interview_guidance_text or '' }}</textarea>
+      <div class="actions-row wrap margin-top-s"><button type="button" class="btn btn-secondary btn-small" id="btn-copy-guidance-to-hearing">Legg inn i samlet avhørsutkast</button></div>
+    </div>
     <div class="grid-two margin-top-m">
       <label class="span-2"><span>Samlet avhørsutkast</span><textarea form="case-form" name="hearing_text" id="hearing_text" rows="12">{{ case.hearing_text or '' }}</textarea></label>
       <label class="span-2"><span>Beslag / bevismerknader</span><textarea form="case-form" name="seizure_notes" id="seizure_notes" rows="5">{{ case.seizure_notes or '' }}</textarea></label>
@@ -459,12 +496,18 @@
       <a class="btn btn-secondary" href="/cases/{{ case.id }}/preview" target="_blank" rel="noopener">Forhåndsvis dokumentpakke</a>
       <form method="post" action="/cases/{{ case.id }}/interview-pdf" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><button class="btn btn-secondary" type="submit">Eksporter kun avhørsrapport</button></form>
       <form method="post" action="/cases/{{ case.id }}/bundle" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><button class="btn btn-secondary" type="submit">Eksporter PDF og filer (ZIP)</button></form>
+
+      <form method="post" action="/cases/{{ case.id }}/email-package" class="inline-form email-package-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        <input type="email" name="email_to" placeholder="mottaker@domene.no" aria-label="E-postmottaker" />
+        <button class="btn btn-secondary" type="submit">Send anmeldelse med vedlegg</button>
+      </form>
       <form method="post" action="/cases/{{ case.id }}/pdf" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><button class="btn btn-primary" type="submit">Avslutt og eksporter PDF</button></form>
       {% else %}
       <span class="pill">Synk saken før forhåndsvisning, PDF og ZIP</span>
       {% endif %}
     </div>
-    <div class="callout margin-top-s" id="summary-preview">AI-støttet, punktvis utkast vises her når du trykker på knappen. Oppsummeringen bygger bare på registrerte avvik og lovbrudd i kontrollpunktene og viser forholdene per beslagnummer når dette finnes.</div>
+    <div class="callout margin-top-s" id="summary-preview">Punktvis utkast vises her når du trykker på knappen. Oppsummeringen bygger bare på registrerte avvik og lovbrudd i kontrollpunktene og viser forholdene per beslagnummer når dette finnes.</div>
     <div class="step-actions"><button type="button" class="btn btn-secondary" data-prev-step>Tilbake</button></div>
   </section>
 
@@ -507,5 +550,5 @@
   }
 })();
 </script>
-<script src="/static/js/case-app.js?v=v89"></script>
+<script src="/static/js/case-app.js?v=v91"></script>
 {% endblock %}

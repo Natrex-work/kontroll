@@ -3026,3 +3026,130 @@ body {
     grid-template-columns: auto auto minmax(0, 1fr);
   }
 }
+
+
+/* v91 kartlagpanel: robust sammenlegging/utviding og valg på iPhone */
+.kv-temalag-group.is-collapsed .kv-temalag-group-body,
+.kv-temalag-group-body[hidden] {
+  display: none !important;
+}
+.kv-temalag-panel-external .kv-temalag-card {
+  max-height: none !important;
+  overflow: visible !important;
+}
+.kv-temalag-panel-external .kv-temalag-groups {
+  max-height: none !important;
+  overflow: visible !important;
+  display: grid;
+  gap: 12px;
+}
+.kv-temalag-panel-external .kv-temalag-group {
+  overflow: hidden;
+}
+.kv-temalag-group-toggle {
+  min-height: 56px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: rgba(20, 47, 79, 0.12);
+}
+.kv-temalag-group-body {
+  background: #fff;
+}
+.kv-temalag-group-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px 12px;
+}
+.kv-temalag-group-actions .btn {
+  min-width: 0;
+  min-height: 40px;
+  padding: 8px 10px;
+  white-space: normal;
+}
+.kv-temalag-items {
+  padding-top: 0;
+}
+@media (max-width: 720px) {
+  .kv-temalag-panel-external .kv-temalag-card {
+    border-radius: 20px;
+  }
+  .kv-temalag-panel-external .kv-temalag-group-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .kv-temalag-panel-external .kv-temalag-group-actions .btn {
+    flex: none;
+    font-size: 0.86rem;
+  }
+  .kv-temalag-panel-external .kv-temalag-item {
+    min-height: 48px;
+  }
+}
+
+/* v91 mobile field-work refinements */
+.person-card, .interview-card {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 12px;
+  background: #fbfdff;
+}
+.muted-disabled {
+  opacity: .55;
+  pointer-events: none;
+}
+.email-package-form {
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.email-package-form input[type="email"] {
+  min-width: min(260px, 100%);
+}
+.block { display: block; }
+.margin-bottom-m { margin-bottom: 18px; }
+.kv-temalag-panel-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.kv-selection-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #e7f0fb;
+  color: #123b5d;
+  font-size: .78rem;
+  font-weight: 700;
+}
+.kv-temalag-panel-external .kv-temalag-card {
+  max-height: min(74vh, 680px) !important;
+  overflow: hidden !important;
+}
+.kv-temalag-panel-external .kv-temalag-groups {
+  max-height: min(48vh, 430px) !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+}
+.kv-temalag-panel-external .kv-temalag-group-toggle {
+  touch-action: manipulation;
+}
+@media (max-width: 720px) {
+  .kv-temalag-panel-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .kv-temalag-head {
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .email-package-form {
+    display: flex;
+    width: 100%;
+  }
+  .email-package-form input[type="email"], .email-package-form .btn {
+    width: 100%;
+  }
+}

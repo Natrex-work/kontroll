@@ -15,6 +15,7 @@ from ..dependencies import get_case_for_user, require_control_admin, require_per
 from ..security import enforce_csrf
 from ..services.case_service import autofill_case_drafts, case_data_from_form, case_has_avvik, delete_evidence_file, preview_overrides_from_form, store_evidence_upload
 from ..services.pdf_service import build_case_preview_packet, export_case_bundle, export_case_pdf, export_interview_pdf
+from ..services.email_service import send_case_package_email
 from ..ui import STATUS_OPTIONS, render_template
 
 router = APIRouter()
@@ -46,9 +47,26 @@ def _case_missing_html(case_id: int) -> HTMLResponse:
 <html lang="nb"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Saken ble ikke funnet</title>
 <style>body{{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#eef4f8;color:#10273d;margin:0;padding:24px}}.card{{max-width:680px;margin:10vh auto;background:#fff;border:1px solid #d7e3ee;border-radius:22px;padding:24px;box-shadow:0 18px 42px rgba(16,39,61,.12)}}a,.btn{{display:inline-flex;margin-top:14px;padding:12px 16px;border-radius:999px;background:#123b5d;color:#fff;text-decoration:none;font-weight:700}}.muted{{color:#5f7186;line-height:1.45}}</style>
-</head><body><main class="card"><h1>Saken ble ikke funnet</h1><p class="muted">Sak {case_id} finnes ikke på serveren. Dette skjer ofte etter ny deploy dersom databasen ikke ligger på en persistent disk, eller hvis en lokal kladd ikke er synket før forhåndsvisning/eksport.</p><p class="muted">Gå tilbake til kontrollskjemaet og trykk lagre/synk, eller opprett en ny kontroll. I v89 forsøker appen automatisk å opprette ny serverkopi fra lokal kladd før forhåndsvisning og eksport.</p><a href="/dashboard">Til kontrolloversikten</a></main></body></html>'''
+</head><body><main class="card"><h1>Saken ble ikke funnet</h1><p class="muted">Sak {case_id} finnes ikke på serveren. Dette skjer ofte etter ny deploy dersom databasen ikke ligger på en persistent disk, eller hvis en lokal kladd ikke er synket før forhåndsvisning/eksport.</p><p class="muted">Gå tilbake til kontrollskjemaet og trykk lagre/synk, eller opprett en ny kontroll. I v91 forsøker appen automatisk å opprette ny serverkopi fra lokal kladd før forhåndsvisning og eksport.</p><a href="/dashboard">Til kontrolloversikten</a></main></body></html>'''
     return HTMLResponse(html, status_code=404)
 
+
+
+def _simple_message_html(title: str, message: str, *, status_code: int = 200, back_url: str = '/dashboard') -> HTMLResponse:
+    safe_title = str(title or '').replace('<', '&lt;').replace('>', '&gt;')
+    safe_message = str(message or '').replace('<', '&lt;').replace('>', '&gt;')
+    safe_back = str(back_url or '/dashboard').replace('"', '%22')
+    html = (
+        '<!doctype html><html lang="nb"><head><meta charset="utf-8" />'
+        '<meta name="viewport" content="width=device-width,initial-scale=1" />'
+        f'<title>{safe_title}</title>'
+        '<style>body{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#eef4f8;color:#10273d;margin:0;padding:24px}'
+        '.card{max-width:760px;margin:8vh auto;background:#fff;border:1px solid #d7e3ee;border-radius:22px;padding:24px;box-shadow:0 18px 42px rgba(16,39,61,.12)}'
+        'a,.btn{display:inline-flex;margin-top:14px;padding:12px 16px;border-radius:999px;background:#123b5d;color:#fff;text-decoration:none;font-weight:700}'
+        '.muted{color:#5f7186;line-height:1.45;white-space:pre-wrap}</style></head><body>'
+        f'<main class="card"><h1>{safe_title}</h1><p class="muted">{safe_message}</p><a href="{safe_back}">Tilbake</a></main></body></html>'
+    )
+    return HTMLResponse(html, status_code=status_code)
 
 
 def _offline_case_shell(user: dict[str, object], local_id: str = '') -> dict[str, object]:
@@ -92,7 +110,11 @@ def _offline_case_shell(user: dict[str, object], local_id: str = '') -> dict[str
         'source_snapshot_json': '[]',
         'crew_json': '[]',
         'external_actors_json': '[]',
+        'persons_json': '[]',
         'interview_sessions_json': '[]',
+        'interview_not_conducted': 0,
+        'interview_not_conducted_reason': '',
+        'interview_guidance_text': '',
         'hummer_participant_no': '',
         'hummer_last_registered': '',
         'observed_gear_count': 0,
@@ -190,7 +212,31 @@ def edit_case(request: Request, case_id: int):
         case_row = get_case_for_user(user, case_id)
     except HTTPException as exc:
         if exc.status_code == 404:
-            return _case_missing_html(case_id)
+            # Render a recoverable local-draft shell instead of a dead JSON/404 page.
+            # If Safari has a local IndexedDB draft for this case id, case-app.js can
+            # restore it and create a new server case from the form contents.
+            shell = _offline_case_shell(user, str(case_id))
+            shell['case_number'] = f'Mangler serverkopi ({case_id})'
+            return render_template(
+                request,
+                'case_form.html',
+                case=shell,
+                evidence=[],
+                findings=[],
+                sources=[],
+                crew=[],
+                external_actors=[],
+                interviews=[],
+                law_browser=catalog.law_browser_data(),
+                leisure_fields=catalog.LEISURE_FIELDS,
+                commercial_fields=catalog.COMMERCIAL_FIELDS,
+                portal_layers=live_sources.portal_layer_catalog_page_payload(),
+                case_number_error=None,
+                case_number_saved=None,
+                offline_new=True,
+                offline_local_id=str(case_id),
+                missing_server_case=True,
+            )
         raise
     evidence = db.list_evidence(case_id)
     findings = db.case_to_findings(case_row)
@@ -328,7 +374,31 @@ async def preview_case(request: Request, case_id: int):
         case_row = get_case_for_user(user, case_id)
     except HTTPException as exc:
         if exc.status_code == 404:
-            return _case_missing_html(case_id)
+            # Render a recoverable local-draft shell instead of a dead JSON/404 page.
+            # If Safari has a local IndexedDB draft for this case id, case-app.js can
+            # restore it and create a new server case from the form contents.
+            shell = _offline_case_shell(user, str(case_id))
+            shell['case_number'] = f'Mangler serverkopi ({case_id})'
+            return render_template(
+                request,
+                'case_form.html',
+                case=shell,
+                evidence=[],
+                findings=[],
+                sources=[],
+                crew=[],
+                external_actors=[],
+                interviews=[],
+                law_browser=catalog.law_browser_data(),
+                leisure_fields=catalog.LEISURE_FIELDS,
+                commercial_fields=catalog.COMMERCIAL_FIELDS,
+                portal_layers=live_sources.portal_layer_catalog_page_payload(),
+                case_number_error=None,
+                case_number_saved=None,
+                offline_new=True,
+                offline_local_id=str(case_id),
+                missing_server_case=True,
+            )
         raise
     evidence = db.list_evidence(case_id)
     preview_case_row = dict(case_row)
@@ -377,6 +447,9 @@ async def export_interview_pdf_route(request: Request, case_id: int):
         if exc.status_code == 404:
             return _case_missing_html(case_id)
         raise
+    if int(case_row.get('interview_not_conducted') or 0):
+        reason = str(case_row.get('interview_not_conducted_reason') or 'Ikke fått kontakt med vedkommende.').strip()
+        return _simple_message_html('Avhør ikke gjennomført', f'Avhørsrapport eksporteres ikke fordi avhør er markert som ikke gjennomført. Registrert årsak: {reason}', status_code=409, back_url=f'/cases/{case_id}/edit?step=6')
     outpath = await run_in_threadpool(export_interview_pdf, case_id, case_row, user)
     db.record_audit(user['id'], 'export_interview_pdf', 'case', case_id, {'filename': outpath.name})
     return FileResponse(path=str(outpath), media_type='application/pdf', filename=outpath.name, headers={'Cache-Control': 'no-store'})
@@ -397,3 +470,27 @@ async def export_case_bundle_route(request: Request, case_id: int):
     refreshed_case = db.get_case(case_id) or case_row
     db.record_audit(user['id'], 'export_bundle', 'case', case_id, {'filename': bundle_path.name, 'has_avvik': case_has_avvik(refreshed_case)})
     return FileResponse(path=str(bundle_path), media_type='application/zip', filename=bundle_path.name, headers={'Cache-Control': 'no-store'})
+
+@router.post('/cases/{case_id}/email-package')
+async def email_case_package_route(request: Request, case_id: int):
+    user = require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til Minfiskerikontroll.')
+    form = await request.form()
+    enforce_csrf(request, form)
+    try:
+        case_row = get_case_for_user(user, case_id)
+    except HTTPException as exc:
+        if exc.status_code == 404:
+            return _case_missing_html(case_id)
+        raise
+    recipient = str(form.get('email_to') or '').strip()
+    subject = str(form.get('email_subject') or '').strip()
+    body = str(form.get('email_body') or '').strip()
+    if not recipient:
+        return _simple_message_html('Mangler e-postmottaker', 'Fyll inn mottakeradresse før du sender anmeldelse med vedlegg.', status_code=400, back_url=f'/cases/{case_id}/edit?step=7')
+    try:
+        result = await run_in_threadpool(send_case_package_email, case_id, case_row, user, to_address=recipient, subject=subject, body=body)
+    except Exception as exc:
+        return _simple_message_html('Kunne ikke sende e-post', str(exc), status_code=400, back_url=f'/cases/{case_id}/edit?step=7')
+    db.record_audit(user['id'], 'email_case_package', 'case', case_id, {'recipient': recipient, 'bundle': result.get('bundle')})
+    return _simple_message_html('E-post sendt', f"Dokumentpakken ble sendt til {recipient}.\nVedlegg: {result.get('bundle') or 'pakke.zip'}", back_url=f'/cases/{case_id}/preview')
+

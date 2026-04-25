@@ -6,7 +6,7 @@
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('/static/sw.js?v=v89').catch(function () {});
+      navigator.serviceWorker.register('/static/sw.js?v=v91').catch(function () {});
     });
   }
 
@@ -337,7 +337,7 @@
   }
 
 
-  var LAYER_PANEL_PREFS_VERSION = 'v89';
+  var LAYER_PANEL_PREFS_VERSION = 'v91';
 
   function layerPanelStorageKey(el, markerState) {
     return 'kv-temalag:' + LAYER_PANEL_PREFS_VERSION + ':' + String((markerState && markerState.layerPanelKey) || (el && el.id) || 'map');
@@ -474,7 +474,7 @@
         '<div class="kv-temalag-card">',
         '<div class="kv-temalag-head">',
         '<div><strong>Velg kartlag i kartet</strong><div class="small muted kv-temalag-summary"></div></div>',
-        '<button type="button" class="kv-temalag-close" aria-label="Skjul temalag">×</button>',
+        '<div class="kv-temalag-panel-actions"><button type="button" class="btn btn-secondary btn-small kv-temalag-expand-all">Utvid alle</button><button type="button" class="btn btn-secondary btn-small kv-temalag-collapse-all">Legg sammen</button><button type="button" class="kv-temalag-close" aria-label="Skjul temalag">×</button></div>',
         '</div>',
         '<div class="kv-temalag-search-wrap"><input type="search" class="kv-temalag-search" placeholder="Søk i lag" /></div>',
         '<div class="kv-temalag-groups"></div>',
@@ -492,6 +492,22 @@
         event.preventDefault();
         state.layerPanelPrefs = state.layerPanelPrefs || {};
         state.layerPanelPrefs.open = false;
+        saveLayerPanelPrefs(state.layerPanelStorageKey, state.layerPanelPrefs);
+        syncLayerPanel(state, state.map, state.currentLayers || [], state.visibleLayers || []);
+      });
+      root.querySelector('.kv-temalag-expand-all').addEventListener('click', function (event) {
+        event.preventDefault();
+        state.layerPanelPrefs = state.layerPanelPrefs || {};
+        state.layerPanelPrefs.collapsed_groups = [];
+        state.layerPanelPrefs.groups_initialized = true;
+        saveLayerPanelPrefs(state.layerPanelStorageKey, state.layerPanelPrefs);
+        syncLayerPanel(state, state.map, state.currentLayers || [], state.visibleLayers || []);
+      });
+      root.querySelector('.kv-temalag-collapse-all').addEventListener('click', function (event) {
+        event.preventDefault();
+        state.layerPanelPrefs = state.layerPanelPrefs || {};
+        state.layerPanelPrefs.collapsed_groups = (state._lastLayerPanelGroupKeys || []).slice();
+        state.layerPanelPrefs.groups_initialized = true;
         saveLayerPanelPrefs(state.layerPanelStorageKey, state.layerPanelPrefs);
         syncLayerPanel(state, state.map, state.currentLayers || [], state.visibleLayers || []);
       });
@@ -543,6 +559,7 @@
     var visibleLookup = {};
     (visibleLayers || []).forEach(function (layer) { visibleLookup[String(layer && layer.id)] = true; });
     var groups = buildLayerPanelGroups(allLayers, state.layerPanelSearch || '');
+    state._lastLayerPanelGroupKeys = groups.map(function (group) { return String(group.key); });
     var isExternalMobilePanel = root.classList.contains('kv-temalag-panel-external') && window.matchMedia('(max-width: 720px)').matches;
     if (isExternalMobilePanel && !prefs.groups_initialized && !String(state.layerPanelSearch || '').trim() && groups.length > 1) {
       prefs.collapsed_groups = groups.slice(1).map(function (group) { return String(group.key); });
@@ -564,7 +581,7 @@
           '<span class="kv-temalag-swatch" style="background:' + escapeHtml(layer.color || '#1f4f82') + '"></span>',
           '<span class="kv-temalag-item-body">',
           '<span class="kv-temalag-item-title">' + escapeHtml(layer.name || ('Lag ' + layerId)) + '</span>',
-          '<span class="kv-temalag-item-meta"><span class="kv-status-chip ' + escapeHtml(layerStatusClass(layer.status)) + '">' + escapeHtml(layerStatusLabel(layer.status)) + '</span><span class="kv-geom-chip">' + escapeHtml(geometryLabel(layer.geometry_type)) + '</span></span>',
+          '<span class="kv-temalag-item-meta"><span class="kv-status-chip ' + escapeHtml(layerStatusClass(layer.status)) + '">' + escapeHtml(layerStatusLabel(layer.status)) + '</span><span class="kv-geom-chip">' + escapeHtml(geometryLabel(layer.geometry_type)) + '</span>' + (layer.selection_summary ? '<span class="kv-selection-chip">' + escapeHtml(layer.selection_summary) + '</span>' : '') + '</span>',
           '</span>',
           '</label>'
         ].join('');
@@ -625,16 +642,27 @@
         event.preventDefault();
         event.stopPropagation();
         var groupKey = String(event.currentTarget.getAttribute('data-group-key') || '');
+        if (!groupKey) return;
         state.layerPanelPrefs = state.layerPanelPrefs || {};
         var collapsed = Array.isArray(state.layerPanelPrefs.collapsed_groups) ? state.layerPanelPrefs.collapsed_groups.slice() : [];
         var lookup = {};
         collapsed.forEach(function (value) { lookup[String(value)] = true; });
+        var section = event.currentTarget.closest ? event.currentTarget.closest('.kv-temalag-group') : null;
+        var body = section && section.querySelector ? section.querySelector('.kv-temalag-group-body') : null;
+        var willCollapse = !lookup[groupKey];
         if (lookup[groupKey]) delete lookup[groupKey];
         else lookup[groupKey] = true;
         state.layerPanelPrefs.collapsed_groups = Object.keys(lookup);
         state.layerPanelPrefs.initialized = true;
         saveLayerPanelPrefs(state.layerPanelStorageKey, state.layerPanelPrefs);
-        syncLayerPanel(state, map, allLayers, state.visibleLayers || visibleLayers || []);
+        // Update the touched group immediately. This makes Safari/iPhone feel
+        // responsive even if the map layer refresh takes a moment.
+        if (section) {
+          section.classList.toggle('is-collapsed', willCollapse);
+          section.classList.toggle('is-open', !willCollapse);
+        }
+        if (body) body.hidden = willCollapse;
+        event.currentTarget.setAttribute('aria-expanded', willCollapse ? 'false' : 'true');
       });
     });
   }

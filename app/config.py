@@ -99,6 +99,30 @@ _DEFAULT_MAX_REQUEST_MB = max(
 )
 
 
+def _render_runtime() -> bool:
+    # Render sets RENDER=true at runtime. Use this to keep SQLite, uploads and
+    # generated documents outside the app image by default. Environment
+    # variables still override these defaults.
+    return _env_flag('RENDER', False) or bool(RENDER_EXTERNAL_URL or RENDER_EXTERNAL_HOSTNAME)
+
+
+def _runtime_storage_root() -> Path:
+    explicit = str(os.getenv('KV_STORAGE_ROOT', '')).strip()
+    if explicit:
+        return Path(explicit)
+    if _render_runtime():
+        return Path('/var/data/fiskerikontroll')
+    return BASE_DIR
+
+
+def _runtime_path(env_name: str, default_path: Path) -> Path:
+    raw = str(os.getenv(env_name, '')).strip()
+    return Path(raw) if raw else default_path
+
+
+_RUNTIME_STORAGE_ROOT = _runtime_storage_root()
+
+
 @dataclass(frozen=True)
 class Settings:
     app_name: str
@@ -130,6 +154,13 @@ class Settings:
     bootstrap_admin_name: str
     bootstrap_admin_password: str
     bootstrap_admin_case_prefix: str
+    smtp_host: str
+    smtp_port: int
+    smtp_username: str
+    smtp_password: str
+    smtp_from: str
+    smtp_use_tls: bool
+    smtp_use_starttls: bool
 
     def ensure_runtime_dirs(self) -> None:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -140,14 +171,14 @@ class Settings:
 settings = Settings(
     app_name=os.getenv('KV_APP_NAME', 'Kontroll'),
     brand_org_name=os.getenv('KV_BRAND_ORG_NAME', 'Minfiskerikontroll').strip() or 'Minfiskerikontroll',
-    app_version=os.getenv('KV_APP_VERSION', '89.0.0'),
-    app_version_label=os.getenv('KV_APP_VERSION_LABEL', 'v89'),
+    app_version=os.getenv('KV_APP_VERSION', '91.0.0'),
+    app_version_label=os.getenv('KV_APP_VERSION_LABEL', 'v91'),
     base_dir=BASE_DIR,
     templates_dir=BASE_DIR / 'app' / 'templates',
     static_dir=BASE_DIR / 'app' / 'static',
-    upload_dir=Path(os.getenv('KV_UPLOAD_DIR', str(BASE_DIR / 'uploads'))),
-    generated_dir=Path(os.getenv('KV_GENERATED_DIR', str(BASE_DIR / 'generated'))),
-    db_path=Path(os.getenv('KV_DB_PATH', str(BASE_DIR / 'kv_kontroll.db'))),
+    upload_dir=_runtime_path('KV_UPLOAD_DIR', _RUNTIME_STORAGE_ROOT / 'uploads'),
+    generated_dir=_runtime_path('KV_GENERATED_DIR', _RUNTIME_STORAGE_ROOT / 'generated'),
+    db_path=_runtime_path('KV_DB_PATH', _RUNTIME_STORAGE_ROOT / 'kv_kontroll.db'),
     session_secret=os.getenv('SESSION_SECRET', 'dev-session-secret-change-me'),
     session_same_site=_session_same_site,
     session_https_only=_session_https_only,
@@ -167,4 +198,11 @@ settings = Settings(
     bootstrap_admin_name=os.getenv('KV_BOOTSTRAP_ADMIN_NAME', '').strip(),
     bootstrap_admin_password=os.getenv('KV_BOOTSTRAP_ADMIN_PASSWORD', ''),
     bootstrap_admin_case_prefix=os.getenv('KV_BOOTSTRAP_ADMIN_PREFIX', 'LBHN').strip().upper() or 'LBHN',
+    smtp_host=os.getenv('KV_SMTP_HOST', '').strip(),
+    smtp_port=_env_int('KV_SMTP_PORT', 587, minimum=1, maximum=65535),
+    smtp_username=os.getenv('KV_SMTP_USERNAME', '').strip(),
+    smtp_password=os.getenv('KV_SMTP_PASSWORD', ''),
+    smtp_from=os.getenv('KV_SMTP_FROM', '').strip(),
+    smtp_use_tls=_env_flag('KV_SMTP_USE_TLS', False),
+    smtp_use_starttls=_env_flag('KV_SMTP_USE_STARTTLS', True),
 )

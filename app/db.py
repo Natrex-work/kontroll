@@ -176,6 +176,7 @@ def init_db() -> None:
                 source_snapshot_json TEXT NOT NULL DEFAULT '[]',
                 crew_json TEXT NOT NULL DEFAULT '[]',
                 external_actors_json TEXT NOT NULL DEFAULT '[]',
+                persons_json TEXT NOT NULL DEFAULT '[]',
                 hummer_participant_no TEXT,
                 hummer_last_registered TEXT,
                 observed_gear_count INTEGER,
@@ -184,6 +185,9 @@ def init_db() -> None:
                 interview_report_override TEXT,
                 seizure_report_override TEXT,
                 interview_sessions_json TEXT NOT NULL DEFAULT '[]',
+                interview_not_conducted INTEGER NOT NULL DEFAULT 0,
+                interview_not_conducted_reason TEXT,
+                interview_guidance_text TEXT,
                 complainant_signature TEXT,
                 witness_signature TEXT,
                 investigator_signature TEXT,
@@ -241,6 +245,7 @@ def init_db() -> None:
         _ensure_column(conn, 'cases', 'last_previewed_at', 'last_previewed_at TEXT')
         _ensure_column(conn, 'cases', 'crew_json', "crew_json TEXT NOT NULL DEFAULT '[]'")
         _ensure_column(conn, 'cases', 'external_actors_json', "external_actors_json TEXT NOT NULL DEFAULT '[]'")
+        _ensure_column(conn, 'cases', 'persons_json', "persons_json TEXT NOT NULL DEFAULT '[]'")
         _ensure_column(conn, 'cases', 'hummer_participant_no', 'hummer_participant_no TEXT')
         _ensure_column(conn, 'cases', 'hummer_last_registered', 'hummer_last_registered TEXT')
         _ensure_column(conn, 'cases', 'radio_call_sign', 'radio_call_sign TEXT')
@@ -251,6 +256,9 @@ def init_db() -> None:
         _ensure_column(conn, 'cases', 'interview_report_override', 'interview_report_override TEXT')
         _ensure_column(conn, 'cases', 'seizure_report_override', 'seizure_report_override TEXT')
         _ensure_column(conn, 'cases', 'interview_sessions_json', "interview_sessions_json TEXT NOT NULL DEFAULT '[]'")
+        _ensure_column(conn, 'cases', 'interview_not_conducted', 'interview_not_conducted INTEGER NOT NULL DEFAULT 0')
+        _ensure_column(conn, 'cases', 'interview_not_conducted_reason', 'interview_not_conducted_reason TEXT')
+        _ensure_column(conn, 'cases', 'interview_guidance_text', 'interview_guidance_text TEXT')
         _ensure_column(conn, 'cases', 'complainant_signature', 'complainant_signature TEXT')
         _ensure_column(conn, 'cases', 'witness_signature', 'witness_signature TEXT')
         _ensure_column(conn, 'cases', 'investigator_signature', 'investigator_signature TEXT')
@@ -281,7 +289,9 @@ def init_db() -> None:
         conn.execute("UPDATE cases SET source_snapshot_json = '[]' WHERE source_snapshot_json IS NULL OR source_snapshot_json = ''")
         conn.execute("UPDATE cases SET crew_json = '[]' WHERE crew_json IS NULL OR crew_json = ''")
         conn.execute("UPDATE cases SET external_actors_json = '[]' WHERE external_actors_json IS NULL OR external_actors_json = ''")
+        conn.execute("UPDATE cases SET persons_json = '[]' WHERE persons_json IS NULL OR persons_json = ''")
         conn.execute("UPDATE cases SET interview_sessions_json = '[]' WHERE interview_sessions_json IS NULL OR interview_sessions_json = ''")
+        conn.execute("UPDATE cases SET interview_not_conducted = 0 WHERE interview_not_conducted IS NULL")
         conn.execute("UPDATE cases SET case_basis = 'patruljeobservasjon' WHERE case_basis IS NULL OR case_basis = ''")
         conn.execute("UPDATE cases SET status = 'Utkast' WHERE status IS NULL OR status = '' OR lower(status) = 'draft'")
         conn.execute("UPDATE cases SET status = 'Anmeldt' WHERE lower(status) = 'klar for anmeldelse'")
@@ -490,8 +500,8 @@ def create_case(created_by: int, investigator_name: str, complainant_name: str |
             INSERT INTO cases(
                 case_number, created_by, investigator_name, complainant_name, witness_name,
                 case_basis, basis_source_name, basis_details, start_time, end_time,
-                source_snapshot_json, crew_json, external_actors_json, interview_sessions_json, complainant_signature, witness_signature, investigator_signature, suspect_signature, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                source_snapshot_json, crew_json, external_actors_json, persons_json, interview_sessions_json, interview_not_conducted, interview_not_conducted_reason, interview_guidance_text, complainant_signature, witness_signature, investigator_signature, suspect_signature, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''',
             (
                 case_number,
@@ -508,6 +518,10 @@ def create_case(created_by: int, investigator_name: str, complainant_name: str |
                 '[]',
                 '[]',
                 '[]',
+                '[]',
+                0,
+                None,
+                None,
                 None,
                 None,
                 investigator_name,
@@ -638,7 +652,7 @@ def save_case(case_id: int, data: Dict[str, Any]) -> None:
         'control_type', 'fishery_type', 'species', 'gear_type', 'start_time', 'end_time', 'location_name', 'latitude', 'longitude',
         'area_status', 'area_name', 'suspect_name', 'suspect_phone', 'suspect_birthdate', 'suspect_address', 'suspect_post_place', 'lookup_text', 'vessel_name',
         'vessel_reg', 'radio_call_sign', 'notes', 'hearing_text', 'seizure_notes', 'summary', 'findings_json', 'status', 'source_snapshot_json',
-        'crew_json', 'external_actors_json', 'interview_sessions_json', 'hummer_participant_no', 'hummer_last_registered', 'observed_gear_count', 'complaint_override', 'own_report_override', 'interview_report_override', 'seizure_report_override', 'complainant_signature', 'witness_signature', 'investigator_signature', 'suspect_signature', 'last_previewed_at', 'last_generated_pdf'
+        'crew_json', 'external_actors_json', 'persons_json', 'interview_sessions_json', 'interview_not_conducted', 'interview_not_conducted_reason', 'interview_guidance_text', 'hummer_participant_no', 'hummer_last_registered', 'observed_gear_count', 'complaint_override', 'own_report_override', 'interview_report_override', 'seizure_report_override', 'complainant_signature', 'witness_signature', 'investigator_signature', 'suspect_signature', 'last_previewed_at', 'last_generated_pdf'
     ]
     assignments = []
     values: list[Any] = []
@@ -646,7 +660,7 @@ def save_case(case_id: int, data: Dict[str, Any]) -> None:
         if key in data:
             assignments.append(f'{key} = ?')
             value = data[key]
-            if key in {'findings_json', 'source_snapshot_json', 'crew_json', 'external_actors_json', 'interview_sessions_json'} and not isinstance(value, str):
+            if key in {'findings_json', 'source_snapshot_json', 'crew_json', 'external_actors_json', 'persons_json', 'interview_sessions_json'} and not isinstance(value, str):
                 value = json.dumps(value, ensure_ascii=False)
             values.append(value)
     assignments.append('updated_at = ?')
@@ -753,6 +767,17 @@ def case_to_crew(case_row: Dict[str, Any]) -> list[Dict[str, Any]]:
 
 
 
+
+
+def case_to_persons(case_row: Dict[str, Any]) -> list[Dict[str, Any]]:
+    raw = case_row.get('persons_json') or '[]'
+    try:
+        data = json.loads(raw)
+        if isinstance(data, list):
+            return [item for item in data if isinstance(item, dict)]
+    except Exception:
+        pass
+    return []
 
 def case_to_interviews(case_row: Dict[str, Any]) -> list[Dict[str, Any]]:
     raw = case_row.get('interview_sessions_json') or '[]'

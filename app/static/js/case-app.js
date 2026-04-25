@@ -6,7 +6,7 @@
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('/static/sw.js?v=v89').catch(function () {});
+      navigator.serviceWorker.register('/static/sw.js?v=v91').catch(function () {});
     });
   }
 
@@ -1177,7 +1177,7 @@
     var lawBrowser = parseJson(root.dataset.lawBrowser, []);
     var mapCatalog = parseJson(root.dataset.mapCatalog, []);
     var mapFilterWrap = document.getElementById('map-layer-filters');
-    var mapFilterStorageKey = 'kv-map-layer-filter-v89:' + root.dataset.caseId;
+    var mapFilterStorageKey = 'kv-map-layer-filter-v91:' + root.dataset.caseId;
     var activeLayerStatuses = { 'fredningsområde': true, 'stengt område': true, 'maksimalmål område': true, 'regulert område': true, 'fiskeriområde': true };
     try {
       localStorage.removeItem('kv-map-layer-filter:' + root.dataset.caseId);
@@ -1869,7 +1869,11 @@
     var sourcesInput = document.getElementById('source_snapshot_json');
     var crewInput = document.getElementById('crew_json');
     var externalActorsInput = document.getElementById('external_actors_json');
+    var personsInput = document.getElementById('persons_json');
     var interviewInput = document.getElementById('interview_sessions_json');
+    var interviewNotConducted = document.getElementById('interview_not_conducted');
+    var interviewNotConductedReason = document.getElementById('interview_not_conducted_reason');
+    var interviewGuidanceText = document.getElementById('interview_guidance_text');
     var findingsList = document.getElementById('findings-list');
     var sourceList = document.getElementById('rule-source-list');
     var metaBox = document.getElementById('rule-bundle-meta');
@@ -1997,6 +2001,7 @@
     var sourcesState = parseJson(sourcesInput.value, []) || [];
     var crewState = parseJson(crewInput.value, []) || [];
     var externalActorsState = parseJson(externalActorsInput.value, []) || [];
+    var personsState = parseJson(personsInput ? personsInput.value : '[]', []) || [];
     var interviewState = parseJson(interviewInput ? interviewInput.value : '[]', []) || [];
     var candidateState = [];
     var registryLookupTimer = null;
@@ -2339,6 +2344,7 @@
       findingsInput.value = JSON.stringify(findingsState);
       crewInput.value = JSON.stringify(crewState);
       externalActorsInput.value = JSON.stringify(externalActorsState);
+      if (personsInput) personsInput.value = JSON.stringify(personsState);
       sourcesInput.value = JSON.stringify(sourcesState);
       if (interviewInput) interviewInput.value = JSON.stringify(interviewState);
       if (suspectNameCommercial.value && !suspectName.value) suspectName.value = suspectNameCommercial.value;
@@ -2347,6 +2353,7 @@
       formData.set('source_snapshot_json', JSON.stringify(sourcesState));
       formData.set('crew_json', JSON.stringify(crewState));
       formData.set('external_actors_json', JSON.stringify(externalActorsState));
+      formData.set('persons_json', JSON.stringify(personsState));
       formData.set('interview_sessions_json', JSON.stringify(interviewState));
       if (isOfflineNewCase) formData.set('local_case_id', String(root.dataset.caseId || ''));
       return formData;
@@ -2424,6 +2431,7 @@
         sources: JSON.parse(JSON.stringify(sourcesState || [])),
         crew: JSON.parse(JSON.stringify(crewState || [])),
         external_actors: JSON.parse(JSON.stringify(externalActorsState || [])),
+        persons: JSON.parse(JSON.stringify(personsState || [])),
         interviews: JSON.parse(JSON.stringify(interviewState || [])),
         summary_cache: JSON.parse(JSON.stringify(summaryDraftCache || {})),
         meta: {
@@ -2472,13 +2480,16 @@
         findingsInput.value = JSON.stringify(findingsState || []);
         crewInput.value = JSON.stringify(crewState || []);
         externalActorsInput.value = JSON.stringify(externalActorsState || []);
+        if (personsInput) personsInput.value = JSON.stringify(personsState || []);
         sourcesInput.value = JSON.stringify(sourcesState || []);
         if (interviewInput) interviewInput.value = JSON.stringify(interviewState || []);
         syncOptions();
         applyExternalActorsStateToDom();
         renderCrew();
+        renderPersons();
         renderFindings();
         renderInterviews();
+        syncInterviewDisabledState();
         if (sourceList) sourceList.innerHTML = (sourcesState || []).map(sourceChip).join('');
         updateExternalSearchLinks();
         syncManualPositionNotice();
@@ -2507,6 +2518,7 @@
         sourcesState = parseJson(JSON.stringify(draft.sources || []), []) || [];
         crewState = parseJson(JSON.stringify(draft.crew || []), []) || [];
         externalActorsState = parseJson(JSON.stringify(draft.external_actors || []), []) || [];
+        personsState = parseJson(JSON.stringify(draft.persons || []), []) || [];
         interviewState = parseJson(JSON.stringify(draft.interviews || []), []) || [];
         summaryDraftCache = parseJson(JSON.stringify(draft.summary_cache || {}), {}) || {};
         if (draft.position_mode === 'manual') {
@@ -2654,8 +2666,13 @@
     function ensureLocalCaseSyncedBeforeAction() {
       return syncLocalCaseDraft({ force: true, redirectAfterCreate: false }).then(function (synced) {
         if (synced) return true;
-        return window.confirm('Saken er fortsatt ikke sikkert synket med serveren. Forhåndsvisning og eksport kan mangle de siste endringene. Vil du fortsette likevel?');
-      }).catch(function () { return true; });
+        updateLocalCaseStatus('Forhåndsvisning og eksport krever at saken finnes på serveren. Trykk Synk sak og prøv igjen når synk er fullført.', true, { forceShow: true, showSync: true, showDiscard: true });
+        try { window.alert('Saken må synkes til server før forhåndsvisning eller dokumenteksport. Trykk Synk sak og prøv igjen.'); } catch (e) {}
+        return false;
+      }).catch(function () {
+        updateLocalCaseStatus('Kunne ikke kontrollere at saken er synket. Prøv igjen om litt.', true, { forceShow: true, showSync: true, showDiscard: true });
+        return false;
+      });
     }
 
     function evidenceFileUrl(entry) {
@@ -3167,6 +3184,124 @@
     renderCrew();
     setAutosaveStatus('Klar for autosave', 'is-saved');
 
+
+    function normalizePersonRole(role) {
+      var raw = String(role || '').trim();
+      return raw || 'Mistenkt';
+    }
+
+    function newPerson(role) {
+      var isSuspect = normalizePersonRole(role).toLowerCase().indexOf('mistenkt') !== -1;
+      return {
+        role: normalizePersonRole(role),
+        name: isSuspect ? (suspectName.value || suspectNameCommercial.value || '') : '',
+        phone: isSuspect ? (suspectPhone.value || '') : '',
+        birthdate: isSuspect ? (suspectBirthdate.value || '') : '',
+        address: isSuspect ? (suspectAddress.value || '') : '',
+        relation: ''
+      };
+    }
+
+    function renderPersons() {
+      var wrap = document.getElementById('persons-list');
+      if (!wrap) return;
+      if (!personsState.length) {
+        wrap.innerHTML = '<div class="callout">Ingen ekstra personer er lagt til. Hovedperson/fartøy over brukes fortsatt i saken.</div>';
+        if (personsInput) personsInput.value = JSON.stringify(personsState || []);
+        syncInterviewPersonOptions();
+        return;
+      }
+      wrap.innerHTML = personsState.map(function (person, idx) {
+        var role = normalizePersonRole(person.role || 'Mistenkt');
+        var roleOptions = ['Mistenkt', 'Vitne', 'Eier', 'Fører/skipper', 'Annen person'].map(function (option) {
+          return '<option value="' + escapeHtml(option) + '" ' + (option === role ? 'selected' : '') + '>' + escapeHtml(option) + '</option>';
+        }).join('');
+        return [
+          '<article class="person-card" data-index="' + idx + '">',
+          '<div class="grid-two compact-grid-form">',
+          '<label><span>Rolle</span><select class="person-role">' + roleOptions + '</select></label>',
+          '<label><span>Navn</span><input class="person-name" value="' + escapeHtml(person.name || '') + '" autocomplete="name" /></label>',
+          '<label><span>Telefon</span><input class="person-phone" value="' + escapeHtml(person.phone || '') + '" inputmode="tel" autocomplete="tel" /></label>',
+          '<label><span>Fødselsdato / id</span><input class="person-birthdate" value="' + escapeHtml(person.birthdate || '') + '" /></label>',
+          '<label class="span-2"><span>Adresse</span><input class="person-address" value="' + escapeHtml(person.address || '') + '" autocomplete="street-address" /></label>',
+          '<label class="span-2"><span>Tilknytning / merknad</span><input class="person-relation" value="' + escapeHtml(person.relation || '') + '" placeholder="F.eks. eier av redskap, vitne til observasjon" /></label>',
+          '</div>',
+          '<div class="actions-row wrap margin-top-s"><button type="button" class="btn btn-secondary btn-small person-to-interview">Opprett avhør</button><button type="button" class="btn btn-danger btn-small person-remove">Fjern</button></div>',
+          '</article>'
+        ].join('');
+      }).join('');
+      if (personsInput) personsInput.value = JSON.stringify(personsState || []);
+      syncInterviewPersonOptions();
+    }
+
+    function syncPersonsFromDom() {
+      document.querySelectorAll('#persons-list .person-card').forEach(function (card) {
+        var idx = Number(card.dataset.index);
+        personsState[idx] = personsState[idx] || {};
+        personsState[idx].role = card.querySelector('.person-role').value;
+        personsState[idx].name = card.querySelector('.person-name').value;
+        personsState[idx].phone = card.querySelector('.person-phone').value;
+        personsState[idx].birthdate = card.querySelector('.person-birthdate').value;
+        personsState[idx].address = card.querySelector('.person-address').value;
+        personsState[idx].relation = card.querySelector('.person-relation').value;
+      });
+      if (personsInput) personsInput.value = JSON.stringify(personsState || []);
+      scheduleAutosave('Personer oppdatert');
+      syncInterviewPersonOptions();
+    }
+
+    function makeInterviewFromPerson(person) {
+      person = person || {};
+      var role = normalizePersonRole(person.role || 'Mistenkt');
+      return {
+        name: person.name || suspectName.value || suspectNameCommercial.value || '',
+        role: role,
+        method: 'På stedet / telefon',
+        place: locationName.value || '',
+        start: startTime.value || '',
+        end: endTime.value || '',
+        transcript: '',
+        summary: ''
+      };
+    }
+
+    function syncInterviewPersonOptions() {
+      var select = document.getElementById('interview-person-source');
+      if (!select) return;
+      var rows = [];
+      if (suspectName.value || suspectNameCommercial.value) rows.push({ idx: 'main', role: 'Mistenkt', name: suspectName.value || suspectNameCommercial.value });
+      (personsState || []).forEach(function (p, idx) { if (p && p.name) rows.push({ idx: String(idx), role: p.role || 'Person', name: p.name }); });
+      select.innerHTML = rows.length ? rows.map(function (row) { return '<option value="' + escapeHtml(row.idx) + '">' + escapeHtml(row.role + ': ' + row.name) + '</option>'; }).join('') : '<option value="">Ingen registrerte personer</option>';
+    }
+
+    var addSuspectBtn = document.getElementById('btn-add-suspect');
+    if (addSuspectBtn) addSuspectBtn.addEventListener('click', function () { personsState.push(newPerson('Mistenkt')); renderPersons(); scheduleAutosave('Mistenkt lagt til'); });
+    var addWitnessPersonBtn = document.getElementById('btn-add-witness-person');
+    if (addWitnessPersonBtn) addWitnessPersonBtn.addEventListener('click', function () { personsState.push(newPerson('Vitne')); renderPersons(); scheduleAutosave('Vitne lagt til'); });
+    var personsListEl = document.getElementById('persons-list');
+    if (personsListEl) {
+      personsListEl.addEventListener('input', syncPersonsFromDom);
+      personsListEl.addEventListener('change', syncPersonsFromDom);
+      personsListEl.addEventListener('click', function (event) {
+        var card = event.target.closest('.person-card');
+        if (!card) return;
+        var idx = Number(card.dataset.index);
+        if (event.target.classList.contains('person-remove')) {
+          personsState.splice(idx, 1);
+          renderPersons();
+          scheduleAutosave('Person fjernet');
+          return;
+        }
+        if (event.target.classList.contains('person-to-interview')) {
+          syncPersonsFromDom();
+          interviewState.push(makeInterviewFromPerson(personsState[idx] || {}));
+          renderInterviews();
+          scheduleAutosave('Avhør opprettet fra person');
+        }
+      });
+    }
+    renderPersons();
+
     function mergeSources(rows) {
       var seen = {};
       sourcesState = sourcesState.concat(rows || []).filter(function (item) {
@@ -3512,8 +3647,9 @@
       return [file && file.name || '', file && file.size || 0, file && file.lastModified || 0].join('|');
     }
 
-    var OCR_SERVER_TIMEOUT_MS = 32000;
+    var OCR_SERVER_TIMEOUT_MS = 26000;
     var OCR_ORIGINAL_MAX_BYTES = 8 * 1024 * 1024;
+    var ocrResultCache = Object.create(null);
 
     function buildOcrUploadFile(file, mode) {
       mode = mode || 'original';
@@ -3641,6 +3777,11 @@
     }
 
     function runServerOcr(file) {
+      var originalKey = fileSignature(file);
+      if (originalKey && ocrResultCache[originalKey]) {
+        if (registryResult) registryResult.innerHTML = 'Bruker nylig OCR-resultat for samme bilde.';
+        return Promise.resolve(Object.assign({}, ocrResultCache[originalKey], { strategy: (ocrResultCache[originalKey].strategy || 'server') + ' - hurtigbuffer' }));
+      }
       function fileAttemptKey(uploadFile) {
         return [uploadFile && uploadFile.name || '', uploadFile && uploadFile.size || 0, uploadFile && uploadFile.type || ''].join('|');
       }
@@ -3669,7 +3810,8 @@
             strategy: (result.payload.strategy || 'server') + ' - ' + label,
             source: 'server',
             hints: (result.payload && result.payload.hints) || extractLookupHintsFromText(rawText || normalizedText),
-            elapsed_ms: result.payload.elapsed_ms || null
+            elapsed_ms: result.payload.elapsed_ms || null,
+            cached: !!result.payload.cached
           };
         });
       }
@@ -3706,7 +3848,10 @@
         });
       }
 
-      return nextAttempt(0, null);
+      return nextAttempt(0, null).then(function (result) {
+        if (originalKey && result && result.text) ocrResultCache[originalKey] = Object.assign({}, result);
+        return result;
+      });
     }
 
 
@@ -4053,11 +4198,11 @@
       mapState.recenterZoom = options.recenterZoom || null;
       if (mapState.recenterTo) mapState.lastProgrammaticRecenterTs = Date.now();
       mapState.showDeviceMarker = mapState.manualPosition !== true;
-      var maxCaseMapLayers = 12;
+      var maxCaseMapLayers = 8;
       var zoneLayerIds = zoneMatchedLayerIds(latestZoneResult);
       var displayLayers = mergeRelevantMapLayers(filteredMapCatalog(), zoneLayerIds).slice(0, maxCaseMapLayers);
       var defaultVisibleIds = displayLayers.map(function (layer) { return Number(layer && layer.id); }).filter(function (value) { return isFinite(value); });
-      var featureDetailIds = visibleFeatureDetailLayerIds(10, zoneLayerIds);
+      var featureDetailIds = visibleFeatureDetailLayerIds(6, zoneLayerIds);
       var allLayerIds = displayLayers.map(function (layer) { return Number(layer && layer.id); }).filter(function (value) { return isFinite(value); });
       var fisheryPortalService = root.dataset.portalMapserver || (caseMap && caseMap.dataset ? (caseMap.dataset.portalMapserver || '') : '') || 'https://portal.fiskeridir.no/server/rest/services/fiskeridirWMS_fiskeri/MapServer';
       var vernPortalService = root.dataset.portalVernMapserver || (caseMap && caseMap.dataset ? (caseMap.dataset.portalVernMapserver || '') : '') || 'https://portal.fiskeridir.no/server/rest/services/Fiskeridir_vern/MapServer';
@@ -4065,12 +4210,12 @@
       mapState.featureDetailLayerIds = featureDetailIds;
       mapState.defaultVisibleLayerIds = defaultVisibleIds;
       mapState.highlightLayerIds = zoneLayerIds.slice();
-      mapState.detailFetchThresholdZoom = 5;
+      mapState.detailFetchThresholdZoom = 8;
       mapState.enableAreaPopup = true;
       mapState.showLegend = false;
       mapState.showLayerPanel = !!mapLayerPanelHost;
       mapState.layerPanelDefaultOpen = false;
-      mapState.layerPanelKey = 'case-map-v89';
+      mapState.layerPanelKey = 'case-map-v91';
       mapState.layerPanelTargetSelector = mapLayerPanelHost ? '#case-map-layer-panel-host' : '';
       mapState.rasterLayerIds = allLayerIds;
       mapState.identifyLayerIds = allLayerIds;
@@ -4078,7 +4223,7 @@
       mapState.portalFisheryService = fisheryPortalService;
       mapState.portalVernService = vernPortalService;
       mapState.rasterServicesAuto = true;
-      mapState.rasterChunkSize = 8;
+      mapState.rasterChunkSize = 4;
       mapState.rasterOpacity = 0.9;
       mapState.rasterServices = null;
       createPortalMap(caseMap, displayLayers, mapState).then(function () {
@@ -4088,11 +4233,10 @@
           mapState.autoRecenterOnce = false;
         }
         clearTimeout(mapState._offlineWarmTimer);
+        // v91: do not auto-download offline map packages on every position/layer update.
+        // The user can still press the offline download button explicitly.
         var offlineWarmKey = currentOfflineWarmKey();
-        if (offlineWarmKey && mapState._lastOfflineWarmKey !== offlineWarmKey) {
-          mapState._lastOfflineWarmKey = offlineWarmKey;
-          mapState._offlineWarmTimer = setTimeout(function () { downloadCurrentMapToDevice(); }, 1800);
-        }
+        mapState._lastOfflineWarmKey = offlineWarmKey || mapState._lastOfflineWarmKey;
         renderRelevantAreaPanel(latestZoneResult);
         syncZoneHitOverlay(latestZoneResult);
       });
@@ -5028,15 +5172,20 @@ function renderHummerStatus(result) {
       persistLocalCaseDraft({ silent: true });
       var formData = serializeCaseFormData();
       fetch(root.dataset.autosaveUrl, secureFetchOptions({ method: 'POST', body: formData }))
-        .then(function (r) { return r.json(); })
+        .then(function (r) { return parseJsonResponse(r, 'Kunne ikke autosynke saken.'); })
         .then(function (payload) {
           autosaveInFlight = false;
           lastAutosaveFingerprint = fingerprint;
           setAutosaveStatus('Lagret ' + new Date().toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit', second: '2-digit' }), 'is-saved');
           markLocalCaseSynced(payload && payload.saved_at ? payload.saved_at : new Date().toISOString());
         })
-        .catch(function () {
+        .catch(function (error) {
           autosaveInFlight = false;
+          if (isMissingServerCaseError(error) && createCaseUrl) {
+            updateLocalCaseStatus('Serveren finner ikke saken lenger. Oppretter ny serverkopi fra utfylt kladd ...', true, { forceShow: true, showSync: true, syncing: true, showDiscard: true });
+            createServerCaseFromLocalDraft({ force: true, redirectAfterCreate: false, silent: true });
+            return;
+          }
           persistLocalCaseDraft({ silent: true });
           updateLocalCaseStatus('Saken er lagret lokalt på enheten. Autosynk prøves igjen når nettverket er tilbake.', true, { forceShow: true, showSync: true, showDiscard: true });
           setAutosaveStatus('Lagret lokalt', 'is-saved');
@@ -5409,7 +5558,25 @@ function renderHummerStatus(result) {
       if (interviewInput) interviewInput.value = JSON.stringify(interviewState);
     }
 
+    function interviewNotConductedReasonText() {
+      return String((interviewNotConductedReason && interviewNotConductedReason.value) || 'Ikke fått kontakt med vedkommende.').trim() || 'Ikke fått kontakt med vedkommende.';
+    }
+
+    function syncInterviewDisabledState() {
+      var disabled = !!(interviewNotConducted && interviewNotConducted.checked);
+      var list = document.getElementById('interview-list');
+      var addBtn = document.getElementById('btn-add-interview');
+      var syncBtn = document.getElementById('btn-sync-interviews');
+      if (interviewNotConductedReason && disabled && !String(interviewNotConductedReason.value || '').trim()) interviewNotConductedReason.value = 'Ikke fått kontakt med vedkommende.';
+      if (list) list.classList.toggle('muted-disabled', disabled);
+      if (addBtn) addBtn.disabled = disabled;
+      if (syncBtn) syncBtn.disabled = disabled;
+      if (hearingText && disabled) hearingText.value = '';
+      serializeInterviews();
+    }
+
     function buildInterviewCombinedText() {
+      if (interviewNotConducted && interviewNotConducted.checked) return '';
       if (!interviewState.length) return hearingText.value || '';
       return interviewState.map(function (entry, idx) {
         var header = 'Avhør ' + (idx + 1) + ': ' + (entry.name || 'Ukjent');
@@ -5428,6 +5595,7 @@ function renderHummerStatus(result) {
       if (!interviewState.length) {
         wrap.innerHTML = '<div class="callout">Ingen avhør registrert ennå.</div>';
         serializeInterviews();
+        syncInterviewDisabledState();
         return;
       }
       wrap.innerHTML = interviewState.map(function (entry, idx) {
@@ -5435,13 +5603,13 @@ function renderHummerStatus(result) {
           '<article class="interview-card" data-index="' + idx + '">',
           '<div class="grid-two compact-grid-form">',
           '<label><span>Navn</span><input class="interview-name" value="' + escapeHtml(entry.name || '') + '" /></label>',
-          '<label><span>Rolle</span><input class="interview-role" value="' + escapeHtml(entry.role || 'Avhørt') + '" /></label>',
+          '<label><span>Rolle</span><select class="interview-role">' + ['Mistenkt', 'Vitne', 'Annen forklaring'].map(function (role) { return '<option value="' + role + '" ' + (role === (entry.role || 'Mistenkt') ? 'selected' : '') + '>' + role + '</option>'; }).join('') + '</select></label>',
           '<label><span>Avhørsmåte</span><input class="interview-method" value="' + escapeHtml(entry.method || 'Telefon / på stedet') + '" /></label>',
           '<label><span>Sted</span><input class="interview-place" value="' + escapeHtml(entry.place || locationName.value || '') + '" /></label>',
           '<label><span>Start</span><input class="interview-start" type="datetime-local" value="' + escapeHtml(entry.start || startTime.value || '') + '" /></label>',
           '<label><span>Slutt</span><input class="interview-end" type="datetime-local" value="' + escapeHtml(entry.end || endTime.value || '') + '" /></label>',
           '<label class="span-2"><span>Transkripsjon / forklaring</span><textarea class="interview-transcript" rows="6">' + escapeHtml(entry.transcript || '') + '</textarea></label>',
-          '<label class="span-2"><span>AI-sammendrag</span><textarea class="interview-summary" rows="3">' + escapeHtml(entry.summary || '') + '</textarea></label>',
+          '<label class="span-2"><span>Sammendrag</span><textarea class="interview-summary" rows="3">' + escapeHtml(entry.summary || '') + '</textarea></label>',
           '</div>',
           '<div class="actions-row wrap margin-top-s">',
           '<button type="button" class="btn btn-secondary btn-small interview-summarize">Lag sammendrag</button>',
@@ -5452,6 +5620,7 @@ function renderHummerStatus(result) {
         ].join('');
       }).join('');
       serializeInterviews();
+      syncInterviewDisabledState();
     }
 
     function syncInterviewsFromDom() {
@@ -5469,7 +5638,84 @@ function renderHummerStatus(result) {
       });
       serializeInterviews();
       hearingText.value = buildInterviewCombinedText();
+      syncInterviewDisabledState();
     }
+
+
+    function avvikItemsForInterview() {
+      return (findingsState || []).filter(function (item) {
+        return item && String(item.status || '').toLowerCase() === 'avvik';
+      });
+    }
+
+    function describeFindingForInterview(item, idx) {
+      var label = item.label || item.key || ('avvik ' + idx);
+      var law = item.law_text || item.help_text || item.source_ref || '';
+      var note = item.notes || item.auto_note || item.summary_text || '';
+      var rows = [];
+      rows.push(idx + '. Kontrollpunkt/tema: ' + label + '.');
+      if (law) rows.push('   Aktuell hjemmel/regeltekst i saken: ' + law);
+      if (note) rows.push('   Observasjon/foreløpig vurdering: ' + note);
+      rows.push('   Spørsmål: Kjenner du til redskapet/aktiviteten og kan du forklare hvem som har satt eller brukt dette?');
+      rows.push('   Spørsmål: Når og hvor ble redskapet/aktiviteten satt i gang, og hvilken posisjon/område var ment brukt?');
+      rows.push('   Spørsmål: Hvilken kunnskap hadde du om gjeldende regler, stengte felt, fredningsområder eller merkekrav på stedet?');
+      rows.push('   Spørsmål: Finnes det tillatelse, registrering, merking eller annen dokumentasjon som bør fremlegges?');
+      var deviations = ensureDeviationState(item) || [];
+      deviations.forEach(function (row) {
+        var ref = row.seizure_ref || row.gear_ref || '';
+        var violation = row.violation || '';
+        if (ref || violation) rows.push('   Beslag/ref ' + (ref || '-') + ': ' + (violation || 'avvik registrert') + '. Be vedkommende forklare tilknytning og hendelsesforløp.');
+      });
+      return rows.join('\n');
+    }
+
+    function buildInterviewGuidanceText() {
+      var persons = [];
+      if (suspectName.value || suspectNameCommercial.value) persons.push('Mistenkt/hovedperson: ' + (suspectName.value || suspectNameCommercial.value));
+      (personsState || []).forEach(function (p) { if (p && p.name) persons.push((p.role || 'Person') + ': ' + p.name); });
+      var avvik = avvikItemsForInterview();
+      var lines = [];
+      lines.push('Innledende kontrollpunkter før forklaring:');
+      lines.push('- Avklar identitet, rolle i saken og tilknytning til person/fartøy/redskap.');
+      lines.push('- Forklar kort hva saken gjelder og hvilke observasjoner som danner grunnlag for spørsmålene.');
+      lines.push('- Dersom personen avhøres som mistenkt: noter at vedkommende er gjort kjent med rolle/status, at forklaring er frivillig, og at vedkommende kan rådføre seg med forsvarer. Noter om dette er forstått.');
+      lines.push('- Gi mulighet til fri forklaring før konkrete spørsmål om hvert avvik.');
+      if (persons.length) {
+        lines.push('');
+        lines.push('Personer som bør vurderes for forklaring:');
+        persons.forEach(function (row) { lines.push('- ' + row); });
+      }
+      lines.push('');
+      lines.push('Spørsmål knyttet til registrerte avvik:');
+      if (!avvik.length) {
+        lines.push('- Ingen avvik er registrert. Vurder om forklaring likevel er nødvendig for å klargjøre faktum.');
+      } else {
+        avvik.forEach(function (item, idx) { lines.push(describeFindingForInterview(item, idx + 1)); });
+      }
+      lines.push('');
+      lines.push('Avslutning:');
+      lines.push('- Les opp eller gjennomgå sammendraget, og noter om forklaringen godtas, korrigeres eller nektes signert.');
+      lines.push('- Noter om vedkommende ønsker å legge frem dokumentasjon eller bilder.');
+      return lines.join('\n');
+    }
+
+    var generateInterviewGuidanceBtn = document.getElementById('btn-generate-interview-guidance');
+    if (generateInterviewGuidanceBtn) generateInterviewGuidanceBtn.addEventListener('click', function () {
+      if (interviewGuidanceText) interviewGuidanceText.value = buildInterviewGuidanceText();
+      scheduleAutosave('Avhørspunkter generert');
+    });
+    var copyGuidanceBtn = document.getElementById('btn-copy-guidance-to-hearing');
+    if (copyGuidanceBtn) copyGuidanceBtn.addEventListener('click', function () {
+      if (!hearingText || !interviewGuidanceText) return;
+      var base = String(hearingText.value || '').trim();
+      var add = String(interviewGuidanceText.value || buildInterviewGuidanceText()).trim();
+      if (!add) return;
+      hearingText.value = [base, add].filter(Boolean).join('\n\n');
+      scheduleAutosave('Avhørspunkter lagt inn');
+    });
+    if (interviewGuidanceText) interviewGuidanceText.addEventListener('input', function () { scheduleAutosave('Avhørspunkter oppdatert'); });
+    if (interviewNotConducted) interviewNotConducted.addEventListener('change', function () { syncInterviewDisabledState(); scheduleAutosave('Avhørsstatus oppdatert'); });
+    if (interviewNotConductedReason) interviewNotConductedReason.addEventListener('input', function () { scheduleAutosave('Avhørsstatus oppdatert'); });
 
     function activeInterviewTranscript() {
       var focused = document.activeElement;
@@ -5478,9 +5724,24 @@ function renderHummerStatus(result) {
       return first || hearingText;
     }
 
+    var interviewHead = document.querySelector('#interview-list') ? document.querySelector('#interview-list').parentNode : null;
+    if (interviewHead && !document.getElementById('interview-person-source')) {
+      var sourceWrap = document.createElement('label');
+      sourceWrap.className = 'block margin-top-s';
+      sourceWrap.innerHTML = '<span>Opprett avhør for</span><select id="interview-person-source"></select>';
+      interviewHead.insertBefore(sourceWrap, document.getElementById('interview-list'));
+      syncInterviewPersonOptions();
+    }
     var addInterviewBtn = document.getElementById('btn-add-interview');
     if (addInterviewBtn) addInterviewBtn.addEventListener('click', function () {
-      interviewState.push({ name: suspectName.value || suspectNameCommercial.value || '', role: 'Avhørt', method: 'Telefon / på stedet', place: locationName.value || '', start: startTime.value || '', end: endTime.value || '', transcript: '', summary: '' });
+      if (interviewNotConducted && interviewNotConducted.checked) return;
+      var selectedPerson = null;
+      var sourceSelect = document.getElementById('interview-person-source');
+      if (sourceSelect && sourceSelect.value !== '') {
+        if (sourceSelect.value === 'main') selectedPerson = { role: 'Mistenkt', name: suspectName.value || suspectNameCommercial.value || '', phone: suspectPhone.value || '', birthdate: suspectBirthdate.value || '', address: suspectAddress.value || '' };
+        else selectedPerson = personsState[Number(sourceSelect.value)] || null;
+      }
+      interviewState.push(makeInterviewFromPerson(selectedPerson || { role: 'Mistenkt', name: suspectName.value || suspectNameCommercial.value || '' }));
       renderInterviews();
     });
     var syncInterviewsBtn = document.getElementById('btn-sync-interviews');
@@ -5844,14 +6105,19 @@ function renderHummerStatus(result) {
       var formData = serializeCaseFormData();
       setAutosaveStatus('Lagrer manuelt …', 'is-saving');
       fetch(root.dataset.autosaveUrl, secureFetchOptions({ method: 'POST', body: formData }))
-        .then(function (r) { return r.json(); })
+        .then(function (r) { return parseJsonResponse(r, 'Kunne ikke lagre saken manuelt.'); })
         .then(function (payload) {
           lastAutosaveFingerprint = formFingerprint();
           setAutosaveStatus('Lagret manuelt ' + new Date().toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit', second: '2-digit' }), 'is-saved');
           markLocalCaseSynced(payload && payload.saved_at ? payload.saved_at : new Date().toISOString());
           syncLocalMediaQueue({ force: true, silent: true });
         })
-        .catch(function () {
+        .catch(function (error) {
+          if (isMissingServerCaseError(error) && createCaseUrl) {
+            updateLocalCaseStatus('Serveren finner ikke saken lenger. Oppretter ny serverkopi fra utfylt kladd ...', true, { forceShow: true, syncing: true, showSync: true, showDiscard: true });
+            createServerCaseFromLocalDraft({ force: true, redirectAfterCreate: false, silent: true });
+            return;
+          }
           updateLocalCaseStatus('Saken er lagret lokalt på enheten. Synk når du er på nett igjen.', true, { forceShow: true, showSync: true, showDiscard: true });
           setAutosaveStatus('Lagret lokalt', 'is-saved');
         });
