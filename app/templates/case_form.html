@@ -49,8 +49,8 @@
 {% if case_number_saved %}<div class="alert alert-success">Saksnummeret er oppdatert.</div>{% endif %}
 {% if case_number_error == 'duplicate' %}<div class="alert alert-error">Det saksnummeret finnes allerede. Velg et annet tresifret løpenummer.</div>{% endif %}
 
-{% if missing_server_case %}<div class="alert alert-error">Serveren fant ikke denne saken. Appen åpner derfor en lokal gjenopprettingskladd. Hvis saken finnes lokalt på denne iPhonen, blir innholdet forsøkt gjenopprettet automatisk. Trykk «Synk sak nå» før forhåndsvisning og eksport.</div>{% endif %}
-{% if offline_new %}<div class="alert">Dette er en lokal sakskladd på enheten. Saken får endelig saksnummer når du synker den til serveren.</div>{% endif %}
+{% if missing_server_case %}<div class="alert alert-error">Serverkopi mangler. Synk lokal kladd før eksport.</div>{% endif %}
+{% if offline_new %}<div class="alert">Lokal sakskladd. Synk for saksnummer.</div>{% endif %}
 <div id="case-app"
      data-case-id="{{ offline_local_id or case.id }}"
      data-rules-url="/api/rules"
@@ -65,6 +65,9 @@
      data-evidence='{{ evidence|tojson }}'
      data-map-url="{{ portal_map_url }}"
      data-case-number="{{ case.case_number }}"
+     data-case-version="{{ case.version or 1 }}"
+     data-current-user-id="{{ current_user.id if current_user else '' }}"
+     data-current-user-email="{{ current_user.email if current_user else '' }}"
      data-case-updated-at="{{ case.updated_at or "" }}"
      data-case-url="{% if offline_new %}/cases/offline/new{% if offline_local_id %}?local_id={{ offline_local_id|urlencode }}{% endif %}{% else %}/cases/{{ case.id }}/edit{% endif %}"
      data-start-step="{{ request.query_params.get('step') or '' }}"
@@ -84,6 +87,8 @@
 
   <form id="case-form" method="post" action="{% if offline_new %}#{% else %}/cases/{{ case.id }}/save{% endif %}" class="stack gap-l">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+    <input type="hidden" name="case_version" id="case_version" value="{{ case.version or 1 }}" />
+    <input type="hidden" name="client_mutation_id" id="client_mutation_id" value="" />
     <input type="hidden" name="findings_json" id="findings_json" value='{{ case.findings_json|e }}' />
     <input type="hidden" name="source_snapshot_json" id="source_snapshot_json" value='{{ case.source_snapshot_json|e }}' />
     <input type="hidden" name="crew_json" id="crew_json" value='{{ (case.crew_json or "[]")|e }}' />
@@ -102,7 +107,7 @@
       <div class="card-header panel-header">
         <div>
           <h2>1. Roller / grunnlag</h2>
-          <div class="muted small">Etterforsker hentes automatisk fra innlogget bruker. Anmelder og hovedvitne huskes per bruker.</div>
+          <div class="muted small">Kort og presis registrering.</div>
         </div>
       </div>
       <div class="grid-two">
@@ -170,7 +175,7 @@
         <div class="subcard">
           <h3>Posisjon og område</h3>
           <div class="grid-two compact-grid-form margin-top-s">
-            <label><span>Nærmeste sted</span><input name="location_name" id="location_name" value="{{ case.location_name or '' }}" /></label>
+            <label><span>Nærmeste sted</span><input name="location_name" id="location_name" value="{{ case.location_name or '' }}" /><span class="small coordinate-summary" id="position-coordinate-summary">Breddegrad og lengdegrad vises her når posisjon er satt.</span></label>
             <div class="position-action-group">
               <span>Handlinger</span>
               <div class="position-actions margin-top-s">
@@ -310,6 +315,10 @@
         <label><span>Fiskerimerke</span><input name="vessel_reg" id="vessel_reg" value="{{ case.vessel_reg or '' }}" /></label>
         <label><span>Radiokallesignal</span><input name="radio_call_sign" id="radio_call_sign" value="{{ case.radio_call_sign or '' }}" /></label>
       </div>
+      <div class="grid-two compact-grid-form margin-top-s" id="marker-id-fields">
+        <label class="span-2"><span>Merke-ID / vak/blåse fra OCR</span><input name="gear_marker_id" id="gear_marker_id" value="{{ case.gear_marker_id or '' }}" inputmode="text" placeholder="F.eks. LOB-HUM-1323" /></label>
+        <div class="callout span-2 small">Merke-ID fra blåse/vak lagres separat og fyller ikke ut hummerdeltakernummer. Hummerdeltakernummer brukes kun når OCR/registertreff faktisk peker på deltakernummer.</div>
+      </div>
 
       <div class="subcard margin-top-m" id="persons-section">
         <div class="subcard-head">
@@ -383,6 +392,7 @@
             {% if item.law_text %}<div class="muted small">Hjemmel: {{ item.law_text }}</div>{% endif %}
             <div class="actions-row wrap margin-top-s">
               <form method="post" action="/evidence/{{ item.id }}/delete" data-confirm="Slette vedlegg?">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
                 <button class="btn btn-danger btn-small" type="submit">Slett</button>
               </form>
             </div>
@@ -441,6 +451,7 @@
               <div class="actions-row wrap">
                 <a class="btn btn-secondary btn-small" href="/cases/{{ case.id }}/evidence/{{ item.id }}/file" download>Last ned</a>
                 <form method="post" action="/evidence/{{ item.id }}/delete" data-confirm="Slette lydfil?">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
                   <button class="btn btn-danger btn-small" type="submit">Slett</button>
                 </form>
               </div>
@@ -460,7 +471,7 @@
         <button class="btn btn-secondary btn-small" type="button" id="btn-generate-interview-guidance">Generer punkter</button>
       </div>
       <textarea form="case-form" name="interview_guidance_text" id="interview_guidance_text" rows="7" placeholder="Genererte momenter og spørsmål vises her.">{{ case.interview_guidance_text or '' }}</textarea>
-      <div class="actions-row wrap margin-top-s"><button type="button" class="btn btn-secondary btn-small" id="btn-copy-guidance-to-hearing">Legg inn i samlet avhørsutkast</button></div>
+      <div class="actions-row wrap margin-top-s"><button type="button" class="btn btn-secondary btn-small" id="btn-copy-guidance-to-hearing">Legg inn i samlet avhørsutkast</button><button type="button" class="btn btn-secondary btn-small" id="btn-open-guidance-page">Åpne som hel side</button></div>
     </div>
     <div class="grid-two margin-top-m">
       <label class="span-2"><span>Samlet avhørsutkast</span><textarea form="case-form" name="hearing_text" id="hearing_text" rows="12">{{ case.hearing_text or '' }}</textarea></label>
@@ -592,5 +603,5 @@
   }
 })();
 </script>
-<script src="/static/js/case-app.js?v=v94"></script>
+<script src="/static/js/case-app.js?v=v97"></script>
 {% endblock %}

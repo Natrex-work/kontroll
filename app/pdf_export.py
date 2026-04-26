@@ -453,6 +453,7 @@ def _measurement_summary(item: Dict[str, Any]) -> str:
         length = str(row.get('length_cm') or '').strip()
         delta_text = str(row.get('delta_text') or '').strip()
         photo = str(row.get('photo_ref') or '').strip()
+        position = str(row.get('position') or '').strip()
         note = str(row.get('note') or '').strip()
         bit = f'{ref}: {length} cm' if length else ref
         if delta_text:
@@ -460,6 +461,8 @@ def _measurement_summary(item: Dict[str, Any]) -> str:
         extras = []
         if photo:
             extras.append(f'bildereferanse {photo}')
+        if position:
+            extras.append(f'posisjon {position}')
         if note:
             extras.append(note)
         if extras:
@@ -478,10 +481,10 @@ def _marker_summary(item: Dict[str, Any]) -> str:
     end = str(pos.get('end') or '').strip()
     if current:
         parts.append(f'Kontrollørposisjon: {current}')
-    if start:
-        parts.append(f'Startposisjon: {start}')
-    if end:
-        parts.append(f'Sluttposisjon: {end}')
+    if bool(pos.get('is_linked')) and start:
+        parts.append(f'Startposisjon lenke: {start}')
+    if bool(pos.get('is_linked')) and end:
+        parts.append(f'Sluttposisjon lenke: {end}')
     return ' | '.join(parts)
 
 
@@ -1236,7 +1239,7 @@ def build_text_drafts(case_row: Dict[str, Any], findings: list[Dict[str, Any]]) 
 def _location_line(case_row: Dict[str, Any]) -> str:
     bits = _non_empty(case_row.get('location_name'), _area_name_value(case_row))
     if case_row.get('latitude') is not None and case_row.get('longitude') is not None:
-        bits.append(f"posisjon {_fmt_value(case_row.get('latitude'))}, {_fmt_value(case_row.get('longitude'))}")
+        bits.append(f"breddegrad {_fmt_value(case_row.get('latitude'))}, lengdegrad {_fmt_value(case_row.get('longitude'))}")
     return ', '.join(bits) if bits else 'ikke oppgitt sted'
 
 
@@ -2442,6 +2445,7 @@ def _deviation_summary(item: Dict[str, Any]) -> str:
         gear_kind = str(row.get('gear_kind') or '').strip()
         gear_ref = str(row.get('gear_ref') or '').strip()
         quantity = str(row.get('quantity') or '').strip()
+        position = str(row.get('position') or '').strip()
         violation = str(row.get('violation') or '').strip() or 'registrert avvik'
         photo_ref = str(row.get('photo_ref') or '').strip()
         note = str(row.get('note') or '').strip()
@@ -2452,6 +2456,8 @@ def _deviation_summary(item: Dict[str, Any]) -> str:
             bit_parts.append(f'redskap {gear_ref}')
         if quantity:
             bit_parts.append(f'antall {quantity}')
+        if position:
+            bit_parts.append(f'posisjon {position}')
         bit = ' / '.join(bit_parts) + ': ' + violation
         extras = []
         if photo_ref:
@@ -2495,6 +2501,8 @@ def _collect_seizure_rows_from_findings(findings: list[Dict[str, Any]]) -> list[
                 'gear_kind': str(row.get('gear_kind') or '').strip(),
                 'gear_ref': str(row.get('gear_ref') or '').strip(),
                 'quantity': str(row.get('quantity') or '').strip() or '1',
+                'position': str(row.get('position') or '').strip(),
+                'linked_seizure_ref': str(row.get('linked_seizure_ref') or '').strip(),
                 'violation_reason': str(row.get('violation') or '').strip() or _finding_display_note(item),
                 'law_text': law_text,
                 'note': str(row.get('note') or '').strip(),
@@ -2523,6 +2531,8 @@ def _collect_seizure_rows_from_findings(findings: list[Dict[str, Any]]) -> list[
                     'gear_kind': 'Lengdemåling',
                     'gear_ref': '',
                     'quantity': '1',
+                    'position': str(row.get('position') or '').strip(),
+                    'linked_seizure_ref': str(row.get('linked_seizure_ref') or '').strip(),
                     'violation_reason': violation_reason,
                     'law_text': law_text,
                     'note': str(row.get('note') or '').strip(),
@@ -2941,7 +2951,11 @@ def _is_ocr_source_evidence(item: Dict[str, Any]) -> bool:
 
 def _seizure_sort_number(value: Any) -> tuple[int, str]:
     raw = str(value or '').strip()
-    match = re.search(r'(\d+)', raw)
+    # Sort primarily on the running seizure number at the end, e.g.
+    # LBHN 26 003-001 or LBHN 26 003 - Måling -001 -> 1.
+    match = re.search(r'[- ](\d{1,4})\s*$', raw)
+    if not match:
+        match = re.search(r'(\d+)', raw)
     if match:
         try:
             return (int(match.group(1)), raw)
@@ -3259,6 +3273,8 @@ def _build_seizure_report(case_row: Dict[str, Any], evidence_rows: list[Dict[str
             lines.append(f'{idx}. {row.get("seizure_ref") or "Beslag"}: {desc}')
             if row.get('quantity'):
                 lines.append(f'   Antall: {row.get("quantity")}')
+            if row.get('position'):
+                lines.append(f'   Posisjon: {row.get("position")}')
             if law:
                 lines.append(f'   Hjemmel/kontrollpunkt: {law}')
             if ev:
@@ -3389,9 +3405,9 @@ def _draw_seizure_page(c: rl_canvas.Canvas, case_row: Dict[str, Any], packet: Di
         _draw_label_value(c, cols[i], row_y, cols[i + 1], row_y + 34, headers[i], '')
     row_y += 34
     for idx, row in enumerate(rows[:5], start=1):
-        where = ''
-        if case_row.get('latitude') is not None and case_row.get('longitude') is not None:
-            where = f"{_fmt_value(case_row.get('latitude'))}N {_fmt_value(case_row.get('longitude'))}E"
+        where = str(row.get('position') or '').strip()
+        if not where and case_row.get('latitude') is not None and case_row.get('longitude') is not None:
+            where = f"breddegrad {_fmt_value(case_row.get('latitude'))}, lengdegrad {_fmt_value(case_row.get('longitude'))}"
         desc = str(row.get('description') or row.get('violation_reason') or row.get('caption') or row.get('type') or '').strip()
         if row.get('law_text'):
             desc += '\n' + str(row.get('law_text')).strip()[:180]
@@ -3565,9 +3581,9 @@ def _draw_seizure_page(c: rl_canvas.Canvas, case_row: Dict[str, Any], packet: Di
         _draw_label_value(c, cols[i], row_y, cols[i + 1], row_y + 34, headers[i], '')
     row_y += 34
     for idx, row in enumerate(rows[:5], start=1):
-        where = ''
-        if case_row.get('latitude') is not None and case_row.get('longitude') is not None:
-            where = f"{_fmt_value(case_row.get('latitude'))}N {_fmt_value(case_row.get('longitude'))}E"
+        where = str(row.get('position') or '').strip()
+        if not where and case_row.get('latitude') is not None and case_row.get('longitude') is not None:
+            where = f"breddegrad {_fmt_value(case_row.get('latitude'))}, lengdegrad {_fmt_value(case_row.get('longitude'))}"
         desc = str(row.get('description') or row.get('violation_reason') or row.get('caption') or row.get('type') or '').strip()
         if row.get('law_text'):
             desc += '\n' + str(row.get('law_text')).strip()[:180]

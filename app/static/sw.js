@@ -1,19 +1,14 @@
-const CACHE = 'kv-kontroll-v94-map-offline';
-const MAP_TILE_CACHE = 'kv-kontroll-v94-map-tiles';
+const CACHE = 'kv-kontroll-v97-static';
+const MAP_TILE_CACHE = 'kv-kontroll-v97-map-tiles';
 const STATIC_PREFIX = '/static/';
 const API_CACHE_PREFIXES = ['/api/map/catalog', '/api/map/bundle', '/api/map/offline-package', '/api/map/features', '/api/map/identify', '/api/zones/check', '/api/rules'];
 const ASSETS = [
-  '/dashboard',
-  '/kontroller',
-  '/kart',
-  '/regelverk',
-  '/cases/offline/new',
-  '/static/styles.css?v=v94',
+  '/static/styles.css?v=v97',
   '/static/js/local-media.js',
   '/static/js/local-cases.js',
   '/static/js/local-map.js',
-  '/static/js/common.js?v=v94',
-  '/static/js/case-app.js?v=v94',
+  '/static/js/common.js?v=v97',
+  '/static/js/case-app.js?v=v97',
   '/static/js/map-overview.js',
   '/static/js/rules-overview.js',
   '/static/js/admin-users.js',
@@ -90,11 +85,7 @@ self.addEventListener('fetch', event => {
 
   if (isHtmlNavigation(event.request, url)) {
     event.respondWith(
-      fetch(event.request).then(networkRes => {
-        const clone = networkRes.clone();
-        caches.open(CACHE).then(cache => { cache.put(event.request, clone); if (url.search) cache.put(url.pathname, networkRes.clone()); }).catch(() => {});
-        return networkRes;
-      }).catch(() => caches.match(event.request, { ignoreSearch: true }).then(match => match || caches.match(url.pathname) || caches.match('/cases/offline/new') || caches.match('/dashboard') || new Response('<!doctype html><meta charset="utf-8"><title>Offline</title><body style="font-family:system-ui;padding:24px"><h1>Offline</h1><p>Denne siden er ikke lagret lokalt ennå. Åpne saken én gang mens du er på nett, så kan den brukes offline senere.</p></body>', { headers: { 'Content-Type': 'text/html; charset=utf-8' } })))
+      fetch(event.request).catch(() => new Response('<!doctype html><meta charset="utf-8"><title>Offline</title><body style="font-family:system-ui;padding:24px"><h1>Offline</h1><p>Ingen nettforbindelse.</p></body>', { headers: { 'Content-Type': 'text/html; charset=utf-8' } }))
     );
   }
 });

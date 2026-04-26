@@ -1,7 +1,33 @@
 (function () {
   var DB_NAME = 'kv-kontroll-local-media';
-  var DB_VERSION = 2;
+  var DB_VERSION = 4;
   var STORE = 'local_media';
+
+  function currentDeviceId() {
+    try {
+      var key = 'mk-device-id';
+      var existing = localStorage.getItem(key);
+      if (existing) return existing;
+      var value = (window.crypto && typeof window.crypto.randomUUID === 'function') ? window.crypto.randomUUID() : ('device-' + Date.now() + '-' + Math.random().toString(16).slice(2));
+      localStorage.setItem(key, value);
+      return value;
+    } catch (e) {
+      return 'device-unknown';
+    }
+  }
+
+  function ownerFromOptions(options) {
+    options = options || {};
+    return String(options.owner_user_id || (window.MKCurrentUser && window.MKCurrentUser.id) || '').trim();
+  }
+
+  function rowAllowedForOwner(row, ownerUserId) {
+    if (!row) return false;
+    ownerUserId = String(ownerUserId || '').trim();
+    if (!ownerUserId) return true;
+    var rowOwner = String(row.owner_user_id || '').trim();
+    return rowOwner === ownerUserId;
+  }
 
   function supported() {
     return typeof indexedDB !== 'undefined';
@@ -25,7 +51,11 @@
         if (!store.indexNames.contains('case_id')) store.createIndex('case_id', 'case_id', { unique: false });
         if (!store.indexNames.contains('sync_state')) store.createIndex('sync_state', 'sync_state', { unique: false });
         if (!store.indexNames.contains('created_at')) store.createIndex('created_at', 'created_at', { unique: false });
+        if (!store.indexNames.contains('updated_at')) store.createIndex('updated_at', 'updated_at', { unique: false });
         if (!store.indexNames.contains('kind')) store.createIndex('kind', 'kind', { unique: false });
+        if (!store.indexNames.contains('owner_user_id')) store.createIndex('owner_user_id', 'owner_user_id', { unique: false });
+        if (!store.indexNames.contains('device_id')) store.createIndex('device_id', 'device_id', { unique: false });
+        if (!store.indexNames.contains('dedupe_signature')) store.createIndex('dedupe_signature', 'dedupe_signature', { unique: false });
       };
       request.onsuccess = function () { resolve(request.result); };
     });
@@ -62,11 +92,16 @@
     return Object.assign({}, record || {});
   }
 
-  function put(record) {
+  function put(record, options) {
+    options = options || {};
     var entry = cloneRecord(record);
     if (!entry.id) entry.id = generateId();
     if (!entry.created_at) entry.created_at = Date.now();
+    entry.updated_at = Date.now();
     entry.case_id = String(entry.case_id || '');
+    entry.owner_user_id = String(entry.owner_user_id || ownerFromOptions(options) || '');
+    entry.device_id = String(entry.device_id || currentDeviceId());
+    entry.local_schema_version = 4;
     entry.kind = inferKind(entry);
     entry.sync_state = String(entry.sync_state || 'pending');
     return withStore('readwrite', function (store) {
@@ -75,16 +110,23 @@
     });
   }
 
-  function get(id) {
+  function get(id, options) {
+    var ownerUserId = ownerFromOptions(options);
     return withStore('readonly', function (store) {
       return requestToPromise(store.get(id));
+    }).then(function (row) {
+      return rowAllowedForOwner(row, ownerUserId) ? row : null;
     });
   }
 
-  function remove(id) {
-    return withStore('readwrite', function (store) {
-      store.delete(id);
-      return true;
+  function remove(id, options) {
+    var ownerUserId = ownerFromOptions(options);
+    return get(id, options).then(function (row) {
+      if (!rowAllowedForOwner(row, ownerUserId)) return false;
+      return withStore('readwrite', function (store) {
+        store.delete(id);
+        return true;
+      });
     });
   }
 
@@ -92,7 +134,9 @@
     options = options || {};
     var kind = String(options.kind || '').trim().toLowerCase();
     var syncState = String(options.sync_state || '').trim().toLowerCase();
+    var ownerUserId = ownerFromOptions(options);
     return (rows || []).filter(function (row) {
+      if (ownerUserId && !rowAllowedForOwner(row, ownerUserId)) return false;
       if (kind && String(row && row.kind || '').trim().toLowerCase() !== kind) return false;
       if (syncState && String(row && row.sync_state || '').trim().toLowerCase() !== syncState) return false;
       return true;
@@ -111,7 +155,7 @@
   function update(id, patch) {
     return get(id).then(function (current) {
       if (!current) return null;
-      var next = Object.assign({}, current, patch || {}, { id: id });
+      var next = Object.assign({}, current, patch || {}, { id: id, updated_at: Date.now() });
       next.kind = inferKind(next);
       return put(next);
     });
@@ -154,6 +198,23 @@
     return 'local-' + Date.now() + '-' + Math.random().toString(16).slice(2);
   }
 
+  function clearOwner(ownerUserId) {
+    ownerUserId = String(ownerUserId || '').trim();
+    return withStore('readonly', function (store) {
+      return requestToPromise(store.getAll());
+    }).then(function (rows) {
+      rows = (rows || []).filter(function (row) { return rowAllowedForOwner(row, ownerUserId); });
+      return Promise.all(rows.map(function (row) { return remove(row.id, { owner_user_id: ownerUserId }); }));
+    });
+  }
+
+  function clearAll() {
+    return withStore('readwrite', function (store) {
+      store.clear();
+      return true;
+    });
+  }
+
   function requestPersistence() {
     if (!navigator.storage || typeof navigator.storage.persist !== 'function') return Promise.resolve(false);
     return navigator.storage.persist().catch(function () { return false; });
@@ -182,6 +243,9 @@
     generateId: generateId,
     requestPersistence: requestPersistence,
     storageInfo: storageInfo,
-    inferKind: inferKind
+    inferKind: inferKind,
+    currentDeviceId: currentDeviceId,
+    clearOwner: clearOwner,
+    clearAll: clearAll
   };
 })();

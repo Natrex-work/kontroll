@@ -27,6 +27,15 @@ DEFAULT_INVESTIGATOR_PERMISSIONS = list(INVESTIGATOR_PERMISSION_OPTIONS)
 DEFAULT_ADMIN_PERMISSIONS = list(USER_PERMISSION_OPTIONS)
 
 
+class CaseConflictError(Exception):
+    """Raised when a client tries to save an older version of a case."""
+
+    def __init__(self, *, current_version: int, current_updated_at: str):
+        super().__init__('Saken er endret et annet sted.')
+        self.current_version = int(current_version or 1)
+        self.current_updated_at = str(current_updated_at or '')
+
+
 def utcnow_iso() -> str:
     return datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
 
@@ -174,6 +183,7 @@ def init_db() -> None:
                 vessel_name TEXT,
                 vessel_reg TEXT,
                 radio_call_sign TEXT,
+                gear_marker_id TEXT,
                 notes TEXT,
                 hearing_text TEXT,
                 seizure_notes TEXT,
@@ -204,6 +214,9 @@ def init_db() -> None:
                 last_previewed_at TEXT,
                 deleted_at TEXT,
                 deleted_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                version INTEGER NOT NULL DEFAULT 1,
+                updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                last_client_mutation_id TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
@@ -219,6 +232,12 @@ def init_db() -> None:
                 law_text TEXT,
                 violation_reason TEXT,
                 seizure_ref TEXT,
+                file_size INTEGER,
+                sha256 TEXT,
+                sync_state TEXT NOT NULL DEFAULT 'synced',
+                device_id TEXT,
+                local_media_id TEXT,
+                server_received_at TEXT,
                 created_at TEXT NOT NULL,
                 created_by INTEGER REFERENCES users(id) ON DELETE SET NULL
             );
@@ -233,11 +252,20 @@ def init_db() -> None:
                 created_at TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS case_counters (
+                prefix TEXT NOT NULL,
+                year TEXT NOT NULL,
+                next_number INTEGER NOT NULL DEFAULT 1,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY(prefix, year)
+            );
+
             CREATE INDEX IF NOT EXISTS idx_cases_created_by_deleted_updated ON cases(created_by, deleted_at, updated_at);
             CREATE INDEX IF NOT EXISTS idx_cases_deleted_updated ON cases(deleted_at, updated_at);
             CREATE INDEX IF NOT EXISTS idx_cases_status_updated ON cases(status, updated_at);
             CREATE INDEX IF NOT EXISTS idx_evidence_case_id_created_at ON evidence(case_id, created_at);
             CREATE INDEX IF NOT EXISTS idx_audit_log_created_at ON audit_log(created_at);
+            CREATE INDEX IF NOT EXISTS idx_case_counters_prefix_year ON case_counters(prefix, year);
             '''
         )
 
@@ -262,6 +290,7 @@ def init_db() -> None:
         _ensure_column(conn, 'cases', 'hummer_participant_no', 'hummer_participant_no TEXT')
         _ensure_column(conn, 'cases', 'hummer_last_registered', 'hummer_last_registered TEXT')
         _ensure_column(conn, 'cases', 'radio_call_sign', 'radio_call_sign TEXT')
+        _ensure_column(conn, 'cases', 'gear_marker_id', 'gear_marker_id TEXT')
         _ensure_column(conn, 'cases', 'suspect_post_place', 'suspect_post_place TEXT')
         _ensure_column(conn, 'cases', 'observed_gear_count', 'observed_gear_count INTEGER')
         _ensure_column(conn, 'cases', 'complaint_override', 'complaint_override TEXT')
@@ -279,12 +308,24 @@ def init_db() -> None:
         _ensure_column(conn, 'cases', 'suspect_signature', 'suspect_signature TEXT')
         _ensure_column(conn, 'cases', 'deleted_at', 'deleted_at TEXT')
         _ensure_column(conn, 'cases', 'deleted_by', 'deleted_by INTEGER')
+        _ensure_column(conn, 'cases', 'version', 'version INTEGER NOT NULL DEFAULT 1')
+        _ensure_column(conn, 'cases', 'updated_by', 'updated_by INTEGER')
+        _ensure_column(conn, 'cases', 'last_client_mutation_id', 'last_client_mutation_id TEXT')
 
         _ensure_column(conn, 'evidence', 'created_by', 'created_by INTEGER REFERENCES users(id) ON DELETE SET NULL')
         _ensure_column(conn, 'evidence', 'finding_key', 'finding_key TEXT')
         _ensure_column(conn, 'evidence', 'law_text', 'law_text TEXT')
         _ensure_column(conn, 'evidence', 'violation_reason', 'violation_reason TEXT')
         _ensure_column(conn, 'evidence', 'seizure_ref', 'seizure_ref TEXT')
+        _ensure_column(conn, 'evidence', 'file_size', 'file_size INTEGER')
+        _ensure_column(conn, 'evidence', 'sha256', 'sha256 TEXT')
+        _ensure_column(conn, 'evidence', 'sync_state', "sync_state TEXT NOT NULL DEFAULT 'synced'")
+        _ensure_column(conn, 'evidence', 'device_id', 'device_id TEXT')
+        _ensure_column(conn, 'evidence', 'local_media_id', 'local_media_id TEXT')
+        _ensure_column(conn, 'evidence', 'server_received_at', 'server_received_at TEXT')
+
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_evidence_case_sha ON evidence(case_id, sha256)')
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_evidence_local_media_id ON evidence(local_media_id)')
 
         now = utcnow_iso()
         conn.execute("UPDATE users SET active = 1 WHERE active IS NULL")
@@ -311,6 +352,7 @@ def init_db() -> None:
         conn.execute("UPDATE cases SET status = 'Utkast' WHERE status IS NULL OR status = '' OR lower(status) = 'draft'")
         conn.execute("UPDATE cases SET status = 'Anmeldt' WHERE lower(status) = 'klar for anmeldelse'")
         conn.execute("UPDATE cases SET status = 'Anmeldt og sendt' WHERE lower(status) = 'ferdig eksportert'")
+        conn.execute('UPDATE cases SET version = 1 WHERE version IS NULL OR version < 1')
 
 
 def record_audit(actor_user_id: int | None, action: str, entity_type: str, entity_id: str | int | None = None, details: Optional[Dict[str, Any]] = None) -> int:
@@ -485,23 +527,46 @@ def _normalize_case_prefix(value: str | None) -> str:
 
 
 def _next_case_number(conn: sqlite3.Connection, created_by: int) -> str:
+    """Reserve next case number for a user in a write transaction.
+
+    Uses case_counters so two users/devices cannot receive the same
+    prefix/year/løpenummer under concurrent requests.
+    """
     year = datetime.now().strftime('%y')
     cur_user = conn.execute('SELECT case_prefix FROM users WHERE id = ?', (created_by,))
     user_row = cur_user.fetchone() or {}
     prefix = _normalize_case_prefix(user_row.get('case_prefix'))
-    like_pattern = f'{prefix} {year} %'
-    cur = conn.execute('SELECT case_number FROM cases WHERE case_number LIKE ? ORDER BY id DESC LIMIT 1', (like_pattern,))
-    row = cur.fetchone()
-    last_num = 0
-    if row:
+    now = utcnow_iso()
+    row = conn.execute(
+        'SELECT next_number FROM case_counters WHERE prefix = ? AND year = ?',
+        (prefix, year),
+    ).fetchone()
+
+    if row is None:
+        like_pattern = f'{prefix} {year} %'
+        cur = conn.execute('SELECT case_number FROM cases WHERE case_number LIKE ?', (like_pattern,))
+        last_num = 0
         import re
-        match = re.search(r'(\d{3})\s*$', str(row.get('case_number') or ''))
-        if match:
-            try:
-                last_num = int(match.group(1))
-            except Exception:
-                last_num = 0
-    return f'{prefix} {year} {last_num + 1:03d}'
+        for existing in cur.fetchall():
+            match = re.search(r'(\d{3})\s*$', str(existing.get('case_number') or ''))
+            if match:
+                try:
+                    last_num = max(last_num, int(match.group(1)))
+                except Exception:
+                    pass
+        reserved = last_num + 1
+        conn.execute(
+            'INSERT INTO case_counters(prefix, year, next_number, updated_at) VALUES (?, ?, ?, ?)',
+            (prefix, year, reserved + 1, now),
+        )
+    else:
+        reserved = max(int(row.get('next_number') or 1), 1)
+        conn.execute(
+            'UPDATE case_counters SET next_number = ?, updated_at = ? WHERE prefix = ? AND year = ?',
+            (reserved + 1, now, prefix, year),
+        )
+
+    return f'{prefix} {year} {reserved:03d}'
 
 
 
@@ -509,14 +574,15 @@ def create_case(created_by: int, investigator_name: str, complainant_name: str |
     now = utcnow_iso()
     local_now = localnow_form()
     with get_conn() as conn:
+        conn.execute('BEGIN IMMEDIATE')
         case_number = _next_case_number(conn, created_by)
         cur = conn.execute(
             '''
             INSERT INTO cases(
                 case_number, created_by, investigator_name, complainant_name, witness_name,
                 case_basis, basis_source_name, basis_details, start_time, end_time,
-                source_snapshot_json, crew_json, external_actors_json, persons_json, interview_sessions_json, seizure_reports_json, interview_not_conducted, interview_not_conducted_reason, interview_guidance_text, complainant_signature, witness_signature, investigator_signature, suspect_signature, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                source_snapshot_json, crew_json, external_actors_json, persons_json, interview_sessions_json, seizure_reports_json, interview_not_conducted, interview_not_conducted_reason, interview_guidance_text, complainant_signature, witness_signature, investigator_signature, suspect_signature, version, updated_by, last_client_mutation_id, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''',
             (
                 case_number,
@@ -541,6 +607,9 @@ def create_case(created_by: int, investigator_name: str, complainant_name: str |
                 None,
                 None,
                 None,
+                None,
+                1,
+                created_by,
                 None,
                 now,
                 now,
@@ -662,14 +731,29 @@ def case_number_exists(case_number: str, *, exclude_case_id: int | None = None) 
             row = conn.execute('SELECT id FROM cases WHERE case_number = ? AND id != ? LIMIT 1', (clean, exclude_case_id)).fetchone()
     return row is not None
 
-def save_case(case_id: int, data: Dict[str, Any]) -> None:
+def save_case(
+    case_id: int,
+    data: Dict[str, Any],
+    *,
+    expected_version: int | str | None = None,
+    updated_by: int | None = None,
+    client_mutation_id: str | None = None,
+) -> Dict[str, Any]:
     allowed_keys = [
         'case_number', 'investigator_name', 'complainant_name', 'witness_name', 'case_basis', 'basis_source_name', 'basis_details',
         'control_type', 'fishery_type', 'species', 'gear_type', 'start_time', 'end_time', 'location_name', 'latitude', 'longitude',
         'area_status', 'area_name', 'suspect_name', 'suspect_phone', 'suspect_birthdate', 'suspect_address', 'suspect_post_place', 'lookup_text', 'vessel_name',
-        'vessel_reg', 'radio_call_sign', 'notes', 'hearing_text', 'seizure_notes', 'summary', 'findings_json', 'status', 'source_snapshot_json',
+        'vessel_reg', 'radio_call_sign', 'gear_marker_id', 'notes', 'hearing_text', 'seizure_notes', 'summary', 'findings_json', 'status', 'source_snapshot_json',
         'crew_json', 'external_actors_json', 'persons_json', 'interview_sessions_json', 'seizure_reports_json', 'interview_not_conducted', 'interview_not_conducted_reason', 'interview_guidance_text', 'hummer_participant_no', 'hummer_last_registered', 'observed_gear_count', 'complaint_override', 'own_report_override', 'interview_report_override', 'seizure_report_override', 'complainant_signature', 'witness_signature', 'investigator_signature', 'suspect_signature', 'last_previewed_at', 'last_generated_pdf'
     ]
+
+    expected: int | None = None
+    if expected_version not in (None, ''):
+        try:
+            expected = int(expected_version)
+        except Exception:
+            expected = None
+
     assignments = []
     values: list[Any] = []
     for key in allowed_keys:
@@ -679,11 +763,33 @@ def save_case(case_id: int, data: Dict[str, Any]) -> None:
             if key in {'findings_json', 'source_snapshot_json', 'crew_json', 'external_actors_json', 'persons_json', 'interview_sessions_json', 'seizure_reports_json'} and not isinstance(value, str):
                 value = json.dumps(value, ensure_ascii=False)
             values.append(value)
-    assignments.append('updated_at = ?')
-    values.append(utcnow_iso())
-    values.append(case_id)
+
+    now = utcnow_iso()
+    mutation_id = str(client_mutation_id or '').strip() or None
+
     with get_conn() as conn:
+        current = conn.execute('SELECT version, updated_at, last_client_mutation_id FROM cases WHERE id = ?', (case_id,)).fetchone()
+        if not current:
+            return {'ok': False, 'missing': True, 'version': 0, 'updated_at': ''}
+        current_version = int(current.get('version') or 1)
+        if expected is not None and expected > 0 and expected != current_version:
+            current_mutation = str(current.get('last_client_mutation_id') or '').strip()
+            if mutation_id and current_mutation and mutation_id == current_mutation:
+                return {'ok': True, 'version': current_version, 'updated_at': str(current.get('updated_at') or ''), 'duplicate_mutation': True}
+            raise CaseConflictError(current_version=current_version, current_updated_at=str(current.get('updated_at') or ''))
+
+        new_version = current_version + 1
+        assignments.append('updated_at = ?')
+        values.append(now)
+        assignments.append('version = ?')
+        values.append(new_version)
+        assignments.append('updated_by = ?')
+        values.append(updated_by)
+        assignments.append('last_client_mutation_id = ?')
+        values.append(mutation_id)
+        values.append(case_id)
         conn.execute(f'UPDATE cases SET {", ".join(assignments)} WHERE id = ?', values)
+        return {'ok': True, 'version': new_version, 'updated_at': now}
 
 
 def hard_delete_case(case_id: int) -> None:
@@ -708,14 +814,30 @@ def restore_case(case_id: int) -> None:
         )
 
 
-def add_evidence(case_id: int, filename: str, original_filename: str, caption: str | None, mime_type: str | None, created_by: int | None = None, finding_key: str | None = None, law_text: str | None = None, violation_reason: str | None = None, seizure_ref: str | None = None) -> int:
+def add_evidence(
+    case_id: int,
+    filename: str,
+    original_filename: str,
+    caption: str | None,
+    mime_type: str | None,
+    created_by: int | None = None,
+    finding_key: str | None = None,
+    law_text: str | None = None,
+    violation_reason: str | None = None,
+    seizure_ref: str | None = None,
+    file_size: int | None = None,
+    sha256: str | None = None,
+    device_id: str | None = None,
+    local_media_id: str | None = None,
+) -> int:
+    now = utcnow_iso()
     with get_conn() as conn:
         cur = conn.execute(
             '''
-            INSERT INTO evidence(case_id, filename, original_filename, caption, mime_type, finding_key, law_text, violation_reason, seizure_ref, created_at, created_by)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO evidence(case_id, filename, original_filename, caption, mime_type, finding_key, law_text, violation_reason, seizure_ref, file_size, sha256, sync_state, device_id, local_media_id, server_received_at, created_at, created_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''',
-            (case_id, filename, original_filename, caption, mime_type, finding_key, law_text, violation_reason, seizure_ref, utcnow_iso(), created_by),
+            (case_id, filename, original_filename, caption, mime_type, finding_key, law_text, violation_reason, seizure_ref, file_size, sha256, 'synced', device_id, local_media_id, now, now, created_by),
         )
         return int(cur.lastrowid)
 
@@ -724,6 +846,18 @@ def list_evidence(case_id: int) -> list[Dict[str, Any]]:
     with get_conn() as conn:
         cur = conn.execute('SELECT * FROM evidence WHERE case_id = ? ORDER BY created_at DESC, id DESC', (case_id,))
         return list(cur.fetchall())
+
+
+def get_evidence_by_local_media_id(case_id: int, local_media_id: str | None) -> Optional[Dict[str, Any]]:
+    clean = str(local_media_id or '').strip()
+    if not clean:
+        return None
+    with get_conn() as conn:
+        cur = conn.execute(
+            'SELECT * FROM evidence WHERE case_id = ? AND local_media_id = ? ORDER BY id DESC LIMIT 1',
+            (case_id, clean),
+        )
+        return cur.fetchone()
 
 
 def get_evidence_by_id(evidence_id: int) -> Optional[Dict[str, Any]]:

@@ -60,7 +60,7 @@ def build_synthetic_ocr_image_bytes() -> bytes:
         font = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', 28)
     except Exception:
         font = ImageFont.load_default()
-    text = 'Navn\nOla Nordmann\nAdresse\nSjøveien 12\n8123 HAVN\nMobil\n90123456\nLBHN 26 123'
+    text = 'Navn\nOla Nordmann\nAdresse\nSjøveien 12\n8123 HAVN\nMobil\n90123456\nDeltakernummer\nH-2026-123\nMerke-ID\nLOB-HUM-1323'
     draw.multiline_text((1560, 1240), text, fill='black', font=font, spacing=6)
     buffer = BytesIO()
     image.save(buffer, format='JPEG', quality=92)
@@ -214,7 +214,8 @@ def main() -> int:
                 live_sources.lookup_hummer_participant_live = orig_lookup_hummer_participant_live
                 registry_module.lookup_hummer_participant = orig_lookup_hummer_participant
 
-            assert registry_module._normalize_hummer_no('LBHN 26 123') == 'LBHN-26-123'
+            assert registry_module._normalize_hummer_no('H-2026-123') == 'H-2026-123'
+            assert registry_module._normalize_hummer_no('LBHN 26 123') == ''
             parsed_hints = registry_module.extract_tag_hints('''Navn
 Bernt Hernes
 Adresse
@@ -223,12 +224,15 @@ Storgata 5
 Mobil
 41234567
 Deltakernummer
-LBHN 26 123''')
+H-2026-123
+Merke-ID
+LOB-HUM-1323''')
             assert parsed_hints.get('name') == 'Bernt Hernes'
             assert parsed_hints.get('address') == 'Storgata 5'
             assert parsed_hints.get('post_place') == '4512 Mandal'
             assert parsed_hints.get('phone') == '41234567'
-            assert parsed_hints.get('hummer_participant_no') == 'LBHN-26-123'
+            assert parsed_hints.get('hummer_participant_no') == 'H-2026-123'
+            assert parsed_hints.get('gear_marker_id') == 'LOB-HUM-1323'
 
             import app.services.ocr_service as ocr_service
             synthetic_ocr = None
@@ -243,7 +247,8 @@ LBHN 26 123''')
                 assert synthetic_hints.get('address') == 'Sjøveien 12'
                 assert synthetic_hints.get('post_place') == '8123 HAVN'
                 assert synthetic_hints.get('phone') == '90123456'
-                assert synthetic_hints.get('hummer_participant_no') == 'LBHN-26-123'
+                assert synthetic_hints.get('hummer_participant_no') == 'H-2026-123'
+                assert synthetic_hints.get('gear_marker_id') == 'LOB-HUM-1323'
                 ocr_api = client.post('/api/ocr/extract', headers={'X-CSRF-Token': dashboard_csrf}, files={'file': ('syntetisk-ocr.jpg', build_synthetic_ocr_image_bytes(), 'image/jpeg')})
                 assert ocr_api.status_code == 200, ocr_api.text
                 ocr_api_json = ocr_api.json()

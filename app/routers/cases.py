@@ -47,7 +47,7 @@ def _case_missing_html(case_id: int) -> HTMLResponse:
 <html lang="nb"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Saken ble ikke funnet</title>
 <style>body{{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#eef4f8;color:#10273d;margin:0;padding:24px}}.card{{max-width:680px;margin:10vh auto;background:#fff;border:1px solid #d7e3ee;border-radius:22px;padding:24px;box-shadow:0 18px 42px rgba(16,39,61,.12)}}a,.btn{{display:inline-flex;margin-top:14px;padding:12px 16px;border-radius:999px;background:#123b5d;color:#fff;text-decoration:none;font-weight:700}}.muted{{color:#5f7186;line-height:1.45}}</style>
-</head><body><main class="card"><h1>Saken ble ikke funnet</h1><p class="muted">Sak {case_id} finnes ikke på serveren. Dette skjer ofte etter ny deploy dersom databasen ikke ligger på en persistent disk, eller hvis en lokal kladd ikke er synket før forhåndsvisning/eksport.</p><p class="muted">Gå tilbake til kontrollskjemaet og trykk lagre/synk, eller opprett en ny kontroll. I v94 forsøker appen automatisk å opprette ny serverkopi fra lokal kladd før forhåndsvisning og eksport.</p><a href="/dashboard">Til kontrolloversikten</a></main></body></html>'''
+</head><body><main class="card"><h1>Saken ble ikke funnet</h1><p class="muted">Sak {case_id} finnes ikke på serveren. Dette skjer ofte etter ny deploy dersom databasen ikke ligger på en persistent disk, eller hvis en lokal kladd ikke er synket før forhåndsvisning/eksport.</p><p class="muted">Gå tilbake til kontrollskjemaet og trykk lagre/synk, eller opprett en ny kontroll. I v97 forsøker appen automatisk å opprette ny serverkopi fra lokal kladd før forhåndsvisning og eksport.</p><a href="/dashboard">Til kontrolloversikten</a></main></body></html>'''
     return HTMLResponse(html, status_code=404)
 
 
@@ -194,7 +194,7 @@ async def create_case_from_draft(request: Request):
         if db.case_number_exists(updated_case_number, exclude_case_id=case_id):
             return JSONResponse({'ok': False, 'error': 'duplicate_case_number'}, status_code=409)
         data['case_number'] = updated_case_number
-    db.save_case(case_id, data)
+    save_meta = db.save_case(case_id, data, updated_by=user['id'], client_mutation_id=str(form.get('client_mutation_id') or ''))
     db.update_user_last_names(user['id'], data['complainant_name'], data['witness_name'])
     saved = db.get_case(case_id) or case_row
     db.record_audit(user['id'], 'create_case_from_draft', 'case', case_id, {'local_case_id': local_case_id, 'status': data['status'], 'case_number': saved.get('case_number')})
@@ -203,7 +203,8 @@ async def create_case_from_draft(request: Request):
         'case_id': int(case_id),
         'case_number': str(saved.get('case_number') or ''),
         'case_url': f'/cases/{case_id}/edit',
-        'saved_at': db.utcnow_iso(),
+        'saved_at': save_meta.get('updated_at') or db.utcnow_iso(),
+        'version': save_meta.get('version') or int(saved.get('version') or 1),
     })
 
 @router.get('/cases/{case_id}/edit', response_class=HTMLResponse)
@@ -245,7 +246,7 @@ def edit_case(request: Request, case_id: int):
     crew = db.case_to_crew(case_row)
     external_actors = db.case_to_external_actors(case_row)
     interviews = db.case_to_interviews(case_row)
-    return render_template(request, 'case_form.html', case=case_row, evidence=evidence, findings=findings, sources=sources, crew=crew, external_actors=external_actors, interviews=interviews, law_browser=catalog.law_browser_data(), leisure_fields=catalog.LEISURE_FIELDS, commercial_fields=catalog.COMMERCIAL_FIELDS, portal_layers=live_sources.portal_layer_catalog_page_payload(), case_number_error=request.query_params.get('case_number_error'), case_number_saved=request.query_params.get('case_number_saved'))
+    return render_template(request, 'case_form.html', case=case_row, evidence=evidence, findings=findings, sources=sources, crew=crew, external_actors=external_actors, interviews=interviews, law_browser=catalog.law_browser_data(), leisure_fields=catalog.LEISURE_FIELDS, commercial_fields=catalog.COMMERCIAL_FIELDS, portal_layers=live_sources.portal_layer_catalog_page_payload(), case_number_error=request.query_params.get('case_number_error'), case_number_saved=request.query_params.get('case_number_saved'), case_conflict=request.query_params.get('conflict'))
 
 
 @router.post('/cases/{case_id}/save')
@@ -262,7 +263,10 @@ async def save_case(request: Request, case_id: int):
             return RedirectResponse(f'/cases/{case_id}/edit?case_number_error=duplicate', status_code=HTTP_303_SEE_OTHER)
         data['case_number'] = updated_case_number
         redirect_suffix = '?saved=1&case_number_saved=1'
-    db.save_case(case_id, data)
+    try:
+        db.save_case(case_id, data, expected_version=form.get('case_version'), updated_by=user['id'], client_mutation_id=str(form.get('client_mutation_id') or ''))
+    except db.CaseConflictError:
+        return RedirectResponse(f'/cases/{case_id}/edit?conflict=1', status_code=HTTP_303_SEE_OTHER)
     db.update_user_last_names(user['id'], data['complainant_name'], data['witness_name'])
     db.record_audit(user['id'], 'save_case', 'case', case_id, {'status': data['status'], 'case_number': data.get('case_number') or case_row.get('case_number')})
     return RedirectResponse(f'/cases/{case_id}/edit{redirect_suffix}', status_code=HTTP_303_SEE_OTHER)
@@ -275,10 +279,13 @@ async def autosave_case(request: Request, case_id: int):
     form = await request.form()
     enforce_csrf(request, form)
     data = case_data_from_form(form, user, STATUS_OPTIONS)
-    db.save_case(case_id, data)
+    try:
+        save_meta = db.save_case(case_id, data, expected_version=form.get('case_version'), updated_by=user['id'], client_mutation_id=str(form.get('client_mutation_id') or ''))
+    except db.CaseConflictError as exc:
+        return JSONResponse({'ok': False, 'error': 'case_conflict', 'message': 'Saken er endret et annet sted.', 'current_version': exc.current_version, 'current_updated_at': exc.current_updated_at}, status_code=409)
     db.update_user_last_names(user['id'], data['complainant_name'], data['witness_name'])
-    db.record_audit(user['id'], 'autosave_case', 'case', case_id, {'status': data['status']})
-    return JSONResponse({'ok': True, 'saved_at': db.utcnow_iso()})
+    db.record_audit(user['id'], 'autosave_case', 'case', case_id, {'status': data['status'], 'version': save_meta.get('version')})
+    return JSONResponse({'ok': True, 'saved_at': save_meta.get('updated_at') or db.utcnow_iso(), 'version': save_meta.get('version')})
 
 
 @router.post('/cases/{case_id}/delete')
@@ -295,23 +302,23 @@ async def delete_case(request: Request, case_id: int):
 
 
 @router.post('/cases/{case_id}/evidence')
-async def upload_evidence(request: Request, case_id: int, caption: str = Form(default=''), finding_key: str = Form(default=''), law_text: str = Form(default=''), violation_reason: str = Form(default=''), seizure_ref: str = Form(default=''), file: UploadFile = File(...)):
+async def upload_evidence(request: Request, case_id: int, caption: str = Form(default=''), finding_key: str = Form(default=''), law_text: str = Form(default=''), violation_reason: str = Form(default=''), seizure_ref: str = Form(default=''), device_id: str = Form(default=''), local_media_id: str = Form(default=''), file: UploadFile = File(...)):
     user = require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til Minfiskerikontroll.')
     form = await request.form()
     enforce_csrf(request, form)
     get_case_for_user(user, case_id)
-    evidence_id, filename = store_evidence_upload(case_id=case_id, upload_file=file, caption=caption, created_by=user['id'], finding_key=finding_key, law_text=law_text, violation_reason=violation_reason, seizure_ref=seizure_ref)
+    evidence_id, filename = store_evidence_upload(case_id=case_id, upload_file=file, caption=caption, created_by=user['id'], finding_key=finding_key, law_text=law_text, violation_reason=violation_reason, seizure_ref=seizure_ref, device_id=device_id, local_media_id=local_media_id)
     db.record_audit(user['id'], 'upload_evidence', 'evidence', evidence_id, {'case_id': case_id, 'filename': filename})
     return RedirectResponse(f'/cases/{case_id}/edit', status_code=HTTP_303_SEE_OTHER)
 
 
 @router.post('/api/cases/{case_id}/evidence')
-async def upload_evidence_api(request: Request, case_id: int, caption: str = Form(default=''), finding_key: str = Form(default=''), law_text: str = Form(default=''), violation_reason: str = Form(default=''), seizure_ref: str = Form(default=''), file: UploadFile = File(...)):
+async def upload_evidence_api(request: Request, case_id: int, caption: str = Form(default=''), finding_key: str = Form(default=''), law_text: str = Form(default=''), violation_reason: str = Form(default=''), seizure_ref: str = Form(default=''), device_id: str = Form(default=''), local_media_id: str = Form(default=''), file: UploadFile = File(...)):
     user = require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til Minfiskerikontroll.')
     form = await request.form()
     enforce_csrf(request, form)
     get_case_for_user(user, case_id)
-    evidence_id, filename = store_evidence_upload(case_id=case_id, upload_file=file, caption=caption, created_by=user['id'], finding_key=finding_key, law_text=law_text, violation_reason=violation_reason, seizure_ref=seizure_ref)
+    evidence_id, filename = store_evidence_upload(case_id=case_id, upload_file=file, caption=caption, created_by=user['id'], finding_key=finding_key, law_text=law_text, violation_reason=violation_reason, seizure_ref=seizure_ref, device_id=device_id, local_media_id=local_media_id)
     row = db.get_evidence_by_id(evidence_id) or {}
     payload = dict(row)
     payload['url'] = f"/cases/{case_id}/evidence/{evidence_id}/file"
@@ -415,7 +422,10 @@ async def preview_save_case(request: Request, case_id: int):
     form = await request.form()
     enforce_csrf(request, form)
     updates = preview_overrides_from_form(form)
-    db.save_case(case_id, updates)
+    try:
+        db.save_case(case_id, updates, expected_version=form.get('case_version'), updated_by=user['id'], client_mutation_id=str(form.get('client_mutation_id') or ''))
+    except db.CaseConflictError:
+        return _simple_message_html('Konflikt', 'Saken er endret et annet sted. Gå tilbake og last inn ny versjon.', status_code=409, back_url=f'/cases/{case_id}/edit')
     db.record_audit(user['id'], 'save_preview_overrides', 'case', case_id, {})
     return RedirectResponse(f'/cases/{case_id}/preview?saved=1', status_code=HTTP_303_SEE_OTHER)
 

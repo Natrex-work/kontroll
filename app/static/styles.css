@@ -3229,7 +3229,7 @@ body {
 }
 
 
-/* v94 kartlagpanel: ikke klipp bort grupper/valg i ekstern mobilvisning */
+/* v97 kartlagpanel: ikke klipp bort grupper/valg i ekstern mobilvisning */
 .kv-temalag-panel-external .kv-temalag-card {
   max-height: none !important;
   overflow: visible !important;
@@ -3259,3 +3259,63 @@ body {
     padding: 10px 12px;
   }
 }
+
+/* v97 - OCR feltplassering, lenke/beslag og avhørsmomenter */
+.coordinate-summary {
+  display: block;
+  margin-top: 6px;
+  line-height: 1.35;
+}
+.marker-linked-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.marker-link-positions.hidden {
+  display: none !important;
+}
+.measurement-row,
+.deviation-row {
+  display: grid;
+  grid-template-columns: minmax(125px, 0.9fr) minmax(145px, 1.1fr) minmax(130px, 1fr) minmax(90px, 0.65fr) minmax(160px, 1.2fr);
+  gap: 8px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid rgba(20, 47, 79, 0.12);
+  border-radius: 16px;
+  background: rgba(255,255,255,0.9);
+  margin-bottom: 8px;
+}
+.measurement-row .measurement-position,
+.deviation-row .deviation-position,
+.deviation-row .deviation-violation,
+.deviation-row .deviation-note {
+  min-width: 0;
+}
+.measurement-row .measurement-evaluation {
+  grid-column: span 2;
+}
+.deviation-row.deviation-row-selected {
+  outline: 2px solid rgba(31,104,164,0.45);
+  background: rgba(226, 241, 255, 0.7);
+}
+.deviation-info-box .actions-row {
+  gap: 8px;
+}
+@media (max-width: 900px) {
+  .measurement-row,
+  .deviation-row {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+  .measurement-row .measurement-evaluation {
+    grid-column: auto;
+  }
+  .measurement-row .btn,
+  .deviation-row .btn {
+    width: 100%;
+  }
+}
+
+.margin-top-xs { margin-top: .45rem; }

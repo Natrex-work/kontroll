@@ -121,6 +121,12 @@ def _hint_quality(hints: dict[str, str]) -> int:
     score = 0
     if hints.get('vessel_reg'):
         score += 60
+    if hints.get('gear_marker_id'):
+        score += 50
+    if hints.get('radio_call_sign'):
+        score += 35
+    if hints.get('vessel_name'):
+        score += 35
     if hints.get('hummer_participant_no'):
         score += 60
     if hints.get('name'):
@@ -138,8 +144,12 @@ def _compose_text_from_hints(hints: dict[str, str], fallback_text: str = '') -> 
     lines: list[str] = []
     if hints.get('hummer_participant_no'):
         lines.append(str(hints['hummer_participant_no']).strip())
+    if hints.get('gear_marker_id'):
+        lines.append('Merke-ID: ' + str(hints['gear_marker_id']).strip())
     elif hints.get('vessel_reg'):
         lines.append(str(hints['vessel_reg']).strip())
+    if hints.get('vessel_name'):
+        lines.append('Fartøysnavn: ' + str(hints['vessel_name']).strip())
     if hints.get('name'):
         lines.append(str(hints['name']).strip())
     if hints.get('address'):
@@ -456,6 +466,12 @@ def _field_value_score(field: str, value: str) -> int:
         score += 10
     if field == 'hummer_participant_no' and registry._normalize_hummer_no(text):
         score += 25
+    if field == 'gear_marker_id' and getattr(registry, '_normalize_gear_marker_id', lambda value: '')(text):
+        score += 22
+    if field == 'vessel_name' and len(text) >= 2:
+        score += 12
+    if field == 'radio_call_sign' and re.fullmatch(r'[A-ZÆØÅ]{2,5}\d{0,3}', text.upper().replace(' ', '')):
+        score += 12
     if field == 'vessel_reg' and VESSEL_HINT_RE.search(text):
         score += 18
     return score
@@ -467,10 +483,12 @@ def _merge_best_hints(attempts: list[dict[str, Any]]) -> dict[str, str]:
         'vessel_reg': '',
         'radio_call_sign': '',
         'hummer_participant_no': '',
+        'gear_marker_id': '',
         'address': '',
         'post_place': '',
         'birthdate': '',
         'name': '',
+        'vessel_name': '',
     }
     best_scores = {key: -1 for key in merged}
     texts: list[str] = []

@@ -6,7 +6,7 @@
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('/static/sw.js?v=v94').catch(function () {});
+      navigator.serviceWorker.register('/static/sw.js?v=v97').catch(function () {});
     });
   }
 
@@ -38,6 +38,16 @@
     return result;
   };
 
+  function csrfFieldHtml() {
+    var token = '';
+    try {
+      token = (Common.csrfToken && Common.csrfToken()) || (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+    } catch (e) {
+      token = '';
+    }
+    return token ? '<input type="hidden" name="csrf_token" value="' + escapeHtml(token) + '" />' : '';
+  }
+
   var latestZoneResult = null;
   var findingsState = [];
   var evidenceState = [];
@@ -45,25 +55,36 @@
   var inlineEvidenceFeedback = '';
   var form = null, findingsInput = null, sourcesInput = null, crewInput = null, externalActorsInput = null, personsInput = null, interviewInput = null, seizureReportsInput = null;
   var controlType = null, fisheryType = null, species = null, gearType = null, startTime = null, endTime = null;
-  var latitude = null, longitude = null, areaStatus = null, areaName = null, locationName = null, caseBasis = null, basisSourceName = null, basisDetails = null;
+  var latitude = null, longitude = null, areaStatus = null, areaName = null, locationName = null, positionCoordinateSummary = null, caseBasis = null, basisSourceName = null, basisDetails = null;
   var suspectName = null, suspectNameCommercial = null, suspectPhone = null, suspectAddress = null, suspectPostPlace = null, suspectBirthdate = null;
-  var hummerParticipantNo = null, hummerLastRegistered = null, vesselName = null, vesselReg = null, radioCallSign = null, lookupText = null, lookupName = null, lookupIdentifier = null;
+  var hummerParticipantNo = null, hummerLastRegistered = null, vesselName = null, vesselReg = null, radioCallSign = null, gearMarkerId = null, lookupText = null, lookupName = null, lookupIdentifier = null;
   var notes = null, summary = null, hearingText = null, ocrAutofillPreview = null;
 
   function normalizeHummerParticipantNo(value) {
-    var raw = String(value || '').trim().toUpperCase().replace(/[–—]/g, '-');
+    var raw = String(value || '').trim().toUpperCase().replace(/[–—_]/g, '-');
     if (!raw) return '';
     var compact = raw.replace(/\s+/g, '').replace(/-/g, '');
     if (/^20\d{5}$/.test(compact)) return 'H-' + compact.slice(0, 4) + '-' + compact.slice(4);
     if (/^H\d{7}$/.test(compact)) return 'H-' + compact.slice(1, 5) + '-' + compact.slice(5);
-    var prefixDigits = compact.match(/^([A-ZÆØÅ]{3,5})(\d{2})(\d{3,4})$/i);
-    if (prefixDigits) return prefixDigits[1].toUpperCase() + '-' + prefixDigits[2] + '-' + prefixDigits[3];
-    var dualPrefix = compact.match(/^([A-ZÆØÅ]{2,5})([A-ZÆØÅ]{2,5})(\d{3,4})$/i);
-    if (dualPrefix) return dualPrefix[1].toUpperCase() + '-' + dualPrefix[2].toUpperCase() + '-' + dualPrefix[3];
-    var spacedPrefix = raw.replace(/\s+/g, '').match(/^([A-ZÆØÅ]{3,5})-?(\d{2})-?(\d{3,4})$/i);
-    if (spacedPrefix) return spacedPrefix[1].toUpperCase() + '-' + spacedPrefix[2] + '-' + spacedPrefix[3];
-    var spacedDual = raw.replace(/\s+/g, '').match(/^([A-ZÆØÅ]{2,5})-?([A-ZÆØÅ]{2,5})-?(\d{3,4})$/i);
-    if (spacedDual) return spacedDual[1].toUpperCase() + '-' + spacedDual[2].toUpperCase() + '-' + spacedDual[3];
+    var hMatch = raw.replace(/\s+/g, '').match(/^H-?(\d{4})-?(\d{3})$/i);
+    if (hMatch) return 'H-' + hMatch[1] + '-' + hMatch[2];
+    return '';
+  }
+
+  function normalizeGearMarkerId(value) {
+    var raw = String(value || '').trim().toUpperCase().replace(/[–—_]/g, '-');
+    if (!raw) return '';
+    raw = raw.replace(/\s+/g, '-').replace(/-+/g, '-').replace(/^[-.,;:]+|[-.,;:]+$/g, '');
+    var compact = raw.replace(/-/g, '');
+    if (/^(?:H\d{7}|20\d{5})$/.test(compact)) return '';
+    var lob = raw.match(/^LOB-?HUM-?(\d{3,4})$/i);
+    if (lob) return 'LOB-HUM-' + lob[1];
+    var dual = compact.match(/^([A-ZÆØÅ]{2,5})([A-ZÆØÅ]{2,5})(\d{3,4})$/i);
+    if (dual && dual[1].toUpperCase() !== 'H') return dual[1].toUpperCase() + '-' + dual[2].toUpperCase() + '-' + dual[3];
+    var prefixed = compact.match(/^([A-ZÆØÅ]{3,8})(\d{3,4})$/i);
+    if (prefixed && prefixed[1].toUpperCase() !== 'H') return prefixed[1].toUpperCase() + '-' + prefixed[2];
+    var dashed = raw.match(/^([A-ZÆØÅ]{2,5})-([A-ZÆØÅ]{2,5})-(\d{3,4})$/i);
+    if (dashed) return dashed[1].toUpperCase() + '-' + dashed[2].toUpperCase() + '-' + dashed[3];
     return '';
   }
 
@@ -71,13 +92,15 @@
     var value = String(identifier || '').trim();
     var compact = value.replace(/\s+/g, '');
     var normalizedHummer = normalizeHummerParticipantNo(value);
-    if (!value) return { phone: '', vessel_reg: '', radio_call_sign: '', hummer_participant_no: '' };
-    if (/^(?:\+?47)?\d{8}$/.test(compact)) return { phone: compact.slice(-8), vessel_reg: '', radio_call_sign: '', hummer_participant_no: '' };
-    if (normalizedHummer || /deltak/i.test(value)) return { phone: '', vessel_reg: '', radio_call_sign: '', hummer_participant_no: normalizedHummer || value.toUpperCase().replace(/\s+/g, '') };
-    if (/^[A-ZÆØÅ]{1,3}[- ]?[A-ZÆØÅ]{1,3}[- ]?\d{1,4}$/i.test(value)) return { phone: '', vessel_reg: value.toUpperCase().replace(/\s+/g, ''), radio_call_sign: '', hummer_participant_no: '' };
-    if (/^[A-ZÆØÅ]{1,3}[- ]?\d{1,4}(?:[- ]?[A-ZÆØÅ]{1,2})?$/i.test(value)) return { phone: '', vessel_reg: value.toUpperCase().replace(/\s+/g, ''), radio_call_sign: '', hummer_participant_no: '' };
-    if (/^[A-ZÆØÅ]{2,5}[- ]?\d{0,3}$/i.test(value)) return { phone: '', vessel_reg: '', radio_call_sign: compact.toUpperCase(), hummer_participant_no: '' };
-    return { phone: '', vessel_reg: '', radio_call_sign: '', hummer_participant_no: '' };
+    var markerId = normalizeGearMarkerId(value);
+    if (!value) return { phone: '', vessel_reg: '', radio_call_sign: '', hummer_participant_no: '', gear_marker_id: '' };
+    if (/^(?:\+?47)?\d{8}$/.test(compact)) return { phone: compact.slice(-8), vessel_reg: '', radio_call_sign: '', hummer_participant_no: '', gear_marker_id: '' };
+    if (normalizedHummer) return { phone: '', vessel_reg: '', radio_call_sign: '', hummer_participant_no: normalizedHummer, gear_marker_id: '' };
+    if (markerId) return { phone: '', vessel_reg: '', radio_call_sign: '', hummer_participant_no: '', gear_marker_id: markerId };
+    if (/^[A-ZÆØÅ]{1,3}[- ]?[A-ZÆØÅ]{1,3}[- ]?\d{1,4}$/i.test(value)) return { phone: '', vessel_reg: value.toUpperCase().replace(/\s+/g, ''), radio_call_sign: '', hummer_participant_no: '', gear_marker_id: '' };
+    if (/^[A-ZÆØÅ]{1,3}[- ]?\d{1,4}(?:[- ]?[A-ZÆØÅ]{1,2})?$/i.test(value)) return { phone: '', vessel_reg: value.toUpperCase().replace(/\s+/g, ''), radio_call_sign: '', hummer_participant_no: '', gear_marker_id: '' };
+    if (/^[A-ZÆØÅ]{2,5}[- ]?\d{0,3}$/i.test(value)) return { phone: '', vessel_reg: '', radio_call_sign: compact.toUpperCase(), hummer_participant_no: '', gear_marker_id: '' };
+    return { phone: '', vessel_reg: '', radio_call_sign: '', hummer_participant_no: '', gear_marker_id: '' };
   }
 
 
@@ -104,7 +127,20 @@
   }
 
   function lookupLabelLine(line) {
-    return /^(?:navn|eier|ansvarlig|skipper|person|adresse|adr|postadresse|poststed|postnummer|postnr(?:\.?|\s*og\s*sted)?|mobil(?:nummer|nr)?|mobiltelefon|telefon(?:nummer)?|tlf(?:nr)?|fødselsdato|fodselsdato|f[øo]dt|hummer\s*deltak(?:er|ar)(?:nr|nummer)?|deltak(?:er|ar)(?:nr|nummer)?|delt\.?\s*nr|fartøysnavn|fiskerimerke|radiokallesignal|radio)\s*[:#-]?$/i.test(String(line || '').trim().replace(/^[,;]+|[,;]+$/g, ''));
+    return /^(?:navn|eier|ansvarlig|skipper|person|adresse|adr|postadresse|poststed|postnummer|postnr(?:\.?|\s*og\s*sted)?|mobil(?:nummer|nr)?|mobiltelefon|telefon(?:nummer)?|tlf(?:nr)?|fødselsdato|fodselsdato|f[øo]dt|hummer\s*deltak(?:er|ar)(?:nr|nummer)?|deltak(?:er|ar)(?:nr|nummer)?|delt\.?\s*nr|fartøysnavn|fiskerimerke|radiokallesignal|kallesignal|radio|merke(?:id)?|merke-id|redskapsmerke|vak|bl[åa]se)\s*[:#-]?$/i.test(String(line || '').trim().replace(/^[,;]+|[,;]+$/g, ''));
+  }
+
+  function lookupLineHasFieldPrefix(line) {
+    return /^(?:navn|eier|ansvarlig|skipper|person|adresse|adr|postadresse|poststed|postnummer|postnr(?:\.?|\s*og\s*sted)?|mobil(?:nummer|nr)?|mobiltelefon|telefon(?:nummer)?|tlf(?:nr)?|fødselsdato|fodselsdato|f[øo]dt|hummer\s*deltak(?:er|ar)(?:nr|nummer)?|deltak(?:er|ar)(?:nr|nummer)?|delt\.?\s*nr|fart[øo]ysnavn|fart[øo]y|b[åa]tnavn|fiskerimerke|registreringsmerke|radiokallesignal|kallesignal|radio|merke(?:id)?|merke-id|redskapsmerke|vak|bl[åa]se)(?=\s|[:#-]|$)/i.test(String(line || '').trim().replace(/^[,;]+|[,;]+$/g, ''));
+  }
+
+  function lookupLineHasGearMarker(line) {
+    var text = String(line || '');
+    return Boolean(normalizeGearMarkerId(text) || text.match(/\b[A-ZÆØÅ]{2,5}[- ]?[A-ZÆØÅ]{2,5}[- ]?\d{3,4}\b/i));
+  }
+
+  function lookupStripGearMarkerText(line) {
+    return String(line || '').replace(/\b[A-ZÆØÅ]{2,5}[- ]?[A-ZÆØÅ]{2,5}[- ]?\d{3,4}\b/ig, ' ').replace(/\s+/g, ' ').trim().replace(/^[,;]+|[,;]+$/g, '');
   }
 
   function extractLabeledLookupValue(lines, inlinePatterns, labelOnlyPatterns, maxLines, joiner) {
@@ -140,7 +176,7 @@
       return String(line || '').replace(/[|]/g, ' ').replace(/\s+/g, ' ').trim().replace(/^[,;]+|[,;]+$/g, '');
     }).filter(Boolean);
     var joined = lines.join(' | ');
-    var hints = { phone: '', vessel_reg: '', radio_call_sign: '', hummer_participant_no: '', address: '', post_place: '', birthdate: '', name: '' };
+    var hints = { phone: '', vessel_reg: '', radio_call_sign: '', hummer_participant_no: '', gear_marker_id: '', address: '', post_place: '', birthdate: '', name: '', vessel_name: '' };
 
     function pickPhone(value) {
       var match = String(value || '').replace(/\s+/g, '').match(/(?:\+?47)?(\d{8})(?!\d)/);
@@ -154,6 +190,8 @@
     var labeledHummer = extractLabeledLookupValue(lines, [/^(?:hummer\s*deltak(?:er|ar)(?:nummer|nr)?|deltak(?:er|ar)(?:nummer|nr)?|delt\.?\s*nr)(?=\s|[:#-]|$)\s*[:#-]?\s*(.+)$/i], [/^(?:hummer\s*deltak(?:er|ar)(?:nummer|nr)?|deltak(?:er|ar)(?:nummer|nr)?|delt\.?\s*nr)(?=\s|[:#-]|$)\s*[:#-]?$/i], 1, ' ');
     var labeledVessel = extractLabeledLookupValue(lines, [/^(?:fiskerimerke|registreringsmerke|fart[øo]y(?:s)?merke)(?=\s|[:#-]|$)\s*[:#-]?\s*(.+)$/i], [/^(?:fiskerimerke|registreringsmerke|fart[øo]y(?:s)?merke)(?=\s|[:#-]|$)\s*[:#-]?$/i], 1, ' ');
     var labeledRadio = extractLabeledLookupValue(lines, [/^(?:radiokallesignal|kallesignal|radio\s*call\s*sign)(?=\s|[:#-]|$)\s*[:#-]?\s*(.+)$/i], [/^(?:radiokallesignal|kallesignal|radio\s*call\s*sign)(?=\s|[:#-]|$)\s*[:#-]?$/i], 1, ' ');
+    var labeledVesselName = extractLabeledLookupValue(lines, [/^(?:fart[øo]ysnavn|fart[øo]y|b[åa]tnavn)(?=\s|[:#-]|$)\s*[:#-]?\s*(.+)$/i], [/^(?:fart[øo]ysnavn|fart[øo]y|b[åa]tnavn)(?=\s|[:#-]|$)\s*[:#-]?$/i], 1, ' ');
+    var labeledMarker = extractLabeledLookupValue(lines, [/^(?:merke(?:id)?|merke-id|redskapsmerke|vak|bl[åa]se)(?=\s|[:#-]|$)\s*[:#-]?\s*(.+)$/i], [/^(?:merke(?:id)?|merke-id|redskapsmerke|vak|bl[åa]se)(?=\s|[:#-]|$)\s*[:#-]?$/i], 1, ' ');
     var labeledBirthdate = extractLabeledLookupValue(lines, [/^(?:fødselsdato|fodselsdato|f[øo]dt)(?=\s|[:#-]|$)\s*[:#-]?\s*(.+)$/i], [/^(?:fødselsdato|fodselsdato|f[øo]dt)(?=\s|[:#-]|$)\s*[:#-]?$/i], 1, ' ');
 
     if (labeledName) hints.name = normalizeLookupNameCandidate(labeledName);
@@ -164,9 +202,11 @@
     }
     if (labeledPostPlace && !hints.post_place) hints.post_place = normalizeLookupPostPlace(labeledPostPlace);
     if (labeledPhone) hints.phone = pickPhone(labeledPhone);
-    if (labeledHummer) hints.hummer_participant_no = normalizeHummerParticipantNo(labeledHummer) || String(labeledHummer || '').replace(/\s+/g, '').toUpperCase();
-    if (labeledVessel && !hints.hummer_participant_no) hints.vessel_reg = String(labeledVessel || '').replace(/\s+/g, '').toUpperCase();
+    if (labeledHummer) hints.hummer_participant_no = normalizeHummerParticipantNo(labeledHummer);
+    if (labeledVessel && !hints.hummer_participant_no && !lookupLineHasGearMarker(labeledVessel)) hints.vessel_reg = String(labeledVessel || '').replace(/\s+/g, '').toUpperCase();
     if (labeledRadio && !hints.radio_call_sign) hints.radio_call_sign = String(labeledRadio || '').replace(/\s+/g, '').toUpperCase();
+    if (labeledVesselName && !hints.vessel_name) hints.vessel_name = String(labeledVesselName || '').replace(/^(?:fart[øo]ysnavn|fart[øo]y|b[åa]tnavn)\s*[:#-]?\s*/i, '').trim();
+    if (labeledMarker && !hints.gear_marker_id) hints.gear_marker_id = normalizeGearMarkerId(labeledMarker) || String(labeledMarker || '').replace(/\s+/g, '').toUpperCase();
     if (labeledBirthdate) {
       var birth = String(labeledBirthdate || '').match(/(\d{2}[.\-/]\d{2}[.\-/]\d{4})/);
       if (birth) hints.birthdate = birth[1].replace(/[\-/]/g, '.');
@@ -174,8 +214,13 @@
 
     if (!hints.phone) hints.phone = pickPhone(joined);
     if (!hints.hummer_participant_no) {
-      var hummerDirect = joined.match(/\b(?:H[- ]?\d{4}[- ]?\d{3}|20\d{5}|[A-ZÆØÅ]{3,5}[- ]?\d{2}[- ]?\d{3,4}|[A-ZÆØÅ]{2,5}[- ]?[A-ZÆØÅ]{2,5}[- ]?\d{3,4})\b/i);
+      var hummerDirect = joined.match(/\b(?:H[- ]?\d{4}[- ]?\d{3}|20\d{5})\b/i);
       if (hummerDirect) hints.hummer_participant_no = normalizeHummerParticipantNo(hummerDirect[0] || '');
+    }
+    if (labeledMarker && !hints.gear_marker_id) hints.gear_marker_id = normalizeGearMarkerId(labeledMarker) || String(labeledMarker || '').replace(/\s+/g, '').toUpperCase();
+    if (!hints.gear_marker_id) {
+      var markerDirect = joined.match(/\b[A-ZÆØÅ]{2,5}[- ]?[A-ZÆØÅ]{2,5}[- ]?\d{3,4}\b/i);
+      if (markerDirect) hints.gear_marker_id = normalizeGearMarkerId(markerDirect[0] || '');
     }
     if (!hints.birthdate) {
       var joinedBirth = joined.match(/(\d{2}[.\-/]\d{2}[.\-/]\d{4})/);
@@ -193,7 +238,7 @@
     if (!hints.address) {
       for (var a = 0; a < lines.length; a += 1) {
         var line = lines[a];
-        if (lookupLabelLine(line)) continue;
+        if (lookupLabelLine(line) || lookupLineHasFieldPrefix(line) || lookupLineHasGearMarker(line)) continue;
         if (/\d/.test(line) && /[A-Za-zÆØÅæøå]/.test(line) && !/^\d{4}\s/.test(line) && !/^(?:mobil|telefon|tlf|navn|eier|ansvarlig|skipper|person|fødselsdato|fodselsdato|f[øo]dt|hummer|deltak)/i.test(line)) {
           var split = splitLookupAddress(line);
           hints.address = split.address || line;
@@ -204,8 +249,8 @@
     }
     if (!hints.name) {
       for (var n = 0; n < lines.length; n += 1) {
-        if (lookupLabelLine(lines[n])) continue;
-        var candidate = normalizeLookupNameCandidate(lines[n]);
+        if (lookupLabelLine(lines[n]) || lookupLineHasFieldPrefix(lines[n]) || lookupLineHasGearMarker(lines[n])) continue;
+        var candidate = normalizeLookupNameCandidate(lookupStripGearMarkerText(lines[n]));
         if (candidate) {
           hints.name = candidate;
           break;
@@ -254,6 +299,7 @@
       birthdate: String((suspectBirthdate && suspectBirthdate.value) || '').trim(),
       vessel_reg: String((vesselReg && vesselReg.value) || '').trim(),
       radio_call_sign: String((radioCallSign && radioCallSign.value) || '').trim(),
+      gear_marker_id: String((gearMarkerId && gearMarkerId.value) || '').trim(),
       vessel_name: String((vesselName && vesselName.value) || '').trim(),
       season: String((hummerLastRegistered && hummerLastRegistered.value) || '').trim()
     };
@@ -271,6 +317,7 @@
       snapshot.birthdate ? ['Fødselsdato', snapshot.birthdate] : null,
       snapshot.vessel_reg ? ['Fiskerimerke', snapshot.vessel_reg] : null,
       snapshot.radio_call_sign ? ['Radiokallesignal', snapshot.radio_call_sign] : null,
+      snapshot.gear_marker_id ? ['Merke-ID / vak/blåse', snapshot.gear_marker_id] : null,
       snapshot.vessel_name ? ['Fartøysnavn', snapshot.vessel_name] : null,
       snapshot.season ? ['Registerstatus', hummerSeasonText(snapshot.season) || snapshot.season] : null
     ].filter(Boolean);
@@ -426,15 +473,18 @@
   }
 
   function defaultMeasurementRow() {
-    return { seizure_ref: '', reference: '', length_cm: '', note: '', delta_text: '', violation_text: '', measurement_state: '' };
+    return { seizure_ref: '', reference: '', linked_seizure_ref: '', position: '', length_cm: '', note: '', delta_text: '', violation_text: '', measurement_state: '' };
   }
 
   function syncMeasurementDefaults(item) {
     ensureMeasurementState(item).forEach(function (row) {
+      row.linked_seizure_ref = String(row.linked_seizure_ref || '').trim();
       var ref = String(row.seizure_ref || row.reference || '').trim();
-      if (!ref) ref = seizureBaseCaseNumber() + '-' + String(nextSeizureSequence()).padStart(3, '0');
+      if (row.linked_seizure_ref) ref = row.linked_seizure_ref;
+      if (!ref) ref = formatMeasurementSeizureRef(nextSeizureSequence());
       row.seizure_ref = ref;
       row.reference = ref;
+      if (!row.position && currentCoordText()) row.position = currentCoordText();
       var evaluation = evaluateMeasurementRow(item, row);
       row.delta_text = evaluation.text || '';
       row.violation_text = evaluation.violation || '';
@@ -444,7 +494,9 @@
   }
 
   function ensureMarkerState(item) {
-    if (!item.marker_positions || typeof item.marker_positions !== 'object') item.marker_positions = { current: '', start: '', end: '', total: '', approved: '', deviations: '' };
+    var defaultLinked = /lenke|garnlenke|teinelenke/i.test(String((item && (item.label || item.key || item.summary_text)) || '') + ' ' + String((gearType && gearType.value) || ''));
+    if (!item.marker_positions || typeof item.marker_positions !== 'object') item.marker_positions = { is_linked: defaultLinked, current: '', start: '', end: '', total: '', approved: '', deviations: '' };
+    if (item.marker_positions.is_linked === undefined) item.marker_positions.is_linked = defaultLinked;
     if (item.marker_positions.total === undefined) item.marker_positions.total = '';
     if (item.marker_positions.approved === undefined) item.marker_positions.approved = '';
     if (item.marker_positions.deviations === undefined) item.marker_positions.deviations = '';
@@ -464,15 +516,24 @@
       var gearKind = row.gear_kind ? (' / type ' + row.gear_kind) : '';
       var legacyRef = row.gear_ref ? (' / tidligere ID ' + row.gear_ref) : '';
       var qty = row.quantity ? (' / antall ' + row.quantity) : '';
+      var position = row.position ? (' / posisjon ' + row.position) : '';
       var violation = row.violation || 'ikke spesifisert avvik';
       var note = row.note ? (' / ' + row.note) : '';
-      return ref + gearKind + legacyRef + qty + ': ' + violation + note;
+      return ref + gearKind + legacyRef + qty + position + ': ' + violation + note;
     }).join('; ');
   }
 
 
   function seizureBaseCaseNumber() {
     return String((document.getElementById('case-app') || {}).dataset.caseNumber || '').trim();
+  }
+
+  function formatSeizureRef(sequence) {
+    return seizureBaseCaseNumber() + '-' + String(sequence || nextSeizureSequence()).padStart(3, '0');
+  }
+
+  function formatMeasurementSeizureRef(sequence) {
+    return seizureBaseCaseNumber() + ' - Måling -' + String(sequence || nextSeizureSequence()).padStart(3, '0');
   }
 
   function deviationGearOptions() {
@@ -501,7 +562,7 @@
   }
 
   function defaultDeviationRow(item) {
-    return { seizure_ref: '', linked_seizure_ref: '', gear_kind: defaultDeviationGearKind(), gear_ref: '', quantity: '1', violation: suggestedDeviationText(item), note: '' };
+    return { seizure_ref: '', linked_seizure_ref: '', gear_kind: defaultDeviationGearKind(), gear_ref: '', quantity: '1', position: currentCoordText(), violation: suggestedDeviationText(item), note: '' };
   }
 
   function suggestedDeviationText(item) {
@@ -541,24 +602,36 @@
 
   function collectDeviationUnits(currentRow) {
     var unitsByRef = {};
+    function addUnit(row, fallbackKind) {
+      var ref = String(row && (row.seizure_ref || row.reference || row.ref) || '').trim();
+      if (!ref) return;
+      if (currentRow && row === currentRow) return;
+      if (!unitsByRef[ref]) {
+        unitsByRef[ref] = {
+          seizure_ref: ref,
+          gear_kind: String((row && (row.gear_kind || row.type)) || fallbackKind || '').trim(),
+          gear_ref: String(row && row.gear_ref || '').trim(),
+          position: String(row && row.position || '').trim()
+        };
+      }
+      if (!unitsByRef[ref].gear_kind && row && (row.gear_kind || row.type)) unitsByRef[ref].gear_kind = String(row.gear_kind || row.type).trim();
+      if (!unitsByRef[ref].gear_ref && row && row.gear_ref) unitsByRef[ref].gear_ref = String(row.gear_ref).trim();
+      if (!unitsByRef[ref].position && row && row.position) unitsByRef[ref].position = String(row.position).trim();
+    }
     findingsState.forEach(function (finding) {
-      ensureDeviationState(finding).forEach(function (row) {
-        var ref = String(row && row.seizure_ref || '').trim();
-        if (!ref) return;
-        if (currentRow && row === currentRow) return;
-        if (!unitsByRef[ref]) unitsByRef[ref] = { seizure_ref: ref, gear_kind: String(row.gear_kind || '').trim(), gear_ref: String(row.gear_ref || '').trim() };
-        if (!unitsByRef[ref].gear_kind && row.gear_kind) unitsByRef[ref].gear_kind = String(row.gear_kind).trim();
-        if (!unitsByRef[ref].gear_ref && row.gear_ref) unitsByRef[ref].gear_ref = String(row.gear_ref).trim();
-      });
+      ensureDeviationState(finding).forEach(function (row) { addUnit(row, defaultDeviationGearKind()); });
+      ensureMeasurementState(finding).forEach(function (row) { addUnit(row, 'Måling'); });
     });
+    (seizureReportsState || []).forEach(function (row) { addUnit(row, row && row.type ? row.type : 'Beslag'); });
     if (currentRow && currentRow.linked_seizure_ref) {
       var currentRef = String(currentRow.linked_seizure_ref || '').trim();
       if (currentRef && !unitsByRef[currentRef]) {
-        unitsByRef[currentRef] = { seizure_ref: currentRef, gear_kind: String(currentRow.gear_kind || '').trim(), gear_ref: String(currentRow.gear_ref || '').trim() };
+        unitsByRef[currentRef] = { seizure_ref: currentRef, gear_kind: String(currentRow.gear_kind || '').trim(), gear_ref: String(currentRow.gear_ref || '').trim(), position: String(currentRow.position || '').trim() };
       }
     }
     return Object.keys(unitsByRef).sort().map(function (key) { return unitsByRef[key]; });
   }
+
 
   function findDeviationUnitByRef(ref, currentRow) {
     ref = String(ref || '').trim();
@@ -568,7 +641,7 @@
       if (String(units[i].seizure_ref || '') === ref) return units[i];
     }
     if (currentRow && String(currentRow.seizure_ref || '').trim() === ref) {
-      return { seizure_ref: ref, gear_kind: String(currentRow.gear_kind || '').trim(), gear_ref: String(currentRow.gear_ref || '').trim() };
+      return { seizure_ref: ref, gear_kind: String(currentRow.gear_kind || '').trim(), gear_ref: String(currentRow.gear_ref || '').trim(), position: String(currentRow.position || '').trim() };
     }
     return null;
   }
@@ -620,8 +693,9 @@
         if (linked && linked.gear_kind) row.gear_kind = normalizeDeviationGearKind(linked.gear_kind);
         if (linked && linked.gear_ref && !row.gear_ref) row.gear_ref = linked.gear_ref;
       } else if (!row.seizure_ref) {
-        row.seizure_ref = seizureBaseCaseNumber() + '-' + String(nextSeizureSequence()).padStart(3, '0');
+        row.seizure_ref = formatSeizureRef(nextSeizureSequence());
       }
+      if (!row.position && currentCoordText()) row.position = currentCoordText();
     });
     item.deviation_summary = deviationSummaryText(item);
   }
@@ -646,6 +720,7 @@
   function deviationTargetSummary(item, row) {
     if (!item || !row) return 'Ingen rad valgt ennå.';
     var parts = [row.seizure_ref || 'uten beslag', row.gear_kind || 'redskap', row.violation || suggestedDeviationText(item)];
+    if (row.position) parts.push('posisjon ' + row.position);
     if (row.gear_ref) parts.push('tidligere ID ' + row.gear_ref);
     return parts.filter(Boolean).join(' · ');
   }
@@ -668,7 +743,7 @@
     return [
       '<div class="callout deviation-info-box">',
       '<strong>Automatisk registrering av avvik</strong>',
-      '<div class="small muted">Beslagsnr. genereres automatisk som saksnummer/anmeldelsesnummer med løpende nummer når du registrerer nytt redskap.</div>',
+      '<div class="small muted">Beslagsnr. genereres automatisk fra saksnummer/anmeldelsesnummer med løpende nummer. Posisjonen som settes på raden bindes til samme beslagnummer.</div>',
       '<div class="small muted">Bruk menyen «Tidligere redskap i saken» for å knytte flere lovbrudd til samme redskap og samme beslag. Type redskap hentes da automatisk fra redskapet du velger.</div>',
       '<div class="small muted">Tidligere registrerte redskap i saken: ' + escapeHtml(knownSummary) + '</div>',
       '<div class="small" style="margin-top:8px"><strong>Valgt rad for bildebevis:</strong> ' + escapeHtml(deviationTargetSummary(item, activeRow)) + '</div>',
@@ -687,8 +762,9 @@
       var ref = row.seizure_ref || row.reference || ('Måling ' + (idx + 1));
       var length = row.length_cm ? (String(row.length_cm).replace('.', ',') + ' cm') : 'ukjent lengde';
       var delta = row.delta_text ? (' – ' + row.delta_text) : '';
+      var posText = row.position ? (' / posisjon ' + row.position) : '';
       var note = row.note ? (' (' + row.note + ')') : '';
-      return ref + ': ' + length + delta + note;
+      return ref + ': ' + length + delta + posText + note;
     }).join('; ');
   }
 
@@ -696,8 +772,8 @@
     var pos = ensureMarkerState(item);
     var parts = [];
     if (pos.current) parts.push('Kontrollørposisjon: ' + pos.current);
-    if (pos.start) parts.push('Startposisjon: ' + pos.start);
-    if (pos.end) parts.push('Sluttposisjon: ' + pos.end);
+    if (pos.is_linked && pos.start) parts.push('Startposisjon lenke: ' + pos.start);
+    if (pos.is_linked && pos.end) parts.push('Sluttposisjon lenke: ' + pos.end);
     if (pos.total) parts.push('Kontrollerte teiner: ' + pos.total);
     if (pos.approved) parts.push('Godkjente: ' + pos.approved);
     if (pos.deviations) parts.push('Med avvik: ' + pos.deviations);
@@ -713,15 +789,19 @@
     return [
       '<div class="finding-extra finding-measurements">',
       '<div class="subhead">Lengdemålinger' + (minLabel || maxLabel ? ' <span class="muted small">' + minLabel + maxLabel + '</span>' : '') + '</div>',
-      '<div class="small muted">Ref / beslag genereres automatisk og tas med videre i beslag- og bevisrapporten. Automatisk vurdering viser om målingen er under minstemål eller på/over maksimalmål, og hvor stort avviket er i cm og mm når grensen er entydig for valgt posisjon.</div>',
+      '<div class="small muted">Målinger får eget målingsnummer eller kan knyttes til et tidligere registrert beslag/redskap. Posisjon knyttes til samme beslagnummer slik at bildebevis og illustrasjonsrapport sorteres riktig.</div>',
       '<div class="measurement-list">' + rows.map(function (row, mIndex) {
         var evaluationClass = 'measurement-evaluation';
         if (row.measurement_state === 'under_min' || row.measurement_state === 'over_max') evaluationClass += ' is-alert';
         else if (row.measurement_state === 'ok') evaluationClass += ' is-ok';
+        var linkedMode = Boolean(String(row.linked_seizure_ref || '').trim());
         return [
           '<div class="measurement-row" data-measure-index="' + mIndex + '">',
           '<input class="measurement-reference" placeholder="Beslag / ref" value="' + escapeHtml(row.reference || '') + '" readonly />',
+          '<select class="measurement-existing-gear" title="Knytt måling til tidligere beslag/redskap">' + deviationExistingGearOptionsHtml(row).replace('Nytt redskap (automatisk beslag nr.)', 'Ny måling (automatisk målingsnr.)') + '</select>',
           '<input class="measurement-length" type="number" step="0.1" placeholder="cm (0,1 = 1 mm)" value="' + escapeHtml(row.length_cm || '') + '" />',
+          '<input class="measurement-position" placeholder="Posisjon for måling/beslag" value="' + escapeHtml(row.position || '') + '" />',
+          '<button type="button" class="btn btn-secondary btn-small measurement-position-fill">Bruk posisjon</button>',
           '<div class="' + evaluationClass + '">' + escapeHtml(row.delta_text || 'Legg inn måling i cm for automatisk vurdering.') + '</div>',
           '<input class="measurement-note" placeholder="Kort merknad" value="' + escapeHtml(row.note || '') + '" />',
           '<button type="button" class="btn btn-danger btn-small measurement-remove">Fjern</button>',
@@ -734,35 +814,42 @@
     ].join('');
   }
 
+
   function markerSectionHtml(item) {
     if (!itemSupportsMarkerPositions(item) && !itemSupportsMarkerCounts(item)) return '';
     var pos = ensureMarkerState(item);
     var showPositions = itemSupportsMarkerPositions(item);
     var showCounts = itemSupportsMarkerCounts(item);
+    var linkHidden = pos.is_linked ? '' : ' hidden';
     var parts = ['<div class="finding-extra finding-marker-positions">'];
     parts.push('<div class="subhead">Merking av vak / kontrollposisjon</div>');
     if (showPositions) {
-      parts.push('<div class="grid-two compact-grid-form">');
+      parts.push('<label class="check-chip marker-linked-wrap"><input class="marker-is-linked" type="checkbox" ' + (pos.is_linked ? 'checked' : '') + ' /> Redskapet er lenke / har start- og sluttposisjon</label>');
+      parts.push('<div class="grid-two compact-grid-form margin-top-s">');
       parts.push('<label><span>Kontrollørposisjon</span><input class="marker-current" value="' + escapeHtml(pos.current || '') + '" /></label>');
       parts.push('<div class="actions-row wrap align-end"><button type="button" class="btn btn-secondary btn-small marker-current-fill">Bruk nåværende posisjon</button><button type="button" class="btn btn-secondary btn-small marker-current-refresh">Oppdater</button></div>');
-      parts.push('<label><span>Startposisjon (lenke/garn)</span><input class="marker-start" value="' + escapeHtml(pos.start || '') + '" /></label>');
+      parts.push('</div>');
+      parts.push('<div class="marker-link-positions grid-two compact-grid-form margin-top-s' + linkHidden + '">');
+      parts.push('<label><span>Startposisjon lenke/garn</span><input class="marker-start" value="' + escapeHtml(pos.start || '') + '" /></label>');
       parts.push('<div class="actions-row wrap align-end"><button type="button" class="btn btn-secondary btn-small marker-start-fill">Sett start = nåværende</button></div>');
-      parts.push('<label><span>Sluttposisjon (lenke/garn)</span><input class="marker-end" value="' + escapeHtml(pos.end || '') + '" /></label>');
+      parts.push('<label><span>Sluttposisjon lenke/garn</span><input class="marker-end" value="' + escapeHtml(pos.end || '') + '" /></label>');
       parts.push('<div class="actions-row wrap align-end"><button type="button" class="btn btn-secondary btn-small marker-end-fill">Sett slutt = nåværende</button></div>');
       parts.push('</div>');
+      parts.push('<div class="small muted">Hvis redskapet ikke er lenke, vises bare kontrollørposisjon. Start/sluttposisjon åpnes når lenke er krysset av.</div>');
     }
     if (showCounts) {
       parts.push('<div class="grid-three compact-grid-form margin-top-s">');
-      parts.push('<label><span>Antall teiner kontrollert</span><input class="marker-total" type="number" min="0" value="' + escapeHtml(pos.total || '') + '" /></label>');
+      parts.push('<label><span>Antall teiner/redskap kontrollert</span><input class="marker-total" type="number" min="0" value="' + escapeHtml(pos.total || '') + '" /></label>');
       parts.push('<label><span>Antall godkjente</span><input class="marker-approved" type="number" min="0" value="' + escapeHtml(pos.approved || '') + '" /></label>');
       parts.push('<label><span>Antall med avvik</span><input class="marker-deviations" type="number" min="0" value="' + escapeHtml(pos.deviations || '') + '" /></label>');
       parts.push('</div>');
-      parts.push('<div class="small muted">Bruk avviksradene under til å registrere konkrete teiner / redskap med lovbrudd.</div>');
+      parts.push('<div class="small muted">Bruk avviksradene under til å registrere flere konkrete redskap med eget beslagnummer. Flere avvik kan kobles til samme beslag.</div>');
     }
     parts.push('<div class="small muted structured-preview">' + escapeHtml(markerSummaryText(item)) + '</div>');
     parts.push('</div>');
     return parts.join('');
   }
+
 
   function deviationSectionHtml(item) {
     var rows = ensureDeviationState(item);
@@ -770,7 +857,7 @@
     var isAvvik = String(item.status || '').toLowerCase() === 'avvik';
     return [
       '<div class="finding-extra finding-deviations ' + (isAvvik ? '' : 'hidden') + '">',
-      '<div class="subhead">Redskap med avvik</div>',
+      '<div class="subhead">Redskap/beslag med avvik</div>',
       '<div class="deviation-list">' + rows.map(function (row, dIndex) {
         var linkedCount = evidenceItemsForDeviation(item, row).length;
         var selectedClass = selectedInlineTargetMatches(item, row) ? ' deviation-row-selected' : '';
@@ -778,9 +865,11 @@
         return [
           '<div class="deviation-row' + selectedClass + '" data-dev-index="' + dIndex + '">',
           '<input class="deviation-seizure-ref" placeholder="Beslagsnr." title="Beslagsnummer" value="' + escapeHtml(row.seizure_ref || '') + '" readonly />',
-          '<select class="deviation-existing-gear" title="Tidligere redskap i saken">' + deviationExistingGearOptionsHtml(row) + '</select>',
+          '<select class="deviation-existing-gear" title="Tidligere beslag/redskap i saken">' + deviationExistingGearOptionsHtml(row) + '</select>',
           '<select class="deviation-gear-kind" title="Type redskap" ' + (linkedMode ? 'disabled' : '') + '>' + deviationGearOptions().map(function (opt) { return '<option value="' + escapeHtml(opt) + '" ' + (String(row.gear_kind || '') === opt ? 'selected' : '') + '>' + escapeHtml(opt) + '</option>'; }).join('') + '</select>',
           '<input class="deviation-quantity" type="number" min="1" placeholder="Antall" value="' + escapeHtml(row.quantity || '') + '" />',
+          '<input class="deviation-position" placeholder="Posisjon bundet til beslag" value="' + escapeHtml(row.position || '') + '" />',
+          '<button type="button" class="btn btn-secondary btn-small deviation-position-fill">Bruk posisjon</button>',
           '<input class="deviation-violation" placeholder="Lovbrudd / avvik" value="' + escapeHtml(row.violation || '') + '" />',
           '<input class="deviation-note" placeholder="Merknad" value="' + escapeHtml(row.note || '') + '" />',
           '<button type="button" class="btn btn-secondary btn-small deviation-evidence-link ' + (isAvvik ? '' : 'hidden') + '">' + (linkedCount ? ('Bildebevis (' + linkedCount + ')') : 'Velg for bildebevis') + '</button>',
@@ -788,12 +877,13 @@
           '</div>'
         ].join('');
       }).join('') + '</div>',
-      '<div class="actions-row wrap"><button type="button" class="btn btn-secondary btn-small deviation-add">Legg til Redskap</button></div>',
+      '<div class="actions-row wrap"><button type="button" class="btn btn-secondary btn-small deviation-add">Legg til redskap/beslag</button></div>',
       '<div class="small muted structured-preview">' + escapeHtml(deviationSummaryText(item)) + '</div>',
       deviationInfoBoxHtml(item, rows),
       '</div>'
     ].join('');
   }
+
 
   function buildReadonlyFindingsHtml(items) {
     if (!items || !items.length) return '<div class="callout">Ingen kontrollpunkter tilgjengelig for dette valget.</div>';
@@ -1183,7 +1273,7 @@
     var lawBrowser = parseJson(root.dataset.lawBrowser, []);
     var mapCatalog = parseJson(root.dataset.mapCatalog, []);
     var mapFilterWrap = document.getElementById('map-layer-filters');
-    var mapFilterStorageKey = 'kv-map-layer-filter-v94:' + root.dataset.caseId;
+    var mapFilterStorageKey = 'kv-map-layer-filter-v97:' + root.dataset.caseId;
     var activeLayerStatuses = { 'fredningsområde': true, 'stengt område': true, 'maksimalmål område': true, 'regulert område': true, 'fiskeriområde': true };
     try {
       localStorage.removeItem('kv-map-layer-filter:' + root.dataset.caseId);
@@ -1618,7 +1708,7 @@
         urls = urls.concat(collectTileUrls(layer, map, padding == null ? 2 : padding));
       });
       urls = uniqueUrls(urls);
-      return prefetchUrlsToCache(urls, 'kv-kontroll-v94-map-tiles').then(function (count) {
+      return prefetchUrlsToCache(urls, 'kv-kontroll-v97-map-tiles').then(function (count) {
         return { count: count, urls: urls };
       });
     }
@@ -1946,6 +2036,7 @@
     areaStatus = document.getElementById('area_status');
     areaName = document.getElementById('area_name');
     locationName = document.getElementById('location_name');
+    positionCoordinateSummary = document.getElementById('position-coordinate-summary');
     caseBasis = document.getElementById('case_basis');
     basisSourceName = document.getElementById('basis_source_name');
     basisDetails = document.getElementById('basis_details');
@@ -1960,6 +2051,7 @@
     vesselName = document.getElementById('vessel_name');
     vesselReg = document.getElementById('vessel_reg');
     radioCallSign = document.getElementById('radio_call_sign');
+    gearMarkerId = document.getElementById('gear_marker_id');
     lookupText = document.getElementById('lookup_text');
     lookupName = document.getElementById('lookup_name');
     lookupIdentifier = document.getElementById('lookup_identifier');
@@ -2199,10 +2291,42 @@
     var cameraCaptureState = null;
     var autosaveTimer = null;
     var autosaveInFlight = false;
+    var autosavePending = false;
     var lastAutosaveFingerprint = '';
     var latestGearSummary = null;
     var LocalMedia = window.KVLocalMedia || null;
     var LocalCases = window.KVLocalCases || null;
+    var currentUserId = String(root.dataset.currentUserId || (window.MKCurrentUser && window.MKCurrentUser.id) || '').trim();
+    var currentDeviceId = (LocalCases && typeof LocalCases.currentDeviceId === 'function') ? LocalCases.currentDeviceId() : ((LocalMedia && typeof LocalMedia.currentDeviceId === 'function') ? LocalMedia.currentDeviceId() : 'device-unknown');
+    var caseVersionInput = document.getElementById('case_version');
+    var clientMutationInput = document.getElementById('client_mutation_id');
+
+    function ownerOptions() {
+      return { owner_user_id: currentUserId };
+    }
+
+    function ensureMutationId() {
+      var value = '';
+      try {
+        value = (window.crypto && typeof window.crypto.randomUUID === 'function') ? window.crypto.randomUUID() : ('mutation-' + Date.now() + '-' + Math.random().toString(16).slice(2));
+      } catch (e) {
+        value = 'mutation-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+      }
+      if (clientMutationInput) clientMutationInput.value = value;
+      return value;
+    }
+
+    function applyServerSaveMeta(meta) {
+      meta = meta || {};
+      if (meta.version !== undefined && meta.version !== null && String(meta.version) !== '') {
+        root.dataset.caseVersion = String(meta.version);
+        if (caseVersionInput) caseVersionInput.value = String(meta.version);
+      }
+      if (meta.saved_at || meta.updated_at || meta.server_updated_at) {
+        root.dataset.caseUpdatedAt = String(meta.saved_at || meta.updated_at || meta.server_updated_at || '');
+      }
+    }
+
     var isOfflineNewCase = String(root.dataset.offlineNew || '0') === '1';
     var createCaseUrl = String(root.dataset.createCaseUrl || '');
     var localMediaSyncInFlight = false;
@@ -2342,7 +2466,7 @@
       localCaseStatusBox.classList.remove('hidden');
       localCaseStatusBox.classList.toggle('alert-error', !!isError);
       if (localCaseStatusText) {
-        localCaseStatusText.textContent = message || 'Saken lagres lokalt på enheten.';
+        localCaseStatusText.textContent = message || 'Lagret lokalt.';
       }
       if (btnSyncCaseDraft) {
         btnSyncCaseDraft.classList.toggle('hidden', options.showSync === false);
@@ -2376,6 +2500,9 @@
       formData.set('persons_json', JSON.stringify(personsState));
       formData.set('interview_sessions_json', JSON.stringify(interviewState));
       formData.set('seizure_reports_json', JSON.stringify(seizureReportsState || []));
+      formData.set('case_version', String(root.dataset.caseVersion || (caseVersionInput && caseVersionInput.value) || ''));
+      formData.set('client_mutation_id', ensureMutationId());
+      formData.set('device_id', currentDeviceId);
       if (isOfflineNewCase) formData.set('local_case_id', String(root.dataset.caseId || ''));
       return formData;
     }
@@ -2441,6 +2568,9 @@
         case_id: String(root.dataset.caseId || ''),
         case_number: String(root.dataset.caseNumber || ''),
         case_url: String(currentCaseUrl()),
+        owner_user_id: currentUserId,
+        device_id: currentDeviceId,
+        case_version: String(root.dataset.caseVersion || (caseVersionInput && caseVersionInput.value) || ''),
         server_updated_at: String(root.dataset.caseUpdatedAt || ''),
         updated_at: Date.now(),
         sync_state: 'pending',
@@ -2469,11 +2599,11 @@
       options = options || {};
       if (!localCaseSupported() || !root.dataset.caseId) return Promise.resolve(null);
       var draft = collectLocalCaseDraft();
-      return LocalCases.putDraft(draft).then(function (saved) {
-        if (!options.silent) updateLocalCaseStatus('Saken er lagret lokalt på enheten. Endringene synkes når nettverket er klart.', false, { forceShow: true, showSync: true, showDiscard: true });
+      return LocalCases.putDraft(draft, ownerOptions()).then(function (saved) {
+        if (!options.silent) updateLocalCaseStatus('Lagret lokalt. Synk venter.', false, { forceShow: true, showSync: true, showDiscard: true });
         return saved;
       }).catch(function () {
-        if (!options.silent) updateLocalCaseStatus('Kunne ikke lagre saken lokalt på enheten.', true, { forceShow: true, showSync: false, showDiscard: false });
+        if (!options.silent) updateLocalCaseStatus('Lokal lagring feilet.', true, { forceShow: true, showSync: false, showDiscard: false });
         return null;
       });
     }
@@ -2530,7 +2660,7 @@
 
     function restoreLocalCaseDraft() {
       if (!localCaseSupported() || !root.dataset.caseId) return Promise.resolve(false);
-      return LocalCases.getDraft(root.dataset.caseId).then(function (draft) {
+      return LocalCases.getDraft(root.dataset.caseId, ownerOptions()).then(function (draft) {
         if (!draft || !draft.form_values || !draft.form_values.length) return false;
         var serverUpdatedMs = Date.parse(String(root.dataset.caseUpdatedAt || '')) || 0;
         var draftUpdatedMs = Number(draft.updated_at || 0);
@@ -2562,7 +2692,7 @@
         }
         localCaseRestoreApplied = true;
         refreshCaseUiFromState({ step: Number(draft.current_step || currentStep || 1), loadRules: true });
-        updateLocalCaseStatus('Lokal versjon av saken er gjenopprettet fra enheten. Synk når du er klar.', false, { forceShow: true, showSync: true, showDiscard: true });
+        updateLocalCaseStatus('Lokal kladd gjenopprettet.', false, { forceShow: true, showSync: true, showDiscard: true });
         if (LocalCases.incrementRestoreCount) LocalCases.incrementRestoreCount(root.dataset.caseId).catch(function () { return null; });
         return true;
       }).catch(function () {
@@ -2581,7 +2711,7 @@
     function discardLocalCaseDraft() {
       if (!localCaseSupported() || !root.dataset.caseId) return Promise.resolve(false);
       if (!window.confirm('Forkaste lokal versjon av saken på denne enheten? Endringer som ikke er synket går tapt.')) return Promise.resolve(false);
-      return LocalCases.removeDraft(root.dataset.caseId).then(function () {
+      return LocalCases.removeDraft(root.dataset.caseId, ownerOptions()).then(function () {
         updateLocalCaseStatus('Lokal versjon er fjernet fra enheten.', false, { forceShow: true, showSync: false, showDiscard: false });
         if (isLocalOnlyCase()) {
           window.location.href = '/dashboard';
@@ -2593,7 +2723,7 @@
 
     function ensureInitialOfflineDraft() {
       if (!isOfflineNewCase || !localCaseSupported() || !root.dataset.caseId) return Promise.resolve(false);
-      return LocalCases.getDraft(root.dataset.caseId).then(function (draft) {
+      return LocalCases.getDraft(root.dataset.caseId, ownerOptions()).then(function (draft) {
         if (draft && draft.case_id) return false;
         return persistLocalCaseDraft({ silent: true }).then(function (saved) {
           if (saved) updateLocalCaseStatus('Ny lokal sak er opprettet på enheten. Synk saken når du er klar.', false, { forceShow: true, showSync: true, showDiscard: true });
@@ -2608,7 +2738,7 @@
       if (localCaseSyncInFlight && !options.force) return Promise.resolve(false);
       if (navigator.onLine === false) {
         return persistLocalCaseDraft({ silent: true }).then(function () {
-          updateLocalCaseStatus('Saken er lagret lokalt på enheten. Nettverk mangler, så opprettelse på server utsettes.', true, { forceShow: true, showSync: true, showDiscard: true });
+          updateLocalCaseStatus('Lagret lokalt. Mangler nett.', true, { forceShow: true, showSync: true, showDiscard: true });
           return false;
         });
       }
@@ -2625,6 +2755,7 @@
           var serverCaseUrl = String(payload.case_url || ('/cases/' + serverCaseId + '/edit'));
           var serverCaseNumber = String(payload.case_number || root.dataset.caseNumber || '');
           var savedAt = String(payload.saved_at || new Date().toISOString());
+          applyServerSaveMeta({ version: payload.version, saved_at: savedAt });
           var tasks = [];
           if (localCaseSupported() && LocalCases.reassignDraft) tasks.push(LocalCases.reassignDraft(localCaseId, serverCaseId, { case_number: serverCaseNumber, case_url: serverCaseUrl, sync_state: 'synced', server_updated_at: savedAt, last_server_sync_at: savedAt }));
           if (localMediaSupported() && LocalMedia.reassignCase) tasks.push(LocalMedia.reassignCase(localCaseId, serverCaseId));
@@ -2645,7 +2776,7 @@
           if (error && error.message === 'duplicate_case_number') {
             updateLocalCaseStatus('Kunne ikke synke lokal sak fordi saksnummeret finnes allerede. Endre løpenummeret og prøv igjen.', true, { forceShow: true, showSync: true, showDiscard: true });
           } else {
-            updateLocalCaseStatus('Saken er lagret lokalt på enheten, men kunne ikke opprettes på serveren akkurat nå.', true, { forceShow: true, showSync: true, showDiscard: true });
+            updateLocalCaseStatus('Lagret lokalt. Serverkopi feilet.', true, { forceShow: true, showSync: true, showDiscard: true });
           }
           return false;
         });
@@ -2658,7 +2789,7 @@
       if (localCaseSyncInFlight && !options.force) return Promise.resolve(false);
       if (navigator.onLine === false) {
         return persistLocalCaseDraft({ silent: true }).then(function () {
-          updateLocalCaseStatus('Saken er lagret lokalt på enheten. Nettverk mangler, så synk utsettes.', true, { forceShow: true, showSync: true, showDiscard: true });
+          updateLocalCaseStatus('Lagret lokalt. Synk venter.', true, { forceShow: true, showSync: true, showDiscard: true });
           return false;
         });
       }
@@ -2669,8 +2800,9 @@
         .then(function (r) { return parseJsonResponse(r, 'Kunne ikke lagre saken på server.'); })
         .then(function (payload) {
           localCaseSyncInFlight = false;
+          applyServerSaveMeta(payload || {});
           lastAutosaveFingerprint = formFingerprint();
-          setAutosaveStatus('Lagret ' + new Date().toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit', second: '2-digit' }), 'is-saved');
+          setAutosaveStatus('Synket', 'is-saved');
           return markLocalCaseSynced(payload && payload.saved_at ? payload.saved_at : new Date().toISOString()).then(function () {
             return true;
           });
@@ -2678,12 +2810,21 @@
         .catch(function (error) {
           localCaseSyncInFlight = false;
           if (isMissingServerCaseError(error) && createCaseUrl) {
-            updateLocalCaseStatus('Serveren finner ikke saken lenger. Oppretter ny serverkopi fra denne utfylte kladden ...', true, { forceShow: true, showSync: true, syncing: true, showDiscard: true });
+            updateLocalCaseStatus('Serveren finner ikke saken. Oppretter ny serverkopi ...', true, { forceShow: true, showSync: true, syncing: true, showDiscard: true });
             return createServerCaseFromLocalDraft(Object.assign({}, options, { force: true, redirectAfterCreate: false, silent: true }));
           }
+          if (error && (Number(error.status || 0) === 409 || String(error.message || '').indexOf('case_conflict') !== -1)) {
+            var payload = error.payload || {};
+            if (payload.current_version) root.dataset.caseConflictVersion = String(payload.current_version);
+            if (payload.current_updated_at) root.dataset.caseConflictUpdatedAt = String(payload.current_updated_at);
+            persistLocalCaseDraft({ silent: true });
+            updateLocalCaseStatus('Saken er endret et annet sted. Last inn på nytt eller behold lokal kopi.', true, { forceShow: true, showSync: true, showDiscard: true });
+            setAutosaveStatus('Konflikt', 'is-error');
+            return false;
+          }
           persistLocalCaseDraft({ silent: true });
-          updateLocalCaseStatus('Saken er lagret lokalt på enheten, men er ikke synket ennå.', true, { forceShow: true, showSync: true, showDiscard: true });
-          setAutosaveStatus('Lagret lokalt', 'is-saved');
+          updateLocalCaseStatus('Lagret lokalt. Ikke synket.', true, { forceShow: true, showSync: true, showDiscard: true });
+          setAutosaveStatus('Lokalt', 'is-saved');
           return false;
         });
     }
@@ -2776,7 +2917,7 @@
           var bits = [];
           if (pendingImages) bits.push(pendingImages + ' bilde' + (pendingImages === 1 ? '' : 'r'));
           if (pendingAudio) bits.push(pendingAudio + ' lydfil' + (pendingAudio === 1 ? '' : 'er'));
-          localMediaStatusText.textContent = bits.join(' og ') + ' er lagret lokalt på enheten. Filene brukes med en gang i appen og synkes til saken i bakgrunnen.';
+          localMediaStatusText.textContent = bits.join(' og ') + ' lokalt. Synk venter.';
         }
       }
       localMediaStatus.classList.toggle('alert-error', !!isError);
@@ -2823,6 +2964,8 @@
       formData.append('law_text', payload.law_text || '');
       formData.append('violation_reason', payload.violation_reason || '');
       formData.append('seizure_ref', payload.seizure_ref || '');
+      formData.append('device_id', currentDeviceId);
+      formData.append('local_media_id', payload.local_media_id || payload.local_id || '');
       formData.append('file', file, file.name || ('vedlegg-' + Date.now() + '.bin'));
       return fetch('/api/cases/' + root.dataset.caseId + '/evidence', secureFetchOptions({ method: 'POST', body: formData }))
         .then(function (response) {
@@ -2848,6 +2991,8 @@
       return {
         id: LocalMedia && typeof LocalMedia.generateId === 'function' ? LocalMedia.generateId() : ('local-' + Date.now() + '-' + Math.random().toString(16).slice(2)),
         case_id: String(root.dataset.caseId || ''),
+        owner_user_id: currentUserId,
+        device_id: currentDeviceId,
         created_at: Date.now(),
         sync_state: 'pending',
         kind: kind,
@@ -2888,15 +3033,15 @@
         upsertEvidenceStateEntry(entry, true);
         if (kind === 'audio') appendAudioCard(entry);
         else appendEvidenceCard(entry);
-        updateLocalMediaStatus(options.statusMessage || (kind === 'audio' ? 'Lydfil lagret lokalt på enheten.' : 'Bilde lagret lokalt på enheten.'));
+        updateLocalMediaStatus(options.statusMessage || (kind === 'audio' ? 'Lyd lagret lokalt.' : 'Bilde lagret lokalt.'));
         if (signature && kind === 'image') lastOcrEvidenceSignature = signature;
         setAutosaveStatus(options.autosaveMessage || (kind === 'audio' ? 'Lydfil lagret lokalt' : 'Bilde lagret lokalt'), 'is-saved');
         if (options.autoSync === true) syncLocalMediaQueue({ onlyId: stored.id, silent: syncSilently !== false });
-        else updateLocalMediaStatus(options.statusMessage || (kind === 'audio' ? 'Lydfil lagret lokalt på enheten. Synk når du er klar.' : 'Bilde lagret lokalt på enheten. Synk når du er klar.'));
+        else updateLocalMediaStatus(options.statusMessage || (kind === 'audio' ? 'Lyd lokalt. Synk venter.' : 'Bilde lokalt. Synk venter.'));
         return entry;
       }
       if (!localMediaSupported()) {
-        return (kind === 'image' ? buildOcrUploadFile(file).catch(function () { return file; }) : Promise.resolve(file)).then(function (prepared) {
+        return Promise.resolve(file).then(function (prepared) {
           return postEvidenceToServer(prepared, payload).then(function (serverEntry) {
             upsertEvidenceStateEntry(serverEntry, true);
             if (kind === 'audio') appendAudioCard(serverEntry);
@@ -2915,10 +3060,10 @@
         groupId: options.groupId || '',
         segmentIndex: options.segmentIndex || 0
       });
-      return LocalMedia.put(record).then(function (stored) {
+      return LocalMedia.put(record, ownerOptions()).then(function (stored) {
         return insertAndMaybeSync(stored, options.silentSync !== false);
       }).catch(function () {
-        return (kind === 'image' ? buildOcrUploadFile(file).catch(function () { return file; }) : Promise.resolve(file)).then(function (prepared) {
+        return Promise.resolve(file).then(function (prepared) {
           return postEvidenceToServer(prepared, payload).then(function (serverEntry) {
             upsertEvidenceStateEntry(serverEntry, true);
             if (kind === 'audio') appendAudioCard(serverEntry);
@@ -2944,20 +3089,24 @@
       var kind = String(record.kind || (LocalMedia && typeof LocalMedia.inferKind === 'function' ? LocalMedia.inferKind(record) : ((String(record.mime_type || '').toLowerCase().indexOf('audio/') === 0) ? 'audio' : 'image')) || 'image').toLowerCase();
       return LocalMedia.update(record.id, { sync_state: 'uploading', last_error: '' }).catch(function () { return null; }).then(function () {
         return toUploadFile(record.file, record.original_filename || ((kind === 'audio' ? 'avhor-' : 'bilde-') + Date.now()), record.mime_type || (kind === 'audio' ? 'audio/webm' : 'image/jpeg'));
-      }).then(function (uploadFile) {
-        if (kind !== 'image') return uploadFile;
-        return buildOcrUploadFile(uploadFile).catch(function () { return uploadFile; });
       }).then(function (preparedFile) {
         return postEvidenceToServer(preparedFile, {
           caption: record.caption || '',
           finding_key: record.finding_key || '',
           law_text: record.law_text || '',
           violation_reason: record.violation_reason || '',
-          seizure_ref: record.seizure_ref || ''
+          seizure_ref: record.seizure_ref || '',
+          local_media_id: record.id || ''
         });
       }).then(function (serverEntry) {
         removeEvidenceStateEntry(record.id);
-        return LocalMedia.remove(record.id).catch(function () { return true; }).then(function () {
+        return LocalMedia.update(record.id, {
+          sync_state: 'synced',
+          last_error: '',
+          server_evidence_id: serverEntry && serverEntry.id ? serverEntry.id : '',
+          server_filename: serverEntry && serverEntry.filename ? serverEntry.filename : '',
+          server_received_at: new Date().toISOString()
+        }).catch(function () { return null; }).then(function () {
           upsertEvidenceStateEntry(serverEntry, true);
           if (kind === 'audio') appendAudioCard(serverEntry);
           else appendEvidenceCard(serverEntry);
@@ -2987,11 +3136,15 @@
       if (localMediaSyncInFlight && !options.force) return Promise.resolve([]);
       localMediaSyncInFlight = true;
       if (btnSyncLocalMedia) btnSyncLocalMedia.disabled = true;
-      return LocalMedia.getPendingByCase(root.dataset.caseId).then(function (rows) {
+      return LocalMedia.getPendingByCase(root.dataset.caseId, ownerOptions()).then(function (rows) {
+        var nowMs = Date.now();
+        var staleUploadMs = 2 * 60 * 1000;
         var queue = (rows || []).filter(function (row) {
           return !options.onlyId || String(row.id) === String(options.onlyId);
         }).filter(function (row) {
-          return String(row.sync_state || 'pending') !== 'uploading';
+          var state = String(row.sync_state || 'pending');
+          if (state !== 'uploading') return true;
+          return Number(row.updated_at || row.created_at || 0) < (nowMs - staleUploadMs);
         }).sort(function (a, b) { return Number(a.created_at || 0) - Number(b.created_at || 0); });
         if (!queue.length) {
           updateLocalMediaStatus();
@@ -3033,7 +3186,7 @@
         '<div class="actions-row wrap">',
         (isLocal
           ? '<button class="btn btn-secondary btn-small" type="button" data-local-sync="' + escapeHtml(String(entry.id || '')) + '">Synk nå</button><button class="btn btn-danger btn-small" type="button" data-local-delete="' + escapeHtml(String(entry.id || '')) + '">Fjern lokalt</button>'
-          : '<a class="btn btn-secondary btn-small" href="' + escapeHtml(audioFileUrl(entry)) + '" download>Last ned</a><form method="post" action="/evidence/' + escapeHtml(String(entry.id || '')) + '/delete" data-confirm="Slette lydfil?"><button class="btn btn-danger btn-small" type="submit">Slett</button></form>'),
+          : '<a class="btn btn-secondary btn-small" href="' + escapeHtml(audioFileUrl(entry)) + '" download>Last ned</a><form method="post" action="/evidence/' + escapeHtml(String(entry.id || '')) + '/delete" data-confirm="Slette lydfil?">' + csrfFieldHtml() + '<button class="btn btn-danger btn-small" type="submit">Slett</button></form>'),
         '</div>',
         '</article>'
       ].join('');
@@ -3043,6 +3196,7 @@
       if (!audioList || !entry || !evidenceIsAudio(entry)) return;
       removeAudioCard(entry.id);
       audioList.insertAdjacentHTML('afterbegin', buildAudioCardHtml(entry));
+      if (Common.appendCsrfToForms) Common.appendCsrfToForms(audioList);
     }
 
     function loadLocalEvidenceFromDevice() {
@@ -3050,7 +3204,7 @@
         updateLocalMediaStatus();
         return Promise.resolve([]);
       }
-      return LocalMedia.getPendingByCase(root.dataset.caseId).then(function (rows) {
+      return LocalMedia.getPendingByCase(root.dataset.caseId, ownerOptions()).then(function (rows) {
         (rows || []).forEach(function (row) {
           var entry = localRecordToEvidence(row);
           upsertEvidenceStateEntry(entry, false);
@@ -3072,7 +3226,7 @@
       if (!pendingLocalMediaEntries().length) return Promise.resolve(true);
       return syncLocalMediaQueue({}).then(function () {
         if (!pendingLocalMediaEntries().length) return true;
-        return window.confirm('Noen bilder eller lydfiler er fortsatt bare lagret lokalt på enheten og blir ikke med i forhåndsvisning eller eksport før de er synket. Vil du fortsette likevel?');
+        return window.confirm('Noen vedlegg er ikke synket. Fortsette likevel?');
       });
     }
 
@@ -3461,24 +3615,48 @@
     function defaultSeizureRowsFromFindings() {
       var rows = [];
       var byRef = {};
+      function addRow(row) {
+        var ref = String(row.seizure_ref || row.reference || '').trim();
+        if (!ref || byRef[ref]) return;
+        byRef[ref] = true;
+        rows.push(row);
+      }
       (findingsState || []).forEach(function (item, idx) {
         if (!isSeizureRelevantFinding(item)) return;
-        var ref = item.seizure_ref || ('B' + String(rows.length + 1).padStart(2, '0'));
-        while (byRef[ref]) ref = 'B' + String(rows.length + 1).padStart(2, '0');
-        byRef[ref] = true;
-        rows.push({
-          seizure_ref: ref,
-          source_key: item.key || ('finding-' + idx),
-          type: item.label || 'Avvik/redskap',
-          quantity: item.quantity || item.observed_count || '1',
-          description: item.notes || item.auto_note || item.summary_text || item.label || 'Registrert avvik',
-          law_text: item.law_text || item.source_ref || '',
-          violation_reason: item.auto_note || item.summary_text || item.notes || '',
-          auto: true
+        var lawText = item.law_text || item.source_ref || '';
+        ensureDeviationState(item).forEach(function (dev, dIdx) {
+          syncDeviationDefaults(item);
+          addRow({
+            seizure_ref: dev.seizure_ref || formatSeizureRef(nextSeizureSequence()),
+            source_key: (item.key || ('finding-' + idx)) + ':dev:' + dIdx,
+            type: dev.gear_kind || item.label || 'Redskap med avvik',
+            quantity: dev.quantity || '1',
+            position: dev.position || currentCoordText(),
+            description: dev.note || item.notes || item.auto_note || item.summary_text || item.label || 'Registrert avvik',
+            law_text: lawText,
+            violation_reason: dev.violation || item.auto_note || item.summary_text || item.notes || '',
+            auto: true
+          });
+        });
+        ensureMeasurementState(item).forEach(function (row, mIdx) {
+          syncMeasurementDefaults(item);
+          if (!row.seizure_ref && !row.reference) return;
+          addRow({
+            seizure_ref: row.seizure_ref || row.reference,
+            source_key: (item.key || ('finding-' + idx)) + ':measure:' + mIdx,
+            type: 'Lengdemåling',
+            quantity: '1',
+            position: row.position || currentCoordText(),
+            description: item.label || 'Lengdemåling',
+            law_text: lawText,
+            violation_reason: row.violation_text || row.delta_text || item.auto_note || '',
+            auto: true
+          });
         });
       });
       return rows;
     }
+
 
     function syncSeizureReportsFromDom() {
       if (!seizureReportList) return;
@@ -3495,6 +3673,7 @@
           seizure_ref: val('.seizure-ref') || prev.seizure_ref || '',
           type: val('.seizure-type') || prev.type || '',
           quantity: val('.seizure-quantity') || prev.quantity || '',
+          position: val('.seizure-position') || prev.position || '',
           description: val('.seizure-description') || prev.description || '',
           law_text: val('.seizure-law') || prev.law_text || '',
           violation_reason: val('.seizure-reason') || prev.violation_reason || '',
@@ -3538,7 +3717,8 @@
           '<label><span>Beslagsnummer</span><input class="seizure-ref" value="' + escapeHtml(row.seizure_ref || '') + '" /></label>',
           '<label><span>Type</span><input class="seizure-type" value="' + escapeHtml(row.type || '') + '" /></label>',
           '<label><span>Antall</span><input class="seizure-quantity" value="' + escapeHtml(row.quantity || '') + '" /></label>',
-          '<label><span>Lovgrunnlag / kontrollpunkt</span><input class="seizure-law" value="' + escapeHtml(row.law_text || '') + '" /></label>',
+          '<label><span>Posisjon knyttet til beslag</span><input class="seizure-position" value="' + escapeHtml(row.position || '') + '" /></label>',
+          '<label class="span-2"><span>Lovgrunnlag / kontrollpunkt</span><input class="seizure-law" value="' + escapeHtml(row.law_text || '') + '" /></label>',
           '<label class="span-2"><span>Beskrivelse</span><textarea class="seizure-description" rows="3">' + escapeHtml(row.description || '') + '</textarea></label>',
           '<label class="span-2"><span>Lovbrudd / vurdering</span><textarea class="seizure-reason" rows="3">' + escapeHtml(row.violation_reason || '') + '</textarea></label>',
           '</div>',
@@ -3556,7 +3736,7 @@
     }
 
     if (btnRefreshSeizureReport) btnRefreshSeizureReport.addEventListener('click', function () { mergeSeizureReportsWithDefaults(); renderSeizureReports(); scheduleAutosave('Beslagsrapport oppdatert'); });
-    if (btnAddSeizureReport) btnAddSeizureReport.addEventListener('click', function () { seizureReportsState.push({ seizure_ref: 'B' + String((seizureReportsState || []).length + 1).padStart(2, '0'), type: 'Manuelt beslag', quantity: '1', description: '', law_text: '', violation_reason: '', auto: false }); renderSeizureReports(); scheduleAutosave('Manuelt beslag lagt til'); });
+    if (btnAddSeizureReport) btnAddSeizureReport.addEventListener('click', function () { seizureReportsState.push({ seizure_ref: formatSeizureRef(nextSeizureSequence()), type: 'Manuelt beslag', quantity: '1', position: currentCoordText(), description: '', law_text: '', violation_reason: '', auto: false }); renderSeizureReports(); scheduleAutosave('Manuelt beslag lagt til'); });
 
     function appendQueryValue(params, key, value) {
       var raw = String(value == null ? '' : value).trim();
@@ -3643,7 +3823,7 @@
       if (!evidenceReason.value) evidenceReason.value = deviationRow && deviationRow.violation ? deviationRow.violation : (item.notes || item.auto_note || '');
       var extra = '';
       if (deviationRow) {
-        extra = '<div class="small muted">Beslag/ref: ' + escapeHtml(deviationRow.seizure_ref || '') + (deviationRow.gear_kind ? ' · type ' + escapeHtml(deviationRow.gear_kind) : '') + (deviationRow.quantity ? ' · antall ' + escapeHtml(deviationRow.quantity) : '') + (deviationRow.gear_ref ? ' · tidligere ID ' + escapeHtml(deviationRow.gear_ref) : '') + '</div>';
+        extra = '<div class="small muted">Beslag/ref: ' + escapeHtml(deviationRow.seizure_ref || '') + (deviationRow.gear_kind ? ' · type ' + escapeHtml(deviationRow.gear_kind) : '') + (deviationRow.quantity ? ' · antall ' + escapeHtml(deviationRow.quantity) : '') + (deviationRow.position ? ' · posisjon ' + escapeHtml(deviationRow.position) : '') + (deviationRow.gear_ref ? ' · tidligere ID ' + escapeHtml(deviationRow.gear_ref) : '') + '</div>';
       }
       selectedFindingCard.innerHTML = '<strong>Valgt kontrollpunkt:</strong> ' + escapeHtml(item.label || item.key || '') + '<div class="small muted">' + escapeHtml(item.law_name || item.source_name || '') + ' ' + escapeHtml(item.section || item.source_ref || '') + '</div><div class="small muted">' + escapeHtml(item.summary_text || item.law_text || item.help_text || '') + '</div>' + extra;
       if (options.showStepFive !== false) showStep(5, { scroll: true });
@@ -3721,7 +3901,7 @@
         '<div class="actions-row wrap margin-top-s">',
         (isLocal
           ? '<button class="btn btn-secondary btn-small" type="button" data-local-sync="' + escapeHtml(String(entry.id || '')) + '">Synk nå</button><button class="btn btn-danger btn-small" type="button" data-local-delete="' + escapeHtml(String(entry.id || '')) + '">Fjern lokalt</button>'
-          : '<form method="post" action="/evidence/' + escapeHtml(String(entry.id || '')) + '/delete" data-confirm="Slette vedlegg?"><button class="btn btn-danger btn-small" type="submit">Slett</button></form>'),
+          : '<form method="post" action="/evidence/' + escapeHtml(String(entry.id || '')) + '/delete" data-confirm="Slette vedlegg?">' + csrfFieldHtml() + '<button class="btn btn-danger btn-small" type="submit">Slett</button></form>'),
         '</div>',
         '</div>',
         '</article>'
@@ -3732,6 +3912,7 @@
       if (!evidenceGrid || !entry || !evidenceIsImage(entry)) return;
       removeEvidenceCard(entry.id);
       evidenceGrid.insertAdjacentHTML('afterbegin', buildEvidenceCardHtml(entry));
+      if (Common.appendCsrfToForms) Common.appendCsrfToForms(evidenceGrid);
     }
 
     function resetOcrSelectedFile() {
@@ -3963,7 +4144,7 @@
       }, {
         sourceKind: 'ocr',
         signature: signature,
-        statusMessage: 'OCR-bildet er lagret lokalt på enheten og brukes videre i illustrasjonsrapporten.',
+        statusMessage: 'OCR-bilde lagret lokalt.',
         autosaveMessage: 'OCR-bilde lagret lokalt',
         autoSync: false
       }).catch(function () { return null; });
@@ -4145,7 +4326,7 @@
           applyOcrResult(result);
           return uploadOcrSourceImage(file, result && result.text ? result.text : '').then(function () {
             if (registryResult) {
-              registryResult.innerHTML += '<div class="small muted margin-top-s">OCR-bildet er lagret lokalt på enheten og synkes til illustrasjonsrapporten i bakgrunnen.</div>';
+              registryResult.innerHTML += '<div class="small muted margin-top-s">OCR-bilde lokalt. Synk venter.</div>';
             }
             return result;
           });
@@ -4271,7 +4452,7 @@
       var item = target.item;
       var row = target.row;
       var captionParts = [item.label || 'Bildebevis', row.gear_kind || 'redskap', row.seizure_ref || '', row.gear_ref || ''];
-      setInlineEvidenceFeedback('Lagrer bildebevis lokalt på enheten ...');
+      setInlineEvidenceFeedback('Lagrer bildebevis lokalt ...');
       queueLocalEvidenceUpload(file, {
         caption: captionParts.filter(Boolean).join(' - '),
         finding_key: item.key || '',
@@ -4280,23 +4461,41 @@
         seizure_ref: row.seizure_ref || ''
       }, {
         sourceKind: 'inline-evidence',
-        statusMessage: 'Bildebevis lagret lokalt på enheten. Det synkes til illustrasjonsrapporten i bakgrunnen.',
+        statusMessage: 'Bildebevis lokalt. Synk venter.',
         autosaveMessage: 'Bildebevis lagret lokalt'
       }).then(function (entry) {
         if (!entry) return;
         evidenceCaption.value = entry.caption || evidenceCaption.value;
         evidenceReason.value = entry.violation_reason || evidenceReason.value;
         updateSelectedFinding(item, row, { showStepFive: false });
-        inlineEvidenceFeedback = 'Bildebevis er lagret lokalt på enheten og vises i illustrasjonsrapporten med en gang.';
+        inlineEvidenceFeedback = 'Bildebevis lagret lokalt.';
         renderFindings();
       }).catch(function (err) {
         setInlineEvidenceFeedback(err.message || 'Kunne ikke lagre bildebevis.');
       });
     }
 
+    function normalizeCoordinateValue(value, decimals) {
+      var num = Number(String(value || '').replace(',', '.'));
+      if (!isFinite(num)) return String(value || '').trim();
+      return num.toFixed(decimals || 6);
+    }
+
     function currentCoordText() {
       if (!latitude.value || !longitude.value) return '';
-      return String(latitude.value) + ', ' + String(longitude.value);
+      return 'breddegrad ' + normalizeCoordinateValue(latitude.value, 6) + ', lengdegrad ' + normalizeCoordinateValue(longitude.value, 6);
+    }
+
+    function syncPositionCoordinateSummary() {
+      if (!positionCoordinateSummary) return;
+      var text = currentCoordText();
+      if (text) {
+        positionCoordinateSummary.textContent = text;
+        positionCoordinateSummary.classList.remove('muted');
+      } else {
+        positionCoordinateSummary.textContent = 'Breddegrad og lengdegrad vises her når posisjon er satt.';
+        positionCoordinateSummary.classList.add('muted');
+      }
     }
 
     function currentControlDateLabel() {
@@ -4313,6 +4512,7 @@
     }
 
     function syncManualPositionNotice() {
+      syncPositionCoordinateSummary();
       if (!manualPositionStatus) return;
       manualPositionStatus.classList.remove('hidden');
       manualPositionStatus.innerHTML = manualPositionText();
@@ -4322,8 +4522,11 @@
 
       if (!areaStatusDetail) return;
       var sourceLine = '<div class="small muted">Posisjonsgrunnlag: ' + (mapState.manualPosition ? 'manuell kontrollposisjon (rød nål)' : 'lagret kontrollposisjon / GPS') + '</div>';
+      var nearestName = result && (result.location_name || result.nearest_place) ? String(result.location_name || result.nearest_place).trim() : '';
+      if (nearestName && locationName && !String(locationName.value || '').trim()) locationName.value = nearestName;
+      syncPositionCoordinateSummary();
       if (!result || !result.match) {
-        var nearestMiss = result && (result.location_name || result.nearest_place) ? '<div class="small muted">Nærmeste sted: ' + escapeHtml(result.location_name || result.nearest_place) + (result.distance_to_place_km ? ' (' + escapeHtml(result.distance_to_place_km + ' km') + ')' : '') + '</div>' : '';
+        var nearestMiss = nearestName ? '<div class="small muted">Nærmeste sted: ' + escapeHtml(nearestName) + (result.distance_to_place_km ? ' (' + escapeHtml(result.distance_to_place_km + ' km') + ')' : '') + '<br>' + escapeHtml(currentCoordText()) + '</div>' : (currentCoordText() ? '<div class="small muted">' + escapeHtml(currentCoordText()) + '</div>' : '');
         areaStatusDetail.innerHTML = '<strong>Områdestatus:</strong> Ingen stengt eller regulert sone registrert for valgt posisjon.' + sourceLine + nearestMiss;
         return;
       }
@@ -4334,8 +4537,10 @@
       else if (status === 'maksimalmål område') prefix = 'Maksimalmålsområde';
       else if (status === 'regulert område') prefix = 'Regulert område';
       var nearest = result.location_name || result.nearest_place || '';
+      if (nearest && locationName && !String(locationName.value || '').trim()) locationName.value = nearest;
       var parts = ['<strong>' + escapeHtml(prefix) + ':</strong> ' + escapeHtml(result.name || result.status || '')];
-      if (nearest) parts.push('<div class="small muted">Nærmeste sted: ' + escapeHtml(nearest) + (result.distance_to_place_km ? ' (' + escapeHtml(result.distance_to_place_km + ' km') + ')' : '') + '</div>');
+      if (nearest) parts.push('<div class="small muted">Nærmeste sted: ' + escapeHtml(nearest) + (result.distance_to_place_km ? ' (' + escapeHtml(result.distance_to_place_km + ' km') + ')' : '') + '<br>' + escapeHtml(currentCoordText()) + '</div>');
+      else if (currentCoordText()) parts.push('<div class="small muted">' + escapeHtml(currentCoordText()) + '</div>');
       if (result.notes) parts.push('<div class="small muted">' + escapeHtml(result.notes) + '</div>');
       if (result.recommended_violation && result.recommended_violation.message) {
         parts.push('<div class="small muted">Varsel: ' + escapeHtml(result.recommended_violation.message) + '</div>');
@@ -4412,7 +4617,7 @@
       mapState.showLegend = false;
       mapState.showLayerPanel = !!mapLayerPanelHost;
       mapState.layerPanelDefaultOpen = false;
-      mapState.layerPanelKey = 'case-map-v94';
+      mapState.layerPanelKey = 'case-map-v97';
       mapState.layerPanelTargetSelector = mapLayerPanelHost ? '#case-map-layer-panel-host' : '';
       mapState.rasterLayerIds = allLayerIds;
       mapState.identifyLayerIds = allLayerIds;
@@ -4430,7 +4635,7 @@
           mapState.autoRecenterOnce = false;
         }
         clearTimeout(mapState._offlineWarmTimer);
-        // v94: do not auto-download offline map packages on every position/layer update.
+        // v97: do not auto-download offline map packages on every position/layer update.
         // The user can still press the offline download button explicitly.
         var offlineWarmKey = currentOfflineWarmKey();
         mapState._lastOfflineWarmKey = offlineWarmKey || mapState._lastOfflineWarmKey;
@@ -4817,6 +5022,7 @@
         if (isCommercial) lookupIdentifier.value = person.vessel_reg;
       }
       if (person.radio_call_sign) radioCallSign.value = person.radio_call_sign;
+      if (person.gear_marker_id && gearMarkerId) gearMarkerId.value = normalizeGearMarkerId(person.gear_marker_id) || person.gear_marker_id;
       if (!isCommercial && (person.hummer_participant_no || person.participant_no)) {
         hummerParticipantNo.value = person.hummer_participant_no || person.participant_no;
         lookupIdentifier.value = hummerParticipantNo.value;
@@ -4908,6 +5114,12 @@ function applyHints(hints) {
     if (isCommercial || !lookupIdentifier.value) changed = autofillField(lookupIdentifier, hints.vessel_reg) || changed;
   }
   if (hints.radio_call_sign) changed = autofillField(radioCallSign, hints.radio_call_sign) || changed;
+  if (hints.vessel_name) changed = autofillField(vesselName, hints.vessel_name) || changed;
+  if (hints.gear_marker_id && gearMarkerId) {
+    var markerValue = normalizeGearMarkerId(hints.gear_marker_id) || String(hints.gear_marker_id || '').trim().toUpperCase();
+    changed = autofillField(gearMarkerId, markerValue) || changed;
+    if (!lookupIdentifier.value) changed = autofillField(lookupIdentifier, markerValue) || changed;
+  }
   updateExternalSearchLinks();
   renderAutofillPreview({ source: 'OCR og bildegjenkjenning', detail: changed ? 'Skjemaet er oppdatert automatisk' : 'Felt kontrollert automatisk' });
   if (changed) {
@@ -5038,6 +5250,7 @@ function renderHummerStatus(result) {
       if (!isCommercial && inferred.hummer_participant_no) hummerParticipantNo.value = inferred.hummer_participant_no;
       if (inferred.vessel_reg) vesselReg.value = inferred.vessel_reg;
       if (inferred.radio_call_sign) radioCallSign.value = inferred.radio_call_sign;
+      if (inferred.gear_marker_id && gearMarkerId) gearMarkerId.value = inferred.gear_marker_id;
       var params = new URLSearchParams({
         phone: (!isCommercial ? (suspectPhone.value || inferred.phone || '') : ''),
         vessel_reg: (vesselReg.value || inferred.vessel_reg || ''),
@@ -5136,6 +5349,7 @@ function renderHummerStatus(result) {
         species: species.value || fisheryType.value || '',
         fishery_type: fisheryType.value,
         gear_type: gearType.value,
+        gear_marker_id: gearMarkerId ? gearMarkerId.value : '',
         location_name: locationName.value,
         area_name: areaName.value,
         area_status: areaStatus.value,
@@ -5316,9 +5530,11 @@ function renderHummerStatus(result) {
       var controlTypeLabel = String((controlType && controlType.value) || 'fiskerikontroll').trim();
       var dateLabel = currentControlDateLabel();
       var area = areaContextForNarrative();
-      var rawLocation = String((locationName && locationName.value) || '').trim();
-      var positionLabel = (latitude && longitude && latitude.value && longitude.value) ? ('posisjon ' + latitude.value + ', ' + longitude.value) : '';
-      var placeLabel = area ? ('innenfor/ved ' + area) : (rawLocation ? ('ved ' + rawLocation) : 'i aktuelt kontrollområde');
+      var zonePlace = latestZoneResult && (latestZoneResult.location_name || latestZoneResult.nearest_place) ? String(latestZoneResult.location_name || latestZoneResult.nearest_place).trim() : '';
+      var rawLocation = zonePlace || String((locationName && locationName.value) || '').trim();
+      var positionLabel = currentCoordText();
+      var placeLabel = rawLocation ? ('ved ' + rawLocation) : 'i aktuelt kontrollområde';
+      if (area) placeLabel += ', innenfor/ved ' + area;
       if (positionLabel) placeLabel += ' (' + positionLabel + ')';
       var themeParts = [controlTypeLabel, speciesLabel, gearLabel].filter(function (item) { return String(item || '').trim(); });
       var theme = themeParts.join(' / ') || 'fiskerikontroll';
@@ -5361,7 +5577,7 @@ function renderHummerStatus(result) {
       fetch('/api/text/polish', secureFetchOptions({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'basis', text: basisDetails.value, case_basis: caseBasis.value, source_name: basisSourceName.value || '', location: locationName.value || areaContextForNarrative() || '' })
+        body: JSON.stringify({ mode: 'basis', text: basisDetails.value, case_basis: caseBasis.value, source_name: basisSourceName.value || '', location: [locationName.value || (latestZoneResult && (latestZoneResult.location_name || latestZoneResult.nearest_place)) || '', areaContextForNarrative() || '', currentCoordText() || ''].filter(Boolean).join(' - ') })
       })).then(function (r) { return r.json(); }).then(function (payload) {
         if (payload && payload.text) { basisDetails.value = payload.text; scheduleAutosave('Rettet grunnlagstekst'); }
       }).catch(function () {});
@@ -5505,8 +5721,21 @@ function renderHummerStatus(result) {
       });
     }
 
+    function scheduleAutosaveRetryIfPending() {
+      if (!autosavePending || suspendAutosave) return;
+      autosavePending = false;
+      if (formFingerprint() === lastAutosaveFingerprint) return;
+      if (autosaveTimer) window.clearTimeout(autosaveTimer);
+      autosaveTimer = window.setTimeout(function () { performAutosave('kø'); }, 150);
+    }
+
     function performAutosave(reason) {
-      if (!root.dataset.autosaveUrl || autosaveInFlight || suspendAutosave) return;
+      if (!root.dataset.autosaveUrl || suspendAutosave) return;
+      if (autosaveInFlight) {
+        autosavePending = true;
+        persistLocalCaseDraft({ silent: true });
+        return;
+      }
       var fingerprint = formFingerprint();
       if (fingerprint === lastAutosaveFingerprint) return;
       autosaveInFlight = true;
@@ -5516,21 +5745,34 @@ function renderHummerStatus(result) {
       fetch(root.dataset.autosaveUrl, secureFetchOptions({ method: 'POST', body: formData }))
         .then(function (r) { return parseJsonResponse(r, 'Kunne ikke autosynke saken.'); })
         .then(function (payload) {
-          autosaveInFlight = false;
+          applyServerSaveMeta(payload || {});
           lastAutosaveFingerprint = fingerprint;
-          setAutosaveStatus('Lagret ' + new Date().toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit', second: '2-digit' }), 'is-saved');
+          setAutosaveStatus('Synket', 'is-saved');
           markLocalCaseSynced(payload && payload.saved_at ? payload.saved_at : new Date().toISOString());
         })
         .catch(function (error) {
-          autosaveInFlight = false;
           if (isMissingServerCaseError(error) && createCaseUrl) {
-            updateLocalCaseStatus('Serveren finner ikke saken lenger. Oppretter ny serverkopi fra utfylt kladd ...', true, { forceShow: true, showSync: true, syncing: true, showDiscard: true });
+            updateLocalCaseStatus('Serveren finner ikke saken. Oppretter ny serverkopi ...', true, { forceShow: true, showSync: true, syncing: true, showDiscard: true });
             createServerCaseFromLocalDraft({ force: true, redirectAfterCreate: false, silent: true });
             return;
           }
+          if (error && Number(error.status || 0) === 409) {
+            var payload = error.payload || {};
+            if (payload.current_version) root.dataset.caseConflictVersion = String(payload.current_version);
+            if (payload.current_updated_at) root.dataset.caseConflictUpdatedAt = String(payload.current_updated_at);
+            autosavePending = false;
+            persistLocalCaseDraft({ silent: true });
+            updateLocalCaseStatus('Konflikt. Last inn eller behold lokal kopi.', true, { forceShow: true, showSync: true, showDiscard: true });
+            setAutosaveStatus('Konflikt', 'is-error');
+            return;
+          }
           persistLocalCaseDraft({ silent: true });
-          updateLocalCaseStatus('Saken er lagret lokalt på enheten. Autosynk prøves igjen når nettverket er tilbake.', true, { forceShow: true, showSync: true, showDiscard: true });
-          setAutosaveStatus('Lagret lokalt', 'is-saved');
+          updateLocalCaseStatus('Lokalt. Ikke synket.', true, { forceShow: true, showSync: true, showDiscard: true });
+          setAutosaveStatus('Lokalt', 'is-saved');
+        })
+        .finally(function () {
+          autosaveInFlight = false;
+          scheduleAutosaveRetryIfPending();
         });
     }
 
@@ -5556,6 +5798,7 @@ function renderHummerStatus(result) {
     document.addEventListener('input', function (event) {
       var target = event.target;
       if (!target) return;
+      if (target === latitude || target === longitude) syncPositionCoordinateSummary();
       if (target.form === form || target.getAttribute('form') === 'case-form' || target.closest('#case-form')) scheduleAutosave('Skjemadata endret');
     });
     document.addEventListener('change', function (event) {
@@ -5576,7 +5819,7 @@ function renderHummerStatus(result) {
     suspectPhone.addEventListener('input', function () { updateExternalSearchLinks(); loadGearSummary(); scheduleAutoRegistryLookup('Mobil endret'); });
     if (observedGearCount) observedGearCount.addEventListener('input', loadGearSummary);
 
-    [lookupName, lookupIdentifier, lookupText, suspectPhone, suspectAddress, hummerParticipantNo, vesselReg, radioCallSign].forEach(function (field) {
+    [lookupName, lookupIdentifier, lookupText, suspectPhone, suspectAddress, hummerParticipantNo, vesselReg, radioCallSign, gearMarkerId].forEach(function (field) {
       if (!field) return;
       field.addEventListener('input', function () { scheduleAutoRegistryLookup('Felt endret'); });
       field.addEventListener('change', function () { scheduleAutoRegistryLookup('Felt endret', 120); });
@@ -5605,6 +5848,41 @@ function renderHummerStatus(result) {
         findingsInput.value = JSON.stringify(findingsState);
         renderFindings();
         scheduleAutosave('Kontrollpunktstatus endret');
+        return;
+      }
+      if (event.target.classList.contains('measurement-existing-gear')) {
+        var mRowElChange = event.target.closest('.measurement-row');
+        if (!mRowElChange) return;
+        var mIdxChange = Number(mRowElChange.dataset.measureIndex);
+        var mRowsChange = ensureMeasurementState(item);
+        mRowsChange[mIdxChange] = mRowsChange[mIdxChange] || defaultMeasurementRow();
+        var mRowChange = mRowsChange[mIdxChange];
+        var selectedMeasurementRef = String(event.target.value || '').trim();
+        mRowChange.linked_seizure_ref = selectedMeasurementRef;
+        if (selectedMeasurementRef) {
+          var measurementLinked = findDeviationUnitByRef(selectedMeasurementRef, mRowChange);
+          mRowChange.seizure_ref = selectedMeasurementRef;
+          mRowChange.reference = selectedMeasurementRef;
+          if (measurementLinked && measurementLinked.position && !mRowChange.position) mRowChange.position = measurementLinked.position;
+        } else {
+          mRowChange.linked_seizure_ref = '';
+          mRowChange.seizure_ref = '';
+          mRowChange.reference = '';
+        }
+        syncMeasurementDefaults(item);
+        findingsInput.value = JSON.stringify(findingsState);
+        renderFindings();
+        scheduleAutosave('Måling koblet til beslag/redskap');
+        return;
+      }
+      if (event.target.classList.contains('marker-is-linked')) {
+        var posChange = ensureMarkerState(item);
+        posChange.is_linked = Boolean(event.target.checked);
+        if (!posChange.is_linked) { posChange.start = ''; posChange.end = ''; }
+        item.marker_summary = markerSummaryText(item);
+        findingsInput.value = JSON.stringify(findingsState);
+        renderFindings();
+        scheduleAutosave('Lenkestatus for redskap endret');
         return;
       }
       if (event.target.classList.contains('deviation-existing-gear') || event.target.classList.contains('deviation-gear-kind')) {
@@ -5654,7 +5932,7 @@ function renderHummerStatus(result) {
         findingsInput.value = JSON.stringify(findingsState);
         scheduleAutosave('Kontrollpunktnotat oppdatert');
       }
-      if (event.target.classList.contains('measurement-reference') || event.target.classList.contains('measurement-length') || event.target.classList.contains('measurement-note')) {
+      if (event.target.classList.contains('measurement-reference') || event.target.classList.contains('measurement-length') || event.target.classList.contains('measurement-note') || event.target.classList.contains('measurement-position')) {
         var rowEl = event.target.closest('.measurement-row');
         if (!rowEl) return;
         var mIdx = Number(rowEl.dataset.measureIndex);
@@ -5662,6 +5940,7 @@ function renderHummerStatus(result) {
         rows[mIdx] = rows[mIdx] || defaultMeasurementRow();
         rows[mIdx].reference = (rowEl.querySelector('.measurement-reference') || {}).value || rows[mIdx].reference || '';
         rows[mIdx].length_cm = (rowEl.querySelector('.measurement-length') || {}).value || '';
+        rows[mIdx].position = (rowEl.querySelector('.measurement-position') || {}).value || '';
         rows[mIdx].note = (rowEl.querySelector('.measurement-note') || {}).value || '';
         syncMeasurementDefaults(item);
         var currentMeasurement = rows[mIdx] || {};
@@ -5669,6 +5948,8 @@ function renderHummerStatus(result) {
         if (preview) preview.textContent = item.measurement_summary || measurementSummaryText(item);
         var refInput = rowEl.querySelector('.measurement-reference');
         if (refInput) refInput.value = currentMeasurement.reference || currentMeasurement.seizure_ref || '';
+        var posInput = rowEl.querySelector('.measurement-position');
+        if (posInput) posInput.value = currentMeasurement.position || '';
         var evalBox = rowEl.querySelector('.measurement-evaluation');
         if (evalBox) {
           evalBox.textContent = currentMeasurement.delta_text || 'Legg inn måling i cm for automatisk vurdering.';
@@ -5694,7 +5975,7 @@ function renderHummerStatus(result) {
         findingsInput.value = JSON.stringify(findingsState);
         scheduleAutosave('Markeringsdata oppdatert');
       }
-      if (event.target.classList.contains('deviation-quantity') || event.target.classList.contains('deviation-violation') || event.target.classList.contains('deviation-note')) {
+      if (event.target.classList.contains('deviation-quantity') || event.target.classList.contains('deviation-position') || event.target.classList.contains('deviation-violation') || event.target.classList.contains('deviation-note')) {
         var dRowEl = event.target.closest('.deviation-row');
         if (!dRowEl) return;
         var dIdx = Number(dRowEl.dataset.devIndex);
@@ -5703,6 +5984,7 @@ function renderHummerStatus(result) {
         var currentRow = dRows[dIdx];
         var prevSeizureRef = currentRow.seizure_ref || '';
         currentRow.quantity = (dRowEl.querySelector('.deviation-quantity') || {}).value || '';
+        currentRow.position = (dRowEl.querySelector('.deviation-position') || {}).value || '';
         currentRow.violation = (dRowEl.querySelector('.deviation-violation') || {}).value || '';
         currentRow.note = (dRowEl.querySelector('.deviation-note') || {}).value || '';
         syncDeviationDefaults(item);
@@ -5737,6 +6019,17 @@ function renderHummerStatus(result) {
         syncMeasurementDefaults(item);
         renderFindings();
         scheduleAutosave('Ny lengdemåling lagt til');
+      }
+      if (event.target.classList.contains('measurement-position-fill')) {
+        var measurePosRow = event.target.closest('.measurement-row');
+        var measureIdx = Number(measurePosRow.dataset.measureIndex);
+        var measureRows = ensureMeasurementState(item);
+        measureRows[measureIdx] = measureRows[measureIdx] || defaultMeasurementRow();
+        measureRows[measureIdx].position = currentCoordText();
+        syncMeasurementDefaults(item);
+        renderFindings();
+        scheduleAutosave('Måleposisjon satt');
+        return;
       }
       if (event.target.classList.contains('measurement-remove')) {
         var rowEl = event.target.closest('.measurement-row');
@@ -5795,6 +6088,19 @@ function renderHummerStatus(result) {
           renderFindings();
         }
         scheduleAutosave('Avviksrad fjernet');
+        return;
+      }
+      if (event.target.classList.contains('deviation-position-fill')) {
+        var devPosRow = event.target.closest('.deviation-row');
+        var devPosIdx = Number(devPosRow.dataset.devIndex);
+        var devPosRows = ensureDeviationState(item);
+        devPosRows[devPosIdx] = devPosRows[devPosIdx] || defaultDeviationRow(item);
+        devPosRows[devPosIdx].position = currentCoordText();
+        syncDeviationDefaults(item);
+        item.deviation_summary = deviationSummaryText(item);
+        findingsInput.value = JSON.stringify(findingsState);
+        renderFindings();
+        scheduleAutosave('Beslagsposisjon satt');
         return;
       }
       if (event.target.classList.contains('deviation-evidence-link')) {
@@ -5882,7 +6188,7 @@ function renderHummerStatus(result) {
           seizure_ref: evidenceSeizureRef ? (evidenceSeizureRef.value || '') : ''
         }, {
           sourceKind: 'illustration',
-          statusMessage: 'Illustrasjonsbildet er lagret lokalt på enheten og synkes til saken i bakgrunnen.',
+          statusMessage: 'Illustrasjon lokalt. Synk venter.',
           autosaveMessage: 'Illustrasjonsbilde lagret lokalt'
         }).then(function (entry) {
           if (!entry) return;
@@ -5995,19 +6301,24 @@ function renderHummerStatus(result) {
       var law = item.law_text || item.help_text || item.source_ref || '';
       var note = item.notes || item.auto_note || item.summary_text || '';
       var rows = [];
-      rows.push(idx + '. Kontrollpunkt/tema: ' + label + '.');
-      if (law) rows.push('   Aktuell hjemmel/regeltekst i saken: ' + law);
-      if (note) rows.push('   Observasjon/foreløpig vurdering: ' + note);
-      rows.push('   Spørsmål: Kjenner du til redskapet/aktiviteten og kan du forklare hvem som har satt eller brukt dette?');
-      rows.push('   Spørsmål: Når og hvor ble redskapet/aktiviteten satt i gang, og hvilken posisjon/område var ment brukt?');
-      rows.push('   Spørsmål: Hvilken kunnskap hadde du om gjeldende regler, stengte felt, fredningsområder eller merkekrav på stedet?');
-      rows.push('   Spørsmål: Finnes det tillatelse, registrering, merking eller annen dokumentasjon som bør fremlegges?');
+      rows.push('D' + idx + '. Kontrollpunkt: ' + label);
+      if (law) rows.push('   - Aktuell regel/hjemmel i saken: ' + law);
+      if (note) rows.push('   - Observasjon som skal avklares: ' + note);
       var deviations = ensureDeviationState(item) || [];
-      deviations.forEach(function (row) {
-        var ref = row.seizure_ref || row.gear_ref || '';
-        var violation = row.violation || '';
-        if (ref || violation) rows.push('   Beslag/ref ' + (ref || '-') + ': ' + (violation || 'avvik registrert') + '. Be vedkommende forklare tilknytning og hendelsesforløp.');
-      });
+      if (deviations.length) {
+        rows.push('   - Tilknyttede beslag/redskap:');
+        deviations.forEach(function (row) {
+          var ref = row.seizure_ref || row.gear_ref || 'uten beslagnummer';
+          var violation = row.violation || 'avvik registrert';
+          var position = row.position ? (' Posisjon: ' + row.position + '.') : '';
+          rows.push('     * ' + ref + ': ' + violation + '.' + position);
+        });
+      }
+      rows.push('   - Spørsmål: Forklar tilknytningen til redskapet, fangsten, fartøyet eller aktiviteten.');
+      rows.push('   - Spørsmål: Når og hvor ble redskapet satt eller aktiviteten gjennomført?');
+      rows.push('   - Spørsmål: Hvem hadde faktisk rådighet over redskapet/fangsten på kontrolltidspunktet?');
+      rows.push('   - Spørsmål: Hvilken kunnskap hadde vedkommende om område, fredningstid, merkekrav, minstemål/maksimalmål eller annet relevant regelverk?');
+      rows.push('   - Spørsmål: Finnes dokumentasjon, tillatelse, bilder, vitner eller andre opplysninger som bør innhentes?');
       return rows.join('\n');
     }
 
@@ -6017,29 +6328,36 @@ function renderHummerStatus(result) {
       (personsState || []).forEach(function (p) { if (p && p.name) persons.push((p.role || 'Person') + ': ' + p.name); });
       var avvik = avvikItemsForInterview();
       var lines = [];
-      lines.push('Innledende kontrollpunkter før forklaring:');
-      lines.push('- Avklar identitet, rolle i saken og tilknytning til person/fartøy/redskap.');
-      lines.push('- Forklar kort hva saken gjelder og hvilke observasjoner som danner grunnlag for spørsmålene.');
-      lines.push('- Dersom personen avhøres som mistenkt: noter at vedkommende er gjort kjent med rolle/status, at forklaring er frivillig, og at vedkommende kan rådføre seg med forsvarer. Noter om dette er forstått.');
-      lines.push('- Gi mulighet til fri forklaring før konkrete spørsmål om hvert avvik.');
-      if (persons.length) {
-        lines.push('');
-        lines.push('Personer som bør vurderes for forklaring:');
-        persons.forEach(function (row) { lines.push('- ' + row); });
-      }
+      lines.push('AVHØRSMOMENTER - FORELØPIG ARBEIDSUTKAST');
       lines.push('');
-      lines.push('Spørsmål knyttet til registrerte avvik:');
+      lines.push('A. Før forklaring / notoritet');
+      lines.push('- Avklar identitet, rolle, kontaktinformasjon og tilknytning til fartøy, person, redskap og fangst.');
+      lines.push('- Opplys kort hva saken gjelder, hvilke kontrollobservasjoner som danner grunnlag for spørsmålene, og at forklaringen skal gjengis så nøyaktig som mulig.');
+      lines.push('- Gi mulighet til fri forklaring før konkrete spørsmål stilles.');
+      lines.push('');
+      lines.push('B. Rettssikkerhetsmomenter ved mistenkt/siktet');
+      lines.push('- Avklar rolle/status før spørsmål om mulig straffbart forhold.');
+      lines.push('- Noter at vedkommende er gjort kjent med at forklaring er frivillig når vedkommende avhøres som mistenkt/siktet.');
+      lines.push('- Noter om vedkommende ønsker forsvarer eller rådgivning før videre forklaring.');
+      lines.push('- Noter om vedkommende forstår informasjonen og om vedkommende ønsker å forklare seg.');
+      lines.push('');
+      lines.push('C. Personer som bør vurderes for forklaring');
+      if (persons.length) persons.forEach(function (row) { lines.push('- ' + row); });
+      else lines.push('- Ingen ekstra personer er registrert. Vurder eier, fører/skipper, vitne eller andre involverte.');
+      lines.push('');
+      lines.push('D. Spørsmål knyttet til avvik/beslag');
       if (!avvik.length) {
-        lines.push('- Ingen avvik er registrert. Vurder om forklaring likevel er nødvendig for å klargjøre faktum.');
+        lines.push('- Ingen avvik er registrert. Vurder likevel om forklaring er nødvendig for å avklare faktum, rolle eller eierskap.');
       } else {
-        avvik.forEach(function (item, idx) { lines.push(describeFindingForInterview(item, idx + 1)); });
+        avvik.forEach(function (item, idx) { lines.push(describeFindingForInterview(item, idx + 1)); lines.push(''); });
       }
-      lines.push('');
-      lines.push('Avslutning:');
-      lines.push('- Les opp eller gjennomgå sammendraget, og noter om forklaringen godtas, korrigeres eller nektes signert.');
-      lines.push('- Noter om vedkommende ønsker å legge frem dokumentasjon eller bilder.');
+      lines.push('E. Avslutning');
+      lines.push('- Gjennomgå hovedpunktene og noter om forklaringen godtas, korrigeres eller ikke ønskes signert.');
+      lines.push('- Noter om vedkommende ønsker å legge frem dokumentasjon, bilder, kontaktpersoner eller andre opplysninger.');
+      lines.push('- Noter eventuelle forbehold, nektelse eller opplysninger som må kontrolleres videre.');
       return lines.join('\n');
     }
+
 
     var generateInterviewGuidanceBtn = document.getElementById('btn-generate-interview-guidance');
     if (generateInterviewGuidanceBtn) generateInterviewGuidanceBtn.addEventListener('click', function () {
@@ -6054,6 +6372,16 @@ function renderHummerStatus(result) {
       if (!add) return;
       hearingText.value = [base, add].filter(Boolean).join('\n\n');
       scheduleAutosave('Avhørspunkter lagt inn');
+    });
+    var openGuidancePageBtn = document.getElementById('btn-open-guidance-page');
+    if (openGuidancePageBtn) openGuidancePageBtn.addEventListener('click', function () {
+      var text = String((interviewGuidanceText && interviewGuidanceText.value) || buildInterviewGuidanceText() || '').trim();
+      if (interviewGuidanceText && !interviewGuidanceText.value) interviewGuidanceText.value = text;
+      var page = window.open('', '_blank');
+      if (!page) return;
+      page.document.open();
+      page.document.write('<!doctype html><html lang="no"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Avhørsmomenter</title><style>body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;margin:18px;line-height:1.45;background:#f8fafc;color:#0f172a}pre{white-space:pre-wrap;background:#fff;border:1px solid #dbe3ec;border-radius:14px;padding:16px;font-size:15px}.toolbar{position:sticky;top:0;background:#f8fafc;padding-bottom:10px}button{border:0;border-radius:12px;padding:10px 14px;background:#17365d;color:#fff;font-weight:700}</style></head><body><div class="toolbar"><h1>Avhørsmomenter</h1><button onclick="window.print()">Skriv ut / lagre PDF</button></div><pre>' + escapeHtml(text) + '</pre></body></html>');
+      page.document.close();
     });
     if (interviewGuidanceText) interviewGuidanceText.addEventListener('input', function () { scheduleAutosave('Avhørspunkter oppdatert'); });
     if (interviewNotConducted) interviewNotConducted.addEventListener('change', function () { syncInterviewDisabledState(); scheduleAutosave('Avhørsstatus oppdatert'); });
@@ -6170,7 +6498,7 @@ function renderHummerStatus(result) {
       var labelName = currentInterviewLabelName();
       var baseCaption = 'Lydopptak avhør - ' + labelName;
       var caption = buildAudioCaption(baseCaption, Number(options.segmentIndex || 0));
-      setAudioStatus('Lagrer lyd lokalt på enheten ...');
+      setAudioStatus('Lagrer lyd lokalt ...');
       return queueLocalAudioUpload(file, {
         caption: caption,
         finding_key: '',
@@ -6181,11 +6509,11 @@ function renderHummerStatus(result) {
         sourceKind: 'audio',
         segmentIndex: Number(options.segmentIndex || 0),
         groupId: options.groupId || '',
-        statusMessage: 'Lydfil er lagret lokalt på enheten. Opptaket kan brukes videre i saken med en gang og synkes i bakgrunnen.',
+        statusMessage: 'Lyd lokalt. Synk venter.',
         autosaveMessage: 'Lydfil lagret lokalt'
       }).then(function (entry) {
         if (entry) appendAudioCard(entry);
-        setAudioStatus('Lydfil lagret lokalt. Du kan fortsette å jobbe mens synk skjer i bakgrunnen.');
+        setAudioStatus('Lyd lagret lokalt.');
         return entry;
       }).catch(function (err) {
         setAudioStatus(err && err.message ? err.message : 'Kunne ikke lagre lydfil lokalt.', true);
@@ -6256,7 +6584,7 @@ function renderHummerStatus(result) {
           recordingSessionId = '';
           recordingSegmentIndex = 0;
           recordingElapsedStart = 0;
-          setAudioStatus('Lydopptak stoppet. Lokale lydsegmenter synkes i bakgrunnen.');
+          setAudioStatus('Lydopptak stoppet. Synk venter.');
         });
       };
       mediaRecorder.start(30000);
@@ -6440,7 +6768,7 @@ function renderHummerStatus(result) {
       persistLocalCaseDraft({ silent: true });
       if (isLocalOnlyCase()) {
         setAutosaveStatus('Lagret lokalt', 'is-saved');
-        updateLocalCaseStatus('Ny sak er lagret lokalt på enheten. Synk den til serveren når du er klar.', false, { forceShow: true, showSync: true, showDiscard: true });
+        updateLocalCaseStatus('Ny sak lagret lokalt.', false, { forceShow: true, showSync: true, showDiscard: true });
         return;
       }
       if (!root.dataset.autosaveUrl) return;
@@ -6460,7 +6788,7 @@ function renderHummerStatus(result) {
             createServerCaseFromLocalDraft({ force: true, redirectAfterCreate: false, silent: true });
             return;
           }
-          updateLocalCaseStatus('Saken er lagret lokalt på enheten. Synk når du er på nett igjen.', true, { forceShow: true, showSync: true, showDiscard: true });
+          updateLocalCaseStatus('Lagret lokalt. Synk når nett er tilbake.', true, { forceShow: true, showSync: true, showDiscard: true });
           setAutosaveStatus('Lagret lokalt', 'is-saved');
         });
     }

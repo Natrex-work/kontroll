@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import uuid
@@ -85,6 +86,7 @@ def case_data_from_form(form: Any, user: dict[str, Any], status_options: list[st
         'vessel_name': str(form.get('vessel_name') or '').strip() or None,
         'vessel_reg': str(form.get('vessel_reg') or '').strip() or None,
         'radio_call_sign': str(form.get('radio_call_sign') or '').strip() or None,
+        'gear_marker_id': str(form.get('gear_marker_id') or '').strip().upper() or None,
         'notes': str(form.get('notes') or '').strip() or None,
         'hearing_text': str(form.get('hearing_text') or '').strip() or None,
         'seizure_notes': str(form.get('seizure_notes') or '').strip() or None,
@@ -176,12 +178,14 @@ def delete_case_files(evidence_rows: list[dict[str, Any]]) -> None:
             path.unlink(missing_ok=True)
 
 
-def _stream_upload_to_path(upload_file: UploadFile, dest: Path, original_filename: str) -> tuple[int, str]:
+def _stream_upload_to_path(upload_file: UploadFile, dest: Path, original_filename: str) -> tuple[int, str, str]:
     max_bytes = settings.max_upload_size_mb * 1024 * 1024
     first_chunk = upload_file.file.read(64 * 1024)
     if not first_chunk:
         raise HTTPException(status_code=400, detail='Filen er tom.')
     normalized_mime = validate_upload_signature(original_filename, first_chunk)
+    digest = hashlib.sha256()
+    digest.update(first_chunk)
     total = len(first_chunk)
     if total > max_bytes:
         raise HTTPException(status_code=400, detail=f'Filen er for stor. Maks tillatt størrelse er {settings.max_upload_size_mb} MB.')
@@ -195,10 +199,11 @@ def _stream_upload_to_path(upload_file: UploadFile, dest: Path, original_filenam
                 total += len(chunk)
                 if total > max_bytes:
                     raise HTTPException(status_code=400, detail=f'Filen er for stor. Maks tillatt størrelse er {settings.max_upload_size_mb} MB.')
+                digest.update(chunk)
                 buffer.write(chunk)
         os.chmod(dest, 0o600)
         validate_saved_file_size(total)
-        return total, normalized_mime
+        return total, normalized_mime, digest.hexdigest()
     except Exception:
         dest.unlink(missing_ok=True)
         raise
@@ -209,15 +214,57 @@ def _stream_upload_to_path(upload_file: UploadFile, dest: Path, original_filenam
             pass
 
 
-def store_evidence_upload(*, case_id: int, upload_file: UploadFile, caption: str, created_by: int, finding_key: str = '', law_text: str = '', violation_reason: str = '', seizure_ref: str = '') -> tuple[int, str]:
+
+def store_evidence_upload(
+    *,
+    case_id: int,
+    upload_file: UploadFile,
+    caption: str,
+    created_by: int,
+    finding_key: str = '',
+    law_text: str = '',
+    violation_reason: str = '',
+    seizure_ref: str = '',
+    device_id: str = '',
+    local_media_id: str = '',
+) -> tuple[int, str]:
+    # Retry-safe upload: if Safari/client retries the same local media item,
+    # return the already stored evidence row instead of creating duplicate files.
+    clean_local_media_id = (local_media_id or '').strip()
+    if clean_local_media_id:
+        existing = db.get_evidence_by_local_media_id(case_id, clean_local_media_id)
+        existing_filename = Path(str(existing.get('filename') or '')).name if existing else ''
+        if existing and existing_filename and (settings.upload_dir / existing_filename).exists():
+            try:
+                upload_file.file.close()
+            except Exception:
+                pass
+            return int(existing['id']), existing_filename
+
     original_filename = validate_upload_file(upload_file)
     original_filename = sanitize_original_filename(original_filename)
     suffix = Path(original_filename).suffix.lower() or '.bin'
     unique_name = f'{uuid.uuid4().hex}{suffix}'
     dest = settings.upload_dir / unique_name
-    _, mime_type = _stream_upload_to_path(upload_file, dest, original_filename)
-    evidence_id = db.add_evidence(case_id, unique_name, original_filename, caption or None, mime_type, created_by, finding_key or None, law_text or None, violation_reason or None, seizure_ref or None)
+    size_bytes, mime_type, sha256 = _stream_upload_to_path(upload_file, dest, original_filename)
+    evidence_id = db.add_evidence(
+        case_id,
+        unique_name,
+        original_filename,
+        caption or None,
+        mime_type,
+        created_by,
+        finding_key or None,
+        law_text or None,
+        violation_reason or None,
+        seizure_ref or None,
+        file_size=size_bytes,
+        sha256=sha256,
+        device_id=(device_id or '').strip() or None,
+        local_media_id=(local_media_id or '').strip() or None,
+    )
     return evidence_id, unique_name
+
 
 
 def delete_evidence_file(filename: str | None) -> None:

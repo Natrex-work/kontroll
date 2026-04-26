@@ -6,7 +6,7 @@
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('/static/sw.js?v=v94').catch(function () {});
+      navigator.serviceWorker.register('/static/sw.js?v=v97').catch(function () {});
     });
   }
 
@@ -337,7 +337,7 @@
   }
 
 
-  var LAYER_PANEL_PREFS_VERSION = 'v94';
+  var LAYER_PANEL_PREFS_VERSION = 'v97';
 
   function layerPanelStorageKey(el, markerState) {
     return 'kv-temalag:' + LAYER_PANEL_PREFS_VERSION + ':' + String((markerState && markerState.layerPanelKey) || (el && el.id) || 'map');
@@ -1354,9 +1354,41 @@
     }
   }
 
+
+  function setupLogoutClearLocal() {
+    var btn = document.getElementById('logout-clear-local-btn');
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+      var form = document.getElementById('logout-form') || btn.closest('form');
+      var owner = '';
+      try { owner = String((window.MKCurrentUser && window.MKCurrentUser.id) || ''); } catch (e) { owner = ''; }
+      btn.disabled = true;
+      btn.textContent = 'Sletter lokalt...';
+      var jobs = [];
+      try {
+        if (window.KVLocalCases && typeof window.KVLocalCases.clearOwner === 'function') {
+          jobs.push(window.KVLocalCases.clearOwner(owner));
+        }
+      } catch (e) {}
+      try {
+        if (window.KVLocalMedia && typeof window.KVLocalMedia.clearOwner === 'function') {
+          jobs.push(window.KVLocalMedia.clearOwner(owner));
+        }
+      } catch (e) {}
+      Promise.all(jobs).catch(function () {}).then(function () {
+        try {
+          localStorage.removeItem('kv-case-draft-dismissed');
+        } catch (e) {}
+        if (form) form.submit();
+        else window.location.href = '/logout';
+      });
+    });
+  }
+
   ready(setupSecurityInteractions);
   ready(setupSidebarToggle);
   ready(setupHistoryControls);
+  ready(setupLogoutClearLocal);
 
   window.csrfHeaders = csrfHeaders;
   window.secureFetchOptions = secureFetchOptions;
