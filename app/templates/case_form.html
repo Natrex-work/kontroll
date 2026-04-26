@@ -4,7 +4,7 @@
 {% block topbar_extra %}
 <div class="top-step-nav" id="top-step-nav" aria-label="Stegnavigasjon for mobil">
   <button type="button" class="btn btn-secondary btn-small top-step-btn" id="top-prev-step" aria-label="Forrige steg"><span class="top-step-btn-text">Tilbake</span><span class="top-step-btn-icon" aria-hidden="true">←</span></button>
-  <div class="top-step-label" id="top-step-label">1 / 7</div>
+  <div class="top-step-label" id="top-step-label">1 / 8</div>
   <button type="button" class="btn btn-primary btn-small top-step-btn" id="top-next-step" aria-label="Neste steg"><span class="top-step-btn-text">Videre</span><span class="top-step-btn-icon" aria-hidden="true">→</span></button>
 </div>
 {% endblock %}
@@ -78,17 +78,25 @@
     <button class="step-btn" type="button" data-step-target="4">4. Kontrollpunkter</button>
     <button class="step-btn" type="button" data-step-target="5">5. Illustrasjonsrapport</button>
     <button class="step-btn" type="button" data-step-target="6">6. Avhør</button>
-    <button class="step-btn" type="button" data-step-target="7">7. Oppsummering</button>
+    <button class="step-btn" type="button" data-step-target="7">7. Beslagsrapport</button>
+    <button class="step-btn" type="button" data-step-target="8">8. Oppsummering</button>
   </div>
 
   <form id="case-form" method="post" action="{% if offline_new %}#{% else %}/cases/{{ case.id }}/save{% endif %}" class="stack gap-l">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
     <input type="hidden" name="findings_json" id="findings_json" value='{{ case.findings_json|e }}' />
     <input type="hidden" name="source_snapshot_json" id="source_snapshot_json" value='{{ case.source_snapshot_json|e }}' />
-    <input type="hidden" name="crew_json" id="crew_json" value='{{ case.crew_json or "[]"|e }}' />
-    <input type="hidden" name="external_actors_json" id="external_actors_json" value='{{ case.external_actors_json or "[]"|e }}' />
-    <input type="hidden" name="persons_json" id="persons_json" value='{{ case.persons_json or "[]"|e }}' />
-    <input type="hidden" name="interview_sessions_json" id="interview_sessions_json" value='{{ case.interview_sessions_json or "[]"|e }}' />
+    <input type="hidden" name="crew_json" id="crew_json" value='{{ (case.crew_json or "[]")|e }}' />
+    <input type="hidden" name="external_actors_json" id="external_actors_json" value='{{ (case.external_actors_json or "[]")|e }}' />
+    <input type="hidden" name="persons_json" id="persons_json" value='{{ (case.persons_json or "[]")|e }}' />
+    <input type="hidden" name="interview_sessions_json" id="interview_sessions_json" value='{{ (case.interview_sessions_json or "[]")|e }}' />
+    <input type="hidden" name="seizure_reports_json" id="seizure_reports_json" value='{{ (case.seizure_reports_json or "[]")|e }}' />
+    <input type="hidden" name="status" value="{{ case.status or 'Utkast' }}" />
+    <input type="hidden" name="basis_source_name" id="basis_source_name" value="{{ (case.basis_source_name or '')|e }}" />
+    <input type="hidden" name="complainant_signature" id="complainant_signature" value='{{ (case.complainant_signature or "")|e }}' />
+    <input type="hidden" name="witness_signature" id="witness_signature" value='{{ (case.witness_signature or "")|e }}' />
+    <input type="hidden" name="investigator_signature" id="investigator_signature" value='{{ (case.investigator_signature or "")|e }}' />
+    <input type="hidden" name="suspect_signature" id="suspect_signature" value='{{ (case.suspect_signature or "")|e }}' />
 
     <section class="card card-panel step-pane active" data-step="1">
       <div class="card-header panel-header">
@@ -96,15 +104,12 @@
           <h2>1. Roller / grunnlag</h2>
           <div class="muted small">Etterforsker hentes automatisk fra innlogget bruker. Anmelder og hovedvitne huskes per bruker.</div>
         </div>
-        <span class="pill">Status: {{ case.status }}</span>
       </div>
       <div class="grid-two">
-        <label><span>Etterforsker</span><input name="investigator_name" value="{{ case.investigator_name }}" readonly /></label>
-        <label><span>Status</span><select name="status">{% for option in status_options %}<option value="{{ option }}" {% if case.status == option %}selected{% endif %}>{{ option }}</option>{% endfor %}</select></label>
+        <label><span>Etterforsker</span><input name="investigator_name" id="investigator_name" value="{{ case.investigator_name }}" readonly /></label>
         <label><span>Anmelder</span><input name="complainant_name" id="complainant_name" value="{{ case.complainant_name or '' }}" /></label>
         <label><span>Hovedvitne</span><input name="witness_name" id="witness_name" value="{{ case.witness_name or '' }}" /></label>
         <label><span>Grunnlag for kontroll</span><select name="case_basis" id="case_basis">{% for option in case_basis_options %}<option value="{{ option.value }}" {% if case.case_basis == option.value %}selected{% endif %}>{{ option.label }}</option>{% endfor %}</select></label>
-        <label><span>Kilde / tips / patruljenavn</span><input name="basis_source_name" id="basis_source_name" value="{{ case.basis_source_name or '' }}" placeholder="F.eks. KV NORNEN patrulje" /></label>
         <label class="span-2"><span>Patruljeformål / begrunnelse</span><textarea name="basis_details" id="basis_details" rows="5">{{ case.basis_details or '' }}</textarea></label>
       </div>
       <div class="actions-row wrap margin-top-s">
@@ -116,16 +121,12 @@
             <option value="patrol-hummer">Patrulje - hummeroppsyn</option>
             <option value="patrol-samleteine">Patrulje - samleteine / sanketeine</option>
             <option value="patrol-garnlenke">Patrulje - garnlenke / lenkekontroll</option>
-            <option value="tips-redskap">Tips - mulig ulovlig redskap</option>
-            <option value="tips-area">Tips - mulig fiske i frednings-/stengt område</option>
-            <option value="tips-minstemal">Tips - mulig undermåls fangst</option>
-            <option value="followup-report">Oppfølging etter anmeldelse</option>
           </select>
         </label>
         <button class="btn btn-secondary" type="button" id="btn-generate-basis">Sett inn standardtekst</button>
         <button class="btn btn-secondary" type="button" id="btn-polish-basis">Formulering</button>
       </div>
-      <div class="callout margin-top-s">Formulering bruker grunnlag, valgt art, redskap, område og posisjon for å foreslå og rette patruljeformål / begrunnelse.</div>
+      <div class="callout margin-top-s">Standardtekst skal beskrive når og hvor patruljen/kontrollen ble gjennomført, kontrolltype, valgt fiskeri/redskap og kontrollformål. Teksten skal være nøytral, kronologisk og etterprøvbar, og skal ikke forskuttere anmeldelsesvurderingen.</div>
       <div class="split-panel margin-top-m">
         <div class="subcard">
           <div class="subcard-head">
@@ -188,6 +189,8 @@
             </details>
             <label><span>Områdestatus</span><input name="area_status" id="area_status" value="{{ case.area_status or '' }}" readonly /></label>
             <input type="hidden" name="area_name" id="area_name" value="{{ case.area_name or '' }}" />
+            <label class="span-2"><span>Områder med mulig forbud for valgt fiskeri</span><select id="area_restriction_select"><option value="">Oppdater områdestatus for å vise aktuelle områder</option></select></label>
+            <div class="callout span-2 area-restriction-detail" id="area-restriction-detail">Områder som gir avvik/kontrollpunkt for valgt fiskeri vises her når posisjonen er kontrollert.</div>
           </div>
           <div class="callout margin-top-s" id="manual-position-status">Når dette steget er åpent følger appen GPS-posisjonen automatisk. Hvis GPS ikke virker, trykk «Sett manuelt i kart» og plasser nålen selv. Når manuell posisjon er aktiv, flyttes rød nål ved å dra markøren i kartet.</div>
           <div class="callout margin-top-s" id="area-status-detail">Områdestatus og nærmeste sted vises her når posisjonen er kontrollert.</div>
@@ -463,10 +466,10 @@
       <label class="span-2"><span>Samlet avhørsutkast</span><textarea form="case-form" name="hearing_text" id="hearing_text" rows="12">{{ case.hearing_text or '' }}</textarea></label>
       <label class="span-2"><span>Beslag / bevismerknader</span><textarea form="case-form" name="seizure_notes" id="seizure_notes" rows="5">{{ case.seizure_notes or '' }}</textarea></label>
     </div>
-    <div class="grid-two margin-top-s">
-      <label><span>Etterforskers signatur</span><input form="case-form" name="investigator_signature" value="{{ case.investigator_signature or case.investigator_name or '' }}" placeholder="Skriv navn / signatur" /></label>
-      <label><span>Vitnets signatur</span><input form="case-form" name="witness_signature" value="{{ case.witness_signature or case.witness_name or '' }}" placeholder="Skriv navn / signatur" /></label>
-      <label class="span-2"><span>Avhørtes / mistenktes signatur</span><input form="case-form" name="suspect_signature" value="{{ case.suspect_signature or case.suspect_name or '' }}" placeholder="Skriv navn / signatur" /></label>
+    <div class="signature-grid margin-top-s">
+      <div class="signature-widget" data-signature-field="investigator_signature" data-signature-name-source="investigator_name"><div><strong>Etterforskers signatur</strong><div class="muted small signature-status">Ikke signert</div></div><button class="btn btn-secondary btn-small" type="button" data-signature-open>Signer</button></div>
+      <div class="signature-widget" data-signature-field="witness_signature" data-signature-name-source="witness_name"><div><strong>Vitnets signatur</strong><div class="muted small signature-status">Ikke signert</div></div><button class="btn btn-secondary btn-small" type="button" data-signature-open>Signer</button></div>
+      <div class="signature-widget" data-signature-field="suspect_signature" data-signature-name-source="suspect_name"><div><strong>Avhørtes / mistenktes signatur</strong><div class="muted small signature-status">Ikke signert</div></div><button class="btn btn-secondary btn-small" type="button" data-signature-open>Signer</button></div>
     </div>
     <div class="actions-row wrap margin-top-s">
       <form method="post" action="/cases/{{ case.id }}/interview-pdf" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><button class="btn btn-secondary" type="submit">Eksporter kun avhørsrapport</button></form>
@@ -474,10 +477,31 @@
     <div class="step-actions"><button type="button" class="btn btn-secondary" data-prev-step>Tilbake</button><button type="button" class="btn btn-primary" data-next-step>Videre</button></div>
   </section>
 
-<section class="card card-panel step-pane" data-step="7">
+<section class="card card-panel step-pane" data-step="7" id="seizure-report-step">
     <div class="card-header panel-header">
       <div>
-        <h2>7. Oppsummering</h2>
+        <h2>7. Beslagsrapport</h2>
+        <div class="muted small">Ved avvik på redskap, minstemål eller maksimalmål opprettes beslagsrader automatisk fra kontrollpunkter og bilder. Hver rad kan endres manuelt.</div>
+      </div>
+      <div class="actions-row wrap">
+        <button class="btn btn-secondary btn-small" type="button" id="btn-refresh-seizure-report">Oppdater fra avvik</button>
+        <button class="btn btn-secondary btn-small" type="button" id="btn-add-seizure-report">Legg til beslag manuelt</button>
+      </div>
+    </div>
+    <div class="callout margin-top-s">Beslag knyttes til beslagnummer, kontrollpunkt, beskrivelse, hjemmel og eventuelle bilder. Bilder med beslagnummer sorteres etter kartoversiktene i illustrasjonsrapporten.</div>
+    <div class="seizure-report-list stack gap-m margin-top-m" id="seizure-report-list"><div class="callout">Ingen beslag eller avviksrader generert ennå.</div></div>
+    <label class="margin-top-m block"><span>Utfyllende merknader til beslag</span><textarea form="case-form" name="seizure_report_override" id="seizure_report_override" rows="4">{{ case.seizure_report_override or '' }}</textarea></label>
+    <div class="signature-grid margin-top-s">
+      <div class="signature-widget" data-signature-field="investigator_signature" data-signature-name-source="investigator_name"><div><strong>Etterforskers signatur</strong><div class="muted small signature-status">Ikke signert</div></div><button class="btn btn-secondary btn-small" type="button" data-signature-open>Signer</button></div>
+      <div class="signature-widget" data-signature-field="witness_signature" data-signature-name-source="witness_name"><div><strong>Vitnets signatur</strong><div class="muted small signature-status">Ikke signert</div></div><button class="btn btn-secondary btn-small" type="button" data-signature-open>Signer</button></div>
+    </div>
+    <div class="step-actions"><button type="button" class="btn btn-secondary" data-prev-step>Tilbake</button><button type="button" class="btn btn-primary" data-next-step>Videre</button></div>
+  </section>
+
+<section class="card card-panel step-pane" data-step="8">
+    <div class="card-header panel-header">
+      <div>
+        <h2>8. Oppsummering</h2>
         <div class="muted small">Dokumentpakken følger samme dokumentrekkefølge som malene du har lastet opp.</div>
       </div>
     </div>
@@ -485,10 +509,10 @@
       <label class="span-2"><span>Utfyllende kontrollnotater</span><textarea form="case-form" name="notes" id="notes" rows="8">{{ case.notes or '' }}</textarea></label>
       <label class="span-2"><span>Anmeldelsestekst og oppsummering</span><textarea form="case-form" name="summary" id="summary" rows="7">{{ case.summary or '' }}</textarea></label>
     </div>
-    <div class="grid-two margin-top-s">
-      <label><span>Anmelders signatur</span><input form="case-form" name="complainant_signature" value="{{ case.complainant_signature or case.complainant_name or '' }}" placeholder="Skriv navn / signatur" /></label>
-      <label><span>Vitnets signatur</span><input form="case-form" name="witness_signature" value="{{ case.witness_signature or case.witness_name or '' }}" placeholder="Skriv navn / signatur" /></label>
-      <label class="span-2"><span>Etterforskers signatur</span><input form="case-form" name="investigator_signature" value="{{ case.investigator_signature or case.investigator_name or '' }}" placeholder="Skriv navn / signatur" /></label>
+    <div class="signature-grid margin-top-s">
+      <div class="signature-widget" data-signature-field="complainant_signature" data-signature-name-source="complainant_name"><div><strong>Anmelders signatur</strong><div class="muted small signature-status">Ikke signert</div></div><button class="btn btn-secondary btn-small" type="button" data-signature-open>Signer</button></div>
+      <div class="signature-widget" data-signature-field="witness_signature" data-signature-name-source="witness_name"><div><strong>Vitnets signatur</strong><div class="muted small signature-status">Ikke signert</div></div><button class="btn btn-secondary btn-small" type="button" data-signature-open>Signer</button></div>
+      <div class="signature-widget" data-signature-field="investigator_signature" data-signature-name-source="investigator_name"><div><strong>Etterforskers signatur</strong><div class="muted small signature-status">Ikke signert</div></div><button class="btn btn-secondary btn-small" type="button" data-signature-open>Signer</button></div>
     </div>
     <div class="actions-row wrap margin-top-s">
       <button class="btn btn-secondary" type="button" id="btn-generate-summary">Autogenerer tekst</button>
@@ -511,6 +535,24 @@
     <div class="step-actions"><button type="button" class="btn btn-secondary" data-prev-step>Tilbake</button></div>
   </section>
 
+
+  <div class="signature-modal hidden" id="signature-modal" aria-hidden="true">
+    <div class="signature-modal-dialog">
+      <div class="camera-modal-head">
+        <div>
+          <strong id="signature-modal-title">Signer</strong>
+          <div class="muted small" id="signature-modal-description">Signer med finger eller penn. Navnet låses til valgt signaturfelt.</div>
+        </div>
+        <button class="btn btn-secondary btn-small" type="button" id="btn-signature-close">Lukk</button>
+      </div>
+      <div class="signature-name-line" id="signature-name-line">Navn: -</div>
+      <canvas id="signature-canvas" width="760" height="260" aria-label="Signaturfelt"></canvas>
+      <div class="actions-row wrap margin-top-s">
+        <button class="btn btn-secondary" type="button" id="btn-signature-clear">Tøm</button>
+        <button class="btn btn-primary" type="button" id="btn-signature-save">Lagre signatur</button>
+      </div>
+    </div>
+  </div>
 
   <div class="camera-modal hidden" id="camera-capture-modal" aria-hidden="true">
     <div class="camera-modal-dialog">
@@ -550,5 +592,5 @@
   }
 })();
 </script>
-<script src="/static/js/case-app.js?v=v92"></script>
+<script src="/static/js/case-app.js?v=v94"></script>
 {% endblock %}

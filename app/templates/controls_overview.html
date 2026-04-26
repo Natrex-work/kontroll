@@ -34,7 +34,7 @@
         {% for case in cases %}
         <tr>
           <td><strong>{{ case.case_number }}</strong><div class="muted small">{{ case.created_by_name }}</div></td>
-          <td>{{ case.case_basis or '-' }}<div class="muted small">{{ case.basis_source_name or '-' }}</div></td>
+          <td>{{ case.case_basis or '-' }}</td>
           <td>{{ case.control_type or '-' }}<div class="muted small">{{ case.species or case.fishery_type or '-' }} / {{ case.gear_type or '-' }}</div></td>
           <td>{{ case.area_status or '-' }}<div class="muted small">{{ case.area_name or case.location_name or '-' }}</div></td>
           <td><span class="pill">{{ case.status }}</span></td>

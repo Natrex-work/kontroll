@@ -3028,7 +3028,7 @@ body {
 }
 
 
-/* v92 kartlagpanel: robust sammenlegging/utviding og valg på iPhone */
+/* v93 kartlagpanel: robust sammenlegging/utviding og valg på iPhone */
 .kv-temalag-group.is-collapsed .kv-temalag-group-body,
 .kv-temalag-group-body[hidden] {
   display: none !important;
@@ -3085,7 +3085,7 @@ body {
   }
 }
 
-/* v92 mobile field-work refinements */
+/* v93 mobile field-work refinements */
 .person-card, .interview-card {
   border: 1px solid var(--line);
   border-radius: 18px;
@@ -3151,5 +3151,111 @@ body {
   }
   .email-package-form input[type="email"], .email-package-form .btn {
     width: 100%;
+  }
+}
+
+/* v93 - beslag, områdevalg og touch-signatur */
+.area-restriction-detail {
+  min-height: 54px;
+  border-left: 4px solid rgba(31, 104, 164, 0.35);
+}
+.seizure-report-card {
+  border: 1px solid rgba(20, 47, 79, 0.12);
+  border-radius: 18px;
+  background: rgba(255,255,255,0.92);
+  padding: 14px;
+  box-shadow: 0 12px 28px rgba(16,39,61,0.08);
+}
+.seizure-report-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.signature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+.signature-widget {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid rgba(20, 47, 79, 0.14);
+  border-radius: 16px;
+  background: rgba(255,255,255,0.9);
+}
+.signature-status { margin-top: 2px; }
+.signature-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(6, 22, 36, 0.55);
+  display: grid;
+  place-items: center;
+  padding: calc(16px + var(--safe-top)) calc(12px + var(--safe-right)) calc(16px + var(--safe-bottom)) calc(12px + var(--safe-left));
+}
+.signature-modal.hidden { display: none !important; }
+.signature-modal-dialog {
+  width: min(820px, 100%);
+  background: #fff;
+  border-radius: 24px;
+  border: 1px solid rgba(20,47,79,0.14);
+  box-shadow: 0 24px 60px rgba(6,22,36,0.32);
+  padding: 16px;
+}
+.signature-name-line {
+  font-weight: 700;
+  margin: 10px 0;
+  color: var(--ink);
+}
+#signature-canvas {
+  width: 100%;
+  height: 220px;
+  border: 1px dashed rgba(20,47,79,0.28);
+  border-radius: 16px;
+  background: #fff;
+  touch-action: none;
+  display: block;
+}
+@media (max-width: 760px) {
+  .signature-widget { align-items: stretch; flex-direction: column; }
+  #signature-canvas { height: 210px; }
+  body.has-top-step-nav .sidebar:not(.sidebar-open) .nav,
+  body.has-top-step-nav .sidebar:not(.sidebar-open) .sidebar-footer { display: none !important; }
+}
+
+
+/* v94 kartlagpanel: ikke klipp bort grupper/valg i ekstern mobilvisning */
+.kv-temalag-panel-external .kv-temalag-card {
+  max-height: none !important;
+  overflow: visible !important;
+}
+.kv-temalag-panel-external .kv-temalag-groups {
+  max-height: none !important;
+  overflow: visible !important;
+  -webkit-overflow-scrolling: touch;
+}
+@media (max-width: 720px) {
+  .kv-temalag-panel-external .kv-temalag-card {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  .kv-temalag-panel-external .kv-temalag-groups {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  .kv-temalag-panel-external .kv-temalag-group-toggle {
+    min-height: 58px;
+  }
+  .kv-temalag-panel-external .kv-temalag-group-actions {
+    position: static;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    padding: 10px 12px;
   }
 }

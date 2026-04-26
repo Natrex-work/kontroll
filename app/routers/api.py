@@ -3,8 +3,10 @@ from __future__ import annotations
 from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile
 from pathlib import Path
 from collections import OrderedDict
+import json
 import hashlib
 import os
+import re
 import time
 from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
@@ -75,17 +77,9 @@ def _parse_optional_float_query(value: str | float | int | None, *, field_name: 
 
 def _basis_opening_phrase(case_basis: str, source_name: str = '') -> str:
     raw_source = str(source_name or '').strip()
-    normalized = raw_source.lower()
-    default_sources = {
-        '',
-        'kystvaktpatrulje',
-        'kv patrulje',
-        'kystvakten lettbåt',
-        'kystvaktens lettbåt',
-    }
-    if case_basis not in {'tips', 'anmeldelse'} and normalized not in default_sources:
-        return f'Det ble fra lettbåt fra {raw_source} gjennomført'
-    return 'Det ble fra Kystvakten lettbåt gjennomført'
+    if raw_source and case_basis not in {'tips', 'anmeldelse'}:
+        return f'Det ble gjennomført stedlig fiskerikontroll fra {raw_source}'
+    return 'Det ble gjennomført stedlig fiskerikontroll'
 
 
 @router.post('/api/text/polish')
@@ -102,14 +96,21 @@ def api_text_polish(request: Request, payload: TextPolishRequest):
         return JSONResponse({'text': ''})
     cleaned = ' '.join(text_in.replace('\r', '\n').split())
     cleaned = cleaned.replace(' ,', ',').replace(' .', '.').replace(' :', ':')
+    unwanted_phrases = (
+        'samt å dokumentere faktiske ' + 'forhold i en ' + 'anmeldelsesegnet form',
+        'Kontrollen ble også sett i sammenheng med tidligere registrerte ' + 'opplysninger i saken',
+        'Det ble fra ' + 'Kyst' + 'vakten lettbåt gjennomført',
+        'Det ble fra ' + 'kyst' + 'vakten lettbåt gjennomført',
+    )
+    for unwanted in unwanted_phrases:
+        cleaned = re.sub(re.escape(unwanted), '', cleaned, flags=re.IGNORECASE).strip()
     if cleaned and cleaned[0].islower():
         cleaned = cleaned[0].upper() + cleaned[1:]
     if mode == 'basis':
         opening = _basis_opening_phrase(case_basis, source_name)
         sentence_starters = (
             opening.lower(),
-            'det ble fra kystvakten lettbåt gjennomført',
-            'det ble fra lettbåt fra',
+            'det ble gjennomført stedlig fiskerikontroll',
             'den ',
             'kontrollen ',
             'patrulje ',
@@ -329,6 +330,6 @@ async def api_ocr_extract(request: Request, file: UploadFile = File(...)):
 def api_summary_suggest(request: Request, payload: SummarySuggestRequest):
     require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til Minfiskerikontroll.')
     enforce_csrf(request)
-    case_row = {'summary': '', 'case_basis': payload.case_basis or 'patruljeobservasjon', 'control_type': payload.control_type or '', 'species': payload.species or '', 'fishery_type': payload.fishery_type or payload.species or '', 'gear_type': payload.gear_type or '', 'location_name': payload.location_name or '', 'area_name': payload.area_name or '', 'area_status': payload.area_status or '', 'suspect_name': payload.suspect_name or '', 'basis_details': payload.basis_details or '', 'start_time': payload.start_time or '', 'latitude': payload.latitude, 'longitude': payload.longitude}
+    case_row = {'summary': '', 'case_basis': payload.case_basis or 'patruljeobservasjon', 'control_type': payload.control_type or '', 'species': payload.species or '', 'fishery_type': payload.fishery_type or payload.species or '', 'gear_type': payload.gear_type or '', 'location_name': payload.location_name or '', 'area_name': payload.area_name or '', 'area_status': payload.area_status or '', 'suspect_name': payload.suspect_name or '', 'basis_details': payload.basis_details or '', 'start_time': payload.start_time or '', 'latitude': payload.latitude, 'longitude': payload.longitude, 'persons_json': json.dumps(payload.persons or [], ensure_ascii=False), 'seizure_reports_json': json.dumps(payload.seizure_reports or [], ensure_ascii=False)}
     drafts = build_text_drafts(case_row, payload.findings)
     return JSONResponse(drafts)

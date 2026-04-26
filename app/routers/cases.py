@@ -47,7 +47,7 @@ def _case_missing_html(case_id: int) -> HTMLResponse:
 <html lang="nb"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Saken ble ikke funnet</title>
 <style>body{{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#eef4f8;color:#10273d;margin:0;padding:24px}}.card{{max-width:680px;margin:10vh auto;background:#fff;border:1px solid #d7e3ee;border-radius:22px;padding:24px;box-shadow:0 18px 42px rgba(16,39,61,.12)}}a,.btn{{display:inline-flex;margin-top:14px;padding:12px 16px;border-radius:999px;background:#123b5d;color:#fff;text-decoration:none;font-weight:700}}.muted{{color:#5f7186;line-height:1.45}}</style>
-</head><body><main class="card"><h1>Saken ble ikke funnet</h1><p class="muted">Sak {case_id} finnes ikke på serveren. Dette skjer ofte etter ny deploy dersom databasen ikke ligger på en persistent disk, eller hvis en lokal kladd ikke er synket før forhåndsvisning/eksport.</p><p class="muted">Gå tilbake til kontrollskjemaet og trykk lagre/synk, eller opprett en ny kontroll. I v92 forsøker appen automatisk å opprette ny serverkopi fra lokal kladd før forhåndsvisning og eksport.</p><a href="/dashboard">Til kontrolloversikten</a></main></body></html>'''
+</head><body><main class="card"><h1>Saken ble ikke funnet</h1><p class="muted">Sak {case_id} finnes ikke på serveren. Dette skjer ofte etter ny deploy dersom databasen ikke ligger på en persistent disk, eller hvis en lokal kladd ikke er synket før forhåndsvisning/eksport.</p><p class="muted">Gå tilbake til kontrollskjemaet og trykk lagre/synk, eller opprett en ny kontroll. I v94 forsøker appen automatisk å opprette ny serverkopi fra lokal kladd før forhåndsvisning og eksport.</p><a href="/dashboard">Til kontrolloversikten</a></main></body></html>'''
     return HTMLResponse(html, status_code=404)
 
 
@@ -80,8 +80,8 @@ def _offline_case_shell(user: dict[str, object], local_id: str = '') -> dict[str
         'complainant_name': str(user.get('last_complainant_name') or ''),
         'witness_name': str(user.get('last_witness_name') or ''),
         'case_basis': 'patruljeobservasjon',
-        'basis_source_name': 'Kystvakten lettbåt',
-        'basis_details': 'Det ble fra Kystvakten lettbåt gjennomført kontroll med fokus på faststående fiskeredskap. Kontrollgrunnlaget bygger på egen observasjon og planlagt kontrollvirksomhet.',
+        'basis_source_name': '',
+        'basis_details': 'Det er opprettet lokal kontrollsak for stedlig fiskerikontroll. Når kontrollposisjon, art/fiskeri og redskap er valgt, kan patruljeformålet oppdateres automatisk med tid, sted og kontrolltema.',
         'control_type': '',
         'fishery_type': '',
         'species': '',
@@ -112,6 +112,7 @@ def _offline_case_shell(user: dict[str, object], local_id: str = '') -> dict[str
         'external_actors_json': '[]',
         'persons_json': '[]',
         'interview_sessions_json': '[]',
+        'seizure_reports_json': '[]',
         'interview_not_conducted': 0,
         'interview_not_conducted_reason': '',
         'interview_guidance_text': '',
@@ -124,7 +125,7 @@ def _offline_case_shell(user: dict[str, object], local_id: str = '') -> dict[str
         'seizure_report_override': '',
         'complainant_signature': '',
         'witness_signature': '',
-        'investigator_signature': str(user.get('full_name') or ''),
+        'investigator_signature': '',
         'suspect_signature': '',
         'status': 'Utkast',
         'updated_at': '',

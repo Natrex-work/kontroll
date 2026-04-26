@@ -6,7 +6,7 @@
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('/static/sw.js?v=v92').catch(function () {});
+      navigator.serviceWorker.register('/static/sw.js?v=v94').catch(function () {});
     });
   }
 
@@ -43,6 +43,12 @@
   var evidenceState = [];
   var selectedInlineEvidenceTarget = null;
   var inlineEvidenceFeedback = '';
+  var form = null, findingsInput = null, sourcesInput = null, crewInput = null, externalActorsInput = null, personsInput = null, interviewInput = null, seizureReportsInput = null;
+  var controlType = null, fisheryType = null, species = null, gearType = null, startTime = null, endTime = null;
+  var latitude = null, longitude = null, areaStatus = null, areaName = null, locationName = null, caseBasis = null, basisSourceName = null, basisDetails = null;
+  var suspectName = null, suspectNameCommercial = null, suspectPhone = null, suspectAddress = null, suspectPostPlace = null, suspectBirthdate = null;
+  var hummerParticipantNo = null, hummerLastRegistered = null, vesselName = null, vesselReg = null, radioCallSign = null, lookupText = null, lookupName = null, lookupIdentifier = null;
+  var notes = null, summary = null, hearingText = null, ocrAutofillPreview = null;
 
   function normalizeHummerParticipantNo(value) {
     var raw = String(value || '').trim().toUpperCase().replace(/[–—]/g, '-');
@@ -1098,11 +1104,11 @@
     var root = document.getElementById('rules-overview-root');
     if (!root) return;
     var lawBrowser = parseJson(root.dataset.law, []);
-    var controlType = document.getElementById('overview_control_type');
-    var fisheryType = document.getElementById('overview_fishery_type');
-    var species = document.getElementById('overview_species');
+    controlType = document.getElementById('overview_control_type');
+    fisheryType = document.getElementById('overview_fishery_type');
+    species = document.getElementById('overview_species');
     var speciesList = document.getElementById('overview_species_options');
-    var gearType = document.getElementById('overview_gear_type');
+    gearType = document.getElementById('overview_gear_type');
     var meta = document.getElementById('rules-overview-meta');
     var findings = document.getElementById('rules-overview-findings');
     var sources = document.getElementById('rules-overview-sources');
@@ -1177,7 +1183,7 @@
     var lawBrowser = parseJson(root.dataset.lawBrowser, []);
     var mapCatalog = parseJson(root.dataset.mapCatalog, []);
     var mapFilterWrap = document.getElementById('map-layer-filters');
-    var mapFilterStorageKey = 'kv-map-layer-filter-v92:' + root.dataset.caseId;
+    var mapFilterStorageKey = 'kv-map-layer-filter-v94:' + root.dataset.caseId;
     var activeLayerStatuses = { 'fredningsområde': true, 'stengt område': true, 'maksimalmål område': true, 'regulert område': true, 'fiskeriområde': true };
     try {
       localStorage.removeItem('kv-map-layer-filter:' + root.dataset.caseId);
@@ -1612,7 +1618,7 @@
         urls = urls.concat(collectTileUrls(layer, map, padding == null ? 2 : padding));
       });
       urls = uniqueUrls(urls);
-      return prefetchUrlsToCache(urls, 'kv-kontroll-v72-map-tiles').then(function (count) {
+      return prefetchUrlsToCache(urls, 'kv-kontroll-v94-map-tiles').then(function (count) {
         return { count: count, urls: urls };
       });
     }
@@ -1864,13 +1870,14 @@
 
     latestZoneResult = null;
 
-    var form = document.getElementById('case-form');
-    var findingsInput = document.getElementById('findings_json');
-    var sourcesInput = document.getElementById('source_snapshot_json');
-    var crewInput = document.getElementById('crew_json');
-    var externalActorsInput = document.getElementById('external_actors_json');
-    var personsInput = document.getElementById('persons_json');
-    var interviewInput = document.getElementById('interview_sessions_json');
+    form = document.getElementById('case-form');
+    findingsInput = document.getElementById('findings_json');
+    sourcesInput = document.getElementById('source_snapshot_json');
+    crewInput = document.getElementById('crew_json');
+    externalActorsInput = document.getElementById('external_actors_json');
+    personsInput = document.getElementById('persons_json');
+    interviewInput = document.getElementById('interview_sessions_json');
+    seizureReportsInput = document.getElementById('seizure_reports_json');
     var interviewNotConducted = document.getElementById('interview_not_conducted');
     var interviewNotConductedReason = document.getElementById('interview_not_conducted_reason');
     var interviewGuidanceText = document.getElementById('interview_guidance_text');
@@ -1928,37 +1935,37 @@
       });
     }
 
-    var controlType = document.getElementById('control_type');
-    var fisheryType = document.getElementById('fishery_type');
-    var species = document.getElementById('species');
-    var gearType = document.getElementById('gear_type');
-    var startTime = document.getElementById('start_time');
-    var endTime = document.getElementById('end_time');
-    var latitude = document.getElementById('latitude');
-    var longitude = document.getElementById('longitude');
-    var areaStatus = document.getElementById('area_status');
-    var areaName = document.getElementById('area_name');
-    var locationName = document.getElementById('location_name');
-    var caseBasis = document.getElementById('case_basis');
-    var basisSourceName = document.getElementById('basis_source_name');
-    var basisDetails = document.getElementById('basis_details');
-    var suspectName = document.getElementById('suspect_name');
-    var suspectNameCommercial = document.getElementById('suspect_name_commercial');
-    var suspectPhone = document.getElementById('suspect_phone');
-    var suspectAddress = document.getElementById('suspect_address');
-    var suspectPostPlace = document.getElementById('suspect_post_place');
-    var suspectBirthdate = document.getElementById('suspect_birthdate');
-    var hummerParticipantNo = document.getElementById('hummer_participant_no');
-    var hummerLastRegistered = document.getElementById('hummer_last_registered');
-    var vesselName = document.getElementById('vessel_name');
-    var vesselReg = document.getElementById('vessel_reg');
-    var radioCallSign = document.getElementById('radio_call_sign');
-    var lookupText = document.getElementById('lookup_text');
-    var lookupName = document.getElementById('lookup_name');
-    var lookupIdentifier = document.getElementById('lookup_identifier');
-    var notes = document.getElementById('notes');
-    var summary = document.getElementById('summary');
-    var hearingText = document.getElementById('hearing_text');
+    controlType = document.getElementById('control_type');
+    fisheryType = document.getElementById('fishery_type');
+    species = document.getElementById('species');
+    gearType = document.getElementById('gear_type');
+    startTime = document.getElementById('start_time');
+    endTime = document.getElementById('end_time');
+    latitude = document.getElementById('latitude');
+    longitude = document.getElementById('longitude');
+    areaStatus = document.getElementById('area_status');
+    areaName = document.getElementById('area_name');
+    locationName = document.getElementById('location_name');
+    caseBasis = document.getElementById('case_basis');
+    basisSourceName = document.getElementById('basis_source_name');
+    basisDetails = document.getElementById('basis_details');
+    suspectName = document.getElementById('suspect_name');
+    suspectNameCommercial = document.getElementById('suspect_name_commercial');
+    suspectPhone = document.getElementById('suspect_phone');
+    suspectAddress = document.getElementById('suspect_address');
+    suspectPostPlace = document.getElementById('suspect_post_place');
+    suspectBirthdate = document.getElementById('suspect_birthdate');
+    hummerParticipantNo = document.getElementById('hummer_participant_no');
+    hummerLastRegistered = document.getElementById('hummer_last_registered');
+    vesselName = document.getElementById('vessel_name');
+    vesselReg = document.getElementById('vessel_reg');
+    radioCallSign = document.getElementById('radio_call_sign');
+    lookupText = document.getElementById('lookup_text');
+    lookupName = document.getElementById('lookup_name');
+    lookupIdentifier = document.getElementById('lookup_identifier');
+    notes = document.getElementById('notes');
+    summary = document.getElementById('summary');
+    hearingText = document.getElementById('hearing_text');
     var selectedFindingCard = document.getElementById('selected-finding-card');
     var evidenceFindingKey = document.getElementById('evidence_finding_key');
     var evidenceLawText = document.getElementById('evidence_law_text');
@@ -1974,7 +1981,7 @@
     var inlineEvidenceCameraInput = document.getElementById('inline-evidence-camera-input');
     var inlineEvidenceFileInput = document.getElementById('inline-evidence-file-input');
     var ocrSelectedFileBox = document.getElementById('ocr-selected-file');
-    var ocrAutofillPreview = document.getElementById('ocr-autofill-preview');
+    ocrAutofillPreview = document.getElementById('ocr-autofill-preview');
     var localMediaStatus = document.getElementById('local-media-status');
     var localMediaStatusText = document.getElementById('local-media-status-text');
     var btnLookupPerson = document.getElementById('btn-lookup-person');
@@ -1992,6 +1999,11 @@
     var mapLayerPanelHost = document.getElementById('case-map-layer-panel-host');
     var toggleZoneHitOverlay = document.getElementById('toggle-zone-hit-overlay');
     var zoneHitOverlayText = document.getElementById('toggle-zone-hit-overlay-text');
+    var areaRestrictionSelect = document.getElementById('area_restriction_select');
+    var areaRestrictionDetail = document.getElementById('area-restriction-detail');
+    var seizureReportList = document.getElementById('seizure-report-list');
+    var btnRefreshSeizureReport = document.getElementById('btn-refresh-seizure-report');
+    var btnAddSeizureReport = document.getElementById('btn-add-seizure-report');
 
     var leisureFields = document.getElementById('leisure-fields');
     var commercialFields = document.getElementById('commercial-fields');
@@ -2003,6 +2015,7 @@
     var externalActorsState = parseJson(externalActorsInput.value, []) || [];
     var personsState = parseJson(personsInput ? personsInput.value : '[]', []) || [];
     var interviewState = parseJson(interviewInput ? interviewInput.value : '[]', []) || [];
+    var seizureReportsState = parseJson(seizureReportsInput ? seizureReportsInput.value : '[]', []) || [];
     var candidateState = [];
     var registryLookupTimer = null;
     var registryLookupInFlight = false;
@@ -2352,6 +2365,8 @@
       if (personsInput) personsInput.value = JSON.stringify(personsState);
       sourcesInput.value = JSON.stringify(sourcesState);
       if (interviewInput) interviewInput.value = JSON.stringify(interviewState);
+      syncSeizureReportsFromDom();
+      if (seizureReportsInput) seizureReportsInput.value = JSON.stringify(seizureReportsState || []);
       if (suspectNameCommercial.value && !suspectName.value) suspectName.value = suspectNameCommercial.value;
       var formData = new FormData(form);
       formData.set('findings_json', JSON.stringify(findingsState));
@@ -2360,6 +2375,7 @@
       formData.set('external_actors_json', JSON.stringify(externalActorsState));
       formData.set('persons_json', JSON.stringify(personsState));
       formData.set('interview_sessions_json', JSON.stringify(interviewState));
+      formData.set('seizure_reports_json', JSON.stringify(seizureReportsState || []));
       if (isOfflineNewCase) formData.set('local_case_id', String(root.dataset.caseId || ''));
       return formData;
     }
@@ -2438,6 +2454,7 @@
         external_actors: JSON.parse(JSON.stringify(externalActorsState || [])),
         persons: JSON.parse(JSON.stringify(personsState || [])),
         interviews: JSON.parse(JSON.stringify(interviewState || [])),
+        seizure_reports: JSON.parse(JSON.stringify(seizureReportsState || [])),
         summary_cache: JSON.parse(JSON.stringify(summaryDraftCache || {})),
         meta: {
           location_name: String(locationName && locationName.value || ''),
@@ -2488,12 +2505,14 @@
         if (personsInput) personsInput.value = JSON.stringify(personsState || []);
         sourcesInput.value = JSON.stringify(sourcesState || []);
         if (interviewInput) interviewInput.value = JSON.stringify(interviewState || []);
+        if (seizureReportsInput) seizureReportsInput.value = JSON.stringify(seizureReportsState || []);
         syncOptions();
         applyExternalActorsStateToDom();
         renderCrew();
         renderPersons();
         renderFindings();
         renderInterviews();
+        renderSeizureReports({ mergeDefaults: true });
         syncInterviewDisabledState();
         if (sourceList) sourceList.innerHTML = (sourcesState || []).map(sourceChip).join('');
         updateExternalSearchLinks();
@@ -2525,6 +2544,7 @@
         externalActorsState = parseJson(JSON.stringify(draft.external_actors || []), []) || [];
         personsState = parseJson(JSON.stringify(draft.persons || []), []) || [];
         interviewState = parseJson(JSON.stringify(draft.interviews || []), []) || [];
+        seizureReportsState = parseJson(JSON.stringify(draft.seizure_reports || []), []) || [];
         summaryDraftCache = parseJson(JSON.stringify(draft.summary_cache || {}), {}) || {};
         if (draft.position_mode === 'manual') {
           persistPositionMode('manual');
@@ -3218,7 +3238,7 @@
       }
       wrap.innerHTML = personsState.map(function (person, idx) {
         var role = normalizePersonRole(person.role || 'Mistenkt');
-        var roleOptions = ['Mistenkt', 'Vitne', 'Eier', 'Fører/skipper', 'Annen person'].map(function (option) {
+        var roleOptions = ['Mistenkt', 'Siktet', 'Vitne', 'Fornærmet', 'Eier', 'Fører/skipper', 'Annen person'].map(function (option) {
           return '<option value="' + escapeHtml(option) + '" ' + (option === role ? 'selected' : '') + '>' + escapeHtml(option) + '</option>';
         }).join('');
         return [
@@ -3361,6 +3381,8 @@
       findingsInput.value = JSON.stringify(findingsState);
       if (!findingsState.length) {
         findingsList.innerHTML = '<div class="callout">Ingen kontrollpunkter er valgt ennå. Velg kontrolltype, art/fiskeri og redskap for å hente relevante kontrollpunkter automatisk.</div>';
+        renderSeizureReports({ mergeDefaults: true });
+        updateAreaRestrictionOptions(latestZoneResult);
         return;
       }
       findingsList.innerHTML = findingsState.map(buildEditableFindingHtml).join('');
@@ -3368,7 +3390,173 @@
         var idx = Number(card.dataset.index);
         evaluateMarkerLimit(card, findingsState[idx]);
       });
+      renderSeizureReports({ mergeDefaults: true });
+      updateAreaRestrictionOptions(latestZoneResult);
     }
+
+
+    function areaOptionPayload(label, status, detail, source) {
+      return { label: String(label || '').trim(), status: String(status || '').trim(), detail: String(detail || '').trim(), source: String(source || '').trim() };
+    }
+
+    function updateAreaRestrictionOptions(result) {
+      if (!areaRestrictionSelect || !areaRestrictionDetail) return;
+      var rows = [];
+      function push(row) {
+        if (!row || !row.label) return;
+        var key = [row.label, row.status, row.detail].join('|').toLowerCase();
+        for (var i = 0; i < rows.length; i++) {
+          if (rows[i]._key === key) return;
+        }
+        row._key = key;
+        rows.push(row);
+      }
+      result = result || latestZoneResult || {};
+      if (result.match) push(areaOptionPayload(result.name || result.status || 'Regulert område', result.status || 'regulert område', result.notes || (result.recommended_violation && result.recommended_violation.message) || '', 'områdesjekk'));
+      (result.hits || []).forEach(function (hit) {
+        var text = [hit.name, hit.layer, hit.source].filter(Boolean).join(' - ');
+        var detail = hit.notes || hit.summary || hit.description || hit.law_text || '';
+        if (/forbud|fredning|stengt|vern|regulert|hummer|redskap|fiske/i.test(text + ' ' + detail)) {
+          push(areaOptionPayload(hit.name || hit.layer || 'Kartområde', hit.status || hit.layer || 'regulert område', detail, hit.source || 'kart'));
+        }
+      });
+      (findingsState || []).forEach(function (item, idx) {
+        var text = [item.label, item.key, item.status, item.notes, item.auto_note, item.summary_text, item.law_text].join(' ');
+        if (/område|fredning|stengt|forbud|vern|maksimalmål|regulert/i.test(text)) {
+          push(areaOptionPayload(areaName && areaName.value ? areaName.value : (item.label || 'Regulert område'), areaStatus && areaStatus.value ? areaStatus.value : 'avvik', item.summary_text || item.notes || item.auto_note || item.law_text || '', 'kontrollpunkt'));
+        }
+      });
+      areaRestrictionSelect.innerHTML = '';
+      if (!rows.length) {
+        areaRestrictionSelect.innerHTML = '<option value="">Ingen område med forbud funnet for valgt fiskeri ennå</option>';
+        areaRestrictionDetail.textContent = 'Oppdater områdestatus etter at art/fiskeri, redskap og posisjon er valgt.';
+        return;
+      }
+      rows.forEach(function (row, idx) {
+        var opt = document.createElement('option');
+        opt.value = String(idx);
+        opt.textContent = row.label + (row.status ? ' - ' + row.status : '');
+        areaRestrictionSelect.appendChild(opt);
+      });
+      function showSelected() {
+        var row = rows[Number(areaRestrictionSelect.value || 0)] || rows[0];
+        areaRestrictionDetail.innerHTML = '<strong>' + escapeHtml(row.label) + '</strong>' + (row.status ? '<div>Status: ' + escapeHtml(row.status) + '</div>' : '') + (row.detail ? '<div class="small muted">' + escapeHtml(row.detail) + '</div>' : '') + (row.source ? '<div class="small muted">Kilde: ' + escapeHtml(row.source) + '</div>' : '');
+        if (areaName && row.label) areaName.value = row.label;
+        if (areaStatus && row.status) areaStatus.value = row.status;
+      }
+      areaRestrictionSelect.onchange = function () { showSelected(); scheduleAutosave('Område valgt'); };
+      showSelected();
+    }
+
+    function normalizedSeizureIssueText(item) {
+      var text = [item && item.label, item && item.key, item && item.notes, item && item.auto_note, item && item.summary_text, item && item.law_text].join(' ').toLowerCase();
+      return text;
+    }
+
+    function isSeizureRelevantFinding(item) {
+      if (!item || String(item.status || '').toLowerCase() !== 'avvik') return false;
+      return /redskap|teine|ruse|garn|beslag|minstemål|maksimalmål|lengde|hummer|fangst|oppbevaring/.test(normalizedSeizureIssueText(item));
+    }
+
+    function defaultSeizureRowsFromFindings() {
+      var rows = [];
+      var byRef = {};
+      (findingsState || []).forEach(function (item, idx) {
+        if (!isSeizureRelevantFinding(item)) return;
+        var ref = item.seizure_ref || ('B' + String(rows.length + 1).padStart(2, '0'));
+        while (byRef[ref]) ref = 'B' + String(rows.length + 1).padStart(2, '0');
+        byRef[ref] = true;
+        rows.push({
+          seizure_ref: ref,
+          source_key: item.key || ('finding-' + idx),
+          type: item.label || 'Avvik/redskap',
+          quantity: item.quantity || item.observed_count || '1',
+          description: item.notes || item.auto_note || item.summary_text || item.label || 'Registrert avvik',
+          law_text: item.law_text || item.source_ref || '',
+          violation_reason: item.auto_note || item.summary_text || item.notes || '',
+          auto: true
+        });
+      });
+      return rows;
+    }
+
+    function syncSeizureReportsFromDom() {
+      if (!seizureReportList) return;
+      var cards = Array.prototype.slice.call(seizureReportList.querySelectorAll('[data-seizure-index]'));
+      if (!cards.length) {
+        if (seizureReportsInput) seizureReportsInput.value = JSON.stringify(seizureReportsState || []);
+        return;
+      }
+      seizureReportsState = cards.map(function (card) {
+        function val(sel) { var el = card.querySelector(sel); return el ? String(el.value || '').trim() : ''; }
+        var idx = Number(card.getAttribute('data-seizure-index') || 0);
+        var prev = seizureReportsState[idx] || {};
+        return {
+          seizure_ref: val('.seizure-ref') || prev.seizure_ref || '',
+          type: val('.seizure-type') || prev.type || '',
+          quantity: val('.seizure-quantity') || prev.quantity || '',
+          description: val('.seizure-description') || prev.description || '',
+          law_text: val('.seizure-law') || prev.law_text || '',
+          violation_reason: val('.seizure-reason') || prev.violation_reason || '',
+          source_key: prev.source_key || '',
+          auto: !!prev.auto
+        };
+      });
+      if (seizureReportsInput) seizureReportsInput.value = JSON.stringify(seizureReportsState || []);
+    }
+
+    function mergeSeizureReportsWithDefaults() {
+      var existing = Array.isArray(seizureReportsState) ? seizureReportsState.slice() : [];
+      var byKey = {};
+      existing.forEach(function (row) { if (row && (row.source_key || row.seizure_ref)) byKey[String(row.source_key || row.seizure_ref)] = row; });
+      defaultSeizureRowsFromFindings().forEach(function (row) {
+        var key = String(row.source_key || row.seizure_ref || '');
+        if (!byKey[key]) {
+          existing.push(row);
+          byKey[key] = row;
+        }
+      });
+      seizureReportsState = existing;
+      if (seizureReportsInput) seizureReportsInput.value = JSON.stringify(seizureReportsState || []);
+    }
+
+    function renderSeizureReports(options) {
+      options = options || {};
+      if (!seizureReportList) return;
+      if (options.mergeDefaults) mergeSeizureReportsWithDefaults();
+      if (!seizureReportsState || !seizureReportsState.length) {
+        seizureReportList.innerHTML = '<div class="callout">Ingen beslag eller avviksrader generert ennå.</div>';
+        if (seizureReportsInput) seizureReportsInput.value = JSON.stringify([]);
+        return;
+      }
+      seizureReportList.innerHTML = seizureReportsState.map(function (row, idx) {
+        var linked = (evidenceState || []).filter(function (ev) { return String(ev.seizure_ref || '').trim() && String(ev.seizure_ref || '').trim() === String(row.seizure_ref || '').trim(); });
+        return [
+          '<article class="seizure-report-card" data-seizure-index="' + idx + '">',
+          '<div class="seizure-report-head"><strong>Beslag ' + escapeHtml(row.seizure_ref || ('B' + String(idx + 1).padStart(2, '0'))) + '</strong><button type="button" class="btn btn-danger btn-small" data-seizure-remove="' + idx + '">Fjern</button></div>',
+          '<div class="grid-two compact-grid-form">',
+          '<label><span>Beslagsnummer</span><input class="seizure-ref" value="' + escapeHtml(row.seizure_ref || '') + '" /></label>',
+          '<label><span>Type</span><input class="seizure-type" value="' + escapeHtml(row.type || '') + '" /></label>',
+          '<label><span>Antall</span><input class="seizure-quantity" value="' + escapeHtml(row.quantity || '') + '" /></label>',
+          '<label><span>Lovgrunnlag / kontrollpunkt</span><input class="seizure-law" value="' + escapeHtml(row.law_text || '') + '" /></label>',
+          '<label class="span-2"><span>Beskrivelse</span><textarea class="seizure-description" rows="3">' + escapeHtml(row.description || '') + '</textarea></label>',
+          '<label class="span-2"><span>Lovbrudd / vurdering</span><textarea class="seizure-reason" rows="3">' + escapeHtml(row.violation_reason || '') + '</textarea></label>',
+          '</div>',
+          linked.length ? '<div class="small muted margin-top-s">Tilknyttede bilder: ' + escapeHtml(linked.map(function (ev) { return ev.caption || ev.original_filename || ('bilde ' + ev.id); }).join(', ')) + '</div>' : '<div class="small muted margin-top-s">Ingen bilder med dette beslagsnummeret er koblet ennå.</div>',
+          '</article>'
+        ].join('');
+      }).join('');
+      Array.prototype.forEach.call(seizureReportList.querySelectorAll('input,textarea'), function (el) {
+        el.addEventListener('input', function () { syncSeizureReportsFromDom(); scheduleAutosave('Beslagsrapport oppdatert'); });
+      });
+      Array.prototype.forEach.call(seizureReportList.querySelectorAll('[data-seizure-remove]'), function (btn) {
+        btn.addEventListener('click', function () { var idx = Number(btn.getAttribute('data-seizure-remove')); seizureReportsState.splice(idx, 1); renderSeizureReports(); scheduleAutosave('Beslag fjernet'); });
+      });
+      if (seizureReportsInput) seizureReportsInput.value = JSON.stringify(seizureReportsState || []);
+    }
+
+    if (btnRefreshSeizureReport) btnRefreshSeizureReport.addEventListener('click', function () { mergeSeizureReportsWithDefaults(); renderSeizureReports(); scheduleAutosave('Beslagsrapport oppdatert'); });
+    if (btnAddSeizureReport) btnAddSeizureReport.addEventListener('click', function () { seizureReportsState.push({ seizure_ref: 'B' + String((seizureReportsState || []).length + 1).padStart(2, '0'), type: 'Manuelt beslag', quantity: '1', description: '', law_text: '', violation_reason: '', auto: false }); renderSeizureReports(); scheduleAutosave('Manuelt beslag lagt til'); });
 
     function appendQueryValue(params, key, value) {
       var raw = String(value == null ? '' : value).trim();
@@ -4224,7 +4412,7 @@
       mapState.showLegend = false;
       mapState.showLayerPanel = !!mapLayerPanelHost;
       mapState.layerPanelDefaultOpen = false;
-      mapState.layerPanelKey = 'case-map-v92';
+      mapState.layerPanelKey = 'case-map-v94';
       mapState.layerPanelTargetSelector = mapLayerPanelHost ? '#case-map-layer-panel-host' : '';
       mapState.rasterLayerIds = allLayerIds;
       mapState.identifyLayerIds = allLayerIds;
@@ -4242,7 +4430,7 @@
           mapState.autoRecenterOnce = false;
         }
         clearTimeout(mapState._offlineWarmTimer);
-        // v92: do not auto-download offline map packages on every position/layer update.
+        // v94: do not auto-download offline map packages on every position/layer update.
         // The user can still press the offline download button explicitly.
         var offlineWarmKey = currentOfflineWarmKey();
         mapState._lastOfflineWarmKey = offlineWarmKey || mapState._lastOfflineWarmKey;
@@ -4275,6 +4463,7 @@
       else if (result.nearest_place) locationName.value = result.nearest_place;
       if (zoneResult) zoneResult.innerHTML = zoneResultHtml(result);
       updateAreaStatusDetail(result);
+      updateAreaRestrictionOptions(result);
       syncManualPositionNotice();
       findingsState = findingsState.filter(function (row) {
         return ['hummer_fredningsomrade_redskap', 'stengt_omrade_status', 'fredningsomrade_status', 'maksimalmal_omrade', 'regulert_omrade'].indexOf(row.key) === -1;
@@ -4940,6 +5129,7 @@ function renderHummerStatus(result) {
     }
 
     function buildSummaryPayload() {
+      syncSeizureReportsFromDom();
       return {
         case_basis: caseBasis.value,
         control_type: controlType.value,
@@ -4954,6 +5144,8 @@ function renderHummerStatus(result) {
         start_time: startTime.value,
         latitude: latitude.value,
         longitude: longitude.value,
+        persons: personsState || [],
+        seizure_reports: seizureReportsState || [],
         findings: findingsState
       };
     }
@@ -5116,75 +5308,54 @@ function renderHummerStatus(result) {
     }
 
     function generateBasisText() {
-      var basis = String(caseBasis.value || 'patruljeobservasjon');
-      var preset = String((document.getElementById('basis_preset') || {}).value || 'auto');
-      var speciesLabel = String(species.value || fisheryType.value || 'aktuelt fiskeri').trim();
-      var gearLabel = String(gearType.value || 'redskap').trim();
-      var sourceName = (basisSourceName.value || '').trim();
+      var basis = String((caseBasis && caseBasis.value) || 'patruljeobservasjon');
+      var presetEl = document.getElementById('basis_preset');
+      var preset = String((presetEl && presetEl.value) || 'auto');
+      var speciesLabel = String((species && species.value) || (fisheryType && fisheryType.value) || 'aktuelt fiskeri').trim();
+      var gearLabel = String((gearType && gearType.value) || 'redskap').trim();
+      var controlTypeLabel = String((controlType && controlType.value) || 'fiskerikontroll').trim();
       var dateLabel = currentControlDateLabel();
       var area = areaContextForNarrative();
-      var locationLabel = (locationName.value || area || 'aktuelt kontrollområde').trim();
-      var placeLabel = area ? ('i ' + area) : ('ved ' + locationLabel);
-      var theme = [controlType.value || '', speciesLabel, gearLabel].filter(Boolean).join(' / ');
-
-      function basisOpeningPhrase() {
-        var normalized = String(sourceName || '').trim().toLowerCase();
-        var defaultSources = {
-          '': true,
-          'kystvaktpatrulje': true,
-          'kv patrulje': true,
-          'kystvakten lettbåt': true,
-          'kystvaktens lettbåt': true
-        };
-        if (basis !== 'tips' && basis !== 'anmeldelse' && !defaultSources[normalized]) {
-          return 'Det ble fra lettbåt fra ' + sourceName + ' gjennomført';
-        }
-        return 'Det ble fra Kystvakten lettbåt gjennomført';
-      }
+      var rawLocation = String((locationName && locationName.value) || '').trim();
+      var positionLabel = (latitude && longitude && latitude.value && longitude.value) ? ('posisjon ' + latitude.value + ', ' + longitude.value) : '';
+      var placeLabel = area ? ('innenfor/ved ' + area) : (rawLocation ? ('ved ' + rawLocation) : 'i aktuelt kontrollområde');
+      if (positionLabel) placeLabel += ' (' + positionLabel + ')';
+      var themeParts = [controlTypeLabel, speciesLabel, gearLabel].filter(function (item) { return String(item || '').trim(); });
+      var theme = themeParts.join(' / ') || 'fiskerikontroll';
 
       function autoPreset() {
         var gearLower = gearLabel.toLowerCase();
         var speciesLower = speciesLabel.toLowerCase();
-        if (basis === 'anmeldelse') return 'followup-report';
-        if (basis === 'tips' && area) return 'tips-area';
-        if (basis === 'tips' && (speciesLower.indexOf('hummer') !== -1 || gearLower.indexOf('teine') !== -1 || gearLower.indexOf('ruse') !== -1)) return 'tips-redskap';
         if (speciesLower.indexOf('hummer') !== -1) return 'patrol-hummer';
         if (gearLower.indexOf('samleteine') !== -1 || gearLower.indexOf('sanketeine') !== -1) return 'patrol-samleteine';
         if (gearLower.indexOf('garn') !== -1 || gearLower.indexOf('lenke') !== -1) return 'patrol-garnlenke';
         if (gearLower.indexOf('teine') !== -1 || gearLower.indexOf('ruse') !== -1) return 'patrol-fixed';
-        if (basis === 'tips') return 'tips-redskap';
         return 'patrol-general';
       }
 
       if (preset === 'auto') preset = autoPreset();
-
-      var opening = basisOpeningPhrase();
+      var opening = 'Den ' + dateLabel + ' gjennomførte patruljen stedlig fiskerikontroll ' + placeLabel + '.';
+      var purposeBase = 'Formålet med patruljen var å kontrollere etterlevelse av regelverket for ' + theme.toLowerCase() + ', med særlig vekt på kontrollposisjon, redskap, merking, fangst/oppbevaring og andre kontrollpunkter som var relevante for valgt fiskeri.';
+      var controlArea = area ? (' Kontrollen ble gjennomført i tilknytning til registrert område: ' + area + '.') : '';
+      var basisNote = '';
+      if (basis === 'tips') {
+        basisNote = ' Patruljen ble rettet mot observerbare forhold på stedet. Rapportteksten beskriver kontrollens formål, observasjoner og gjennomførte kontrollhandlinger.';
+      } else if (basis === 'anmeldelse') {
+        basisNote = ' Patruljen ble gjennomført som oppfølging av en kontrollsituasjon, med formål å klarlegge stedlige forhold og sikre en etterprøvbar beskrivelse av gjennomførte kontrollhandlinger.';
+      }
       var texts = {
-        'patrol-general': opening + ' planlagt kontroll den ' + dateLabel + ' med fokus på ' + theme + ' ' + placeLabel + '. Patruljeformålet var å kontrollere identitet, ansvarssubjekt, posisjon, redskap, fangst, oppbevaring og øvrige vilkår av betydning for regelverket, samt å dokumentere faktiske observasjoner på en måte som kan gi grunnlag for videre vurdering og eventuell anmeldelse.',
-        'patrol-fixed': opening + ' målrettet kontroll av faststående redskap den ' + dateLabel + ' ' + placeLabel + '. Patruljeformålet var å kontrollere plassering, merking av vak og redskap, røkting, fangst og oppbevaring, samt å sikre notoritet rundt eventuelle avvik knyttet til bruk av teiner, ruser eller annet faststående redskap.',
-        'patrol-hummer': opening + ' hummeroppsyn den ' + dateLabel + ' ' + placeLabel + '. Patruljeformålet var å kontrollere påmelding til hummerfiske, deltakernummer, merking av vak og hummerredskap, antall teiner, fluktåpninger, rømningshull, minstemål, oppbevaring og eventuelle område- eller sesongbegrensninger, samt å dokumentere faktiske forhold i en anmeldelsesegnet form.',
-        'patrol-samleteine': opening + ' særskilt kontroll av samleteine / sanketeine den ' + dateLabel + ' ' + placeLabel + '. Patruljeformålet var å kontrollere om redskapen var korrekt merket, om oppbevaring av hummer i sjø skjedde i samsvar med regelverket, og om eventuelle lengdemålinger, registreringer og øvrige vilkår var oppfylt og tilstrekkelig dokumentert.',
-        'patrol-garnlenke': opening + ' kontroll av garnlenke / lenkefiske den ' + dateLabel + ' ' + placeLabel + '. Patruljeformålet var å dokumentere start- og sluttposisjon, kontrollere merking og plassering av vak, avklare ansvarlig fartøy eller person og vurdere om redskapen sto i samsvar med gjeldende område- og redskapsbestemmelser.',
-        'tips-redskap': opening + ' kontroll den ' + dateLabel + ' etter mottatte opplysninger om mulig ulovlig bruk av redskap ' + placeLabel + '. Formålet var å verifisere tipset gjennom stedlig kontroll, identifisere ansvarlig person eller fartøy, og sikre objektiv dokumentasjon av redskap, posisjon, fangst og andre forhold som kunne ha betydning for en eventuell anmeldelse.',
-        'tips-area': opening + ' kontroll den ' + dateLabel + ' etter mottatte opplysninger om mulig fiske eller oppbevaring i fredningsområde, stengt felt eller annet regulert område ' + placeLabel + '. Formålet var å fastslå faktisk posisjon, kontrollere valgt redskap og dokumentere om gjeldende områdebestemmelser var overholdt eller brutt.',
-        'tips-minstemal': opening + ' kontroll den ' + dateLabel + ' etter mottatte opplysninger om mulig fangst eller oppbevaring under minstemål ' + placeLabel + '. Formålet var å gjennomføre kontrollmålinger, dokumentere fangstens størrelse og avklare om det forelå overtredelse av minstemålsreglene eller andre tilknyttede bestemmelser.',
-        'followup-report': opening + ' kontroll den ' + dateLabel + ' som oppfølging av tidligere registrert sak eller anmeldelse ' + placeLabel + '. Formålet var å kontrollere faktum på nytt, sikre ytterligere bevis og avklare om det forelå nye eller vedvarende brudd på regelverket, herunder forhold av betydning for etterfølgende saksbehandling.',
+        'patrol-general': opening + ' Patruljen var en ordinær kontrollpatrulje rettet mot ' + theme.toLowerCase() + '. ' + purposeBase + controlArea + basisNote,
+        'patrol-fixed': opening + ' Patruljen var rettet mot kontroll av faststående fiskeredskap. Kontrollformålet var å kontrollere plassering, merking, røktingsforhold, fangst/oppbevaring og om redskapen var brukt i samsvar med gjeldende område- og redskapsbestemmelser.' + controlArea + basisNote,
+        'patrol-hummer': opening + ' Patruljen var rettet mot kontroll av hummerfiske. Kontrollformålet var å kontrollere deltakelse/påmelding der dette var relevant, deltakernummer, merking av vak og redskap, antall teiner, fluktåpninger/rømningshull, lengdemål, oppbevaring og eventuelle område- eller tidsbegrensninger.' + controlArea + basisNote,
+        'patrol-samleteine': opening + ' Patruljen var rettet mot kontroll av samleteine/sanketeine. Kontrollformålet var å kontrollere merking, plassering, oppbevaring av hummer i sjø, lengdemåling og om vilkår for bruk av redskapen var oppfylt.' + controlArea + basisNote,
+        'patrol-garnlenke': opening + ' Patruljen var rettet mot kontroll av garnlenke/lenkefiske. Kontrollformålet var å kontrollere start- og sluttposisjon, merking, ansvarlig person eller fartøy og om redskapen sto i samsvar med gjeldende område- og redskapsbestemmelser.' + controlArea + basisNote
       };
 
-      if (!texts[preset]) {
-        texts[preset] = opening + ' kontroll den ' + dateLabel + ' med fokus på ' + theme + ' ' + placeLabel + '. Patruljeformålet var å kontrollere redskap, posisjon, fangst, oppbevaring og identitetsopplysninger, og å dokumentere eventuelle avvik i en form som kan brukes videre i oppsummering og anmeldelse.';
-      }
-
-      if (basis === 'tips' && preset.indexOf('tips-') !== 0) {
-        texts[preset] += ' Kontrollen var samtidig utløst av mottatte opplysninger som skulle kontrolleres og holdes opp mot det som faktisk ble observert på stedet.';
-      } else if (basis === 'anmeldelse' && preset !== 'followup-report') {
-        texts[preset] += ' Kontrollen ble også sett i sammenheng med tidligere registrerte opplysninger i saken.';
-      }
-
-      basisDetails.value = texts[preset];
+      basisDetails.value = texts[preset] || (opening + ' ' + purposeBase + controlArea + basisNote);
       scheduleAutosave('Standardtekst satt inn');
     }
-    document.getElementById('btn-generate-basis').addEventListener('click', generateBasisText);
+    var btnGenerateBasis = document.getElementById('btn-generate-basis');
+    if (btnGenerateBasis) btnGenerateBasis.addEventListener('click', generateBasisText);
     var polishBasisBtn = document.getElementById('btn-polish-basis');
     if (polishBasisBtn) polishBasisBtn.addEventListener('click', function () {
       fetch('/api/text/polish', secureFetchOptions({
@@ -5195,6 +5366,125 @@ function renderHummerStatus(result) {
         if (payload && payload.text) { basisDetails.value = payload.text; scheduleAutosave('Rettet grunnlagstekst'); }
       }).catch(function () {});
     });
+
+
+    var signatureModal = document.getElementById('signature-modal');
+    var signatureCanvas = document.getElementById('signature-canvas');
+    var signatureCtx = signatureCanvas ? signatureCanvas.getContext('2d') : null;
+    var signatureCurrentField = '';
+    var signatureDrawing = false;
+
+    function signatureNameForWidget(widget) {
+      var sourceId = widget ? widget.getAttribute('data-signature-name-source') : '';
+      var source = sourceId ? document.getElementById(sourceId) : null;
+      return String((source && source.value) || '').trim();
+    }
+
+    function signatureValue(field) {
+      var input = field ? document.getElementById(field) : null;
+      return input ? String(input.value || '').trim() : '';
+    }
+
+    function signatureDisplayText(value, fallbackName) {
+      if (!value) return fallbackName ? (fallbackName + ' - ikke signert') : 'Ikke signert';
+      try {
+        var parsed = JSON.parse(value);
+        if (parsed && parsed.signed_at) return (parsed.name || fallbackName || 'Signatur') + ' - signert ' + new Date(parsed.signed_at).toLocaleString('nb-NO');
+        if (parsed && parsed.name) return parsed.name + ' - signert';
+      } catch (e) {}
+      return value;
+    }
+
+    function refreshSignatureWidgets() {
+      Array.prototype.forEach.call(document.querySelectorAll('.signature-widget'), function (widget) {
+        var field = widget.getAttribute('data-signature-field');
+        var status = widget.querySelector('.signature-status');
+        if (!status) return;
+        status.textContent = signatureDisplayText(signatureValue(field), signatureNameForWidget(widget));
+      });
+    }
+
+    function clearSignatureCanvas() {
+      if (!signatureCtx || !signatureCanvas) return;
+      signatureCtx.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height);
+      signatureCtx.fillStyle = '#ffffff';
+      signatureCtx.fillRect(0, 0, signatureCanvas.width, signatureCanvas.height);
+      signatureCtx.lineWidth = 3;
+      signatureCtx.lineCap = 'round';
+      signatureCtx.strokeStyle = '#10273d';
+    }
+
+    function signaturePoint(event) {
+      var rect = signatureCanvas.getBoundingClientRect();
+      var source = event.touches && event.touches.length ? event.touches[0] : event;
+      return { x: (source.clientX - rect.left) * (signatureCanvas.width / rect.width), y: (source.clientY - rect.top) * (signatureCanvas.height / rect.height) };
+    }
+
+    function startSignature(event) {
+      if (!signatureCtx) return;
+      event.preventDefault();
+      signatureDrawing = true;
+      var pt = signaturePoint(event);
+      signatureCtx.beginPath();
+      signatureCtx.moveTo(pt.x, pt.y);
+    }
+
+    function moveSignature(event) {
+      if (!signatureDrawing || !signatureCtx) return;
+      event.preventDefault();
+      var pt = signaturePoint(event);
+      signatureCtx.lineTo(pt.x, pt.y);
+      signatureCtx.stroke();
+    }
+
+    function endSignature(event) {
+      if (!signatureDrawing) return;
+      if (event) event.preventDefault();
+      signatureDrawing = false;
+    }
+
+    function openSignatureWidget(widget) {
+      signatureCurrentField = widget.getAttribute('data-signature-field') || '';
+      if (!signatureCurrentField || !signatureModal || !signatureCanvas) return;
+      var name = signatureNameForWidget(widget) || 'Navn ikke angitt';
+      var nameLine = document.getElementById('signature-name-line');
+      if (nameLine) nameLine.textContent = 'Navn: ' + name;
+      clearSignatureCanvas();
+      signatureModal.classList.remove('hidden');
+      signatureModal.setAttribute('aria-hidden', 'false');
+    }
+
+    if (signatureCanvas) {
+      signatureCanvas.addEventListener('mousedown', startSignature);
+      signatureCanvas.addEventListener('mousemove', moveSignature);
+      window.addEventListener('mouseup', endSignature);
+      signatureCanvas.addEventListener('touchstart', startSignature, { passive: false });
+      signatureCanvas.addEventListener('touchmove', moveSignature, { passive: false });
+      signatureCanvas.addEventListener('touchend', endSignature, { passive: false });
+      clearSignatureCanvas();
+    }
+    document.addEventListener('click', function (event) {
+      var btn = event.target.closest('[data-signature-open]');
+      if (!btn) return;
+      var widget = btn.closest('.signature-widget');
+      if (widget) openSignatureWidget(widget);
+    });
+    var closeSignatureBtn = document.getElementById('btn-signature-close');
+    if (closeSignatureBtn) closeSignatureBtn.addEventListener('click', function () { if (signatureModal) { signatureModal.classList.add('hidden'); signatureModal.setAttribute('aria-hidden', 'true'); } });
+    var clearSignatureBtn = document.getElementById('btn-signature-clear');
+    if (clearSignatureBtn) clearSignatureBtn.addEventListener('click', clearSignatureCanvas);
+    var saveSignatureBtn = document.getElementById('btn-signature-save');
+    if (saveSignatureBtn) saveSignatureBtn.addEventListener('click', function () {
+      if (!signatureCurrentField || !signatureCanvas) return;
+      var widget = document.querySelector('.signature-widget[data-signature-field="' + signatureCurrentField + '"]');
+      var input = document.getElementById(signatureCurrentField);
+      if (!input) return;
+      input.value = JSON.stringify({ name: signatureNameForWidget(widget) || '', signed_at: new Date().toISOString(), image: signatureCanvas.toDataURL('image/png'), method: 'touch' });
+      refreshSignatureWidgets();
+      if (signatureModal) { signatureModal.classList.add('hidden'); signatureModal.setAttribute('aria-hidden', 'true'); }
+      scheduleAutosave('Signatur lagret');
+    });
+    refreshSignatureWidgets();
 
     var autosaveStatus = document.getElementById('autosave-status');
     function setAutosaveStatus(textLabel, mode) {
@@ -5211,7 +5501,7 @@ function renderHummerStatus(result) {
         lat: latitude.value || '', lng: longitude.value || '', area_status: areaStatus.value || '', area_name: areaName.value || '', location_name: locationName.value || '',
         suspect_name: suspectName.value || '', suspect_address: suspectAddress.value || '', suspect_post_place: (suspectPostPlace ? suspectPostPlace.value : '') || '', suspect_phone: suspectPhone.value || '',
         hummer_participant_no: hummerParticipantNo.value || '', vessel_reg: vesselReg.value || '', radio_call_sign: radioCallSign.value || '',
-        findings: findingsState, crew: crewState, external: externalActorsState, interviews: interviewState, notes: notes ? notes.value : '', summary: summary ? summary.value : '', hearing: hearingText ? hearingText.value : ''
+        findings: findingsState, crew: crewState, external: externalActorsState, persons: personsState, interviews: interviewState, seizure_reports: seizureReportsState, notes: notes ? notes.value : '', summary: summary ? summary.value : '', hearing: hearingText ? hearingText.value : ''
       });
     }
 

@@ -16,7 +16,7 @@ services:
       - key: KV_BRAND_ORG_NAME
         value: Minfiskerikontroll
       - key: KV_APP_VERSION_LABEL
-        value: v92
+        value: v94
       - key: KV_STORAGE_ROOT
         value: /var/data/fiskerikontroll
       - key: KV_DB_PATH

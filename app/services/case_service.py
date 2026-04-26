@@ -95,6 +95,7 @@ def case_data_from_form(form: Any, user: dict[str, Any], status_options: list[st
         'external_actors_json': clean_json_array(str(form.get('external_actors_json') or '[]')),
         'persons_json': clean_json_array(str(form.get('persons_json') or '[]')),
         'interview_sessions_json': clean_json_array(str(form.get('interview_sessions_json') or '[]')),
+        'seizure_reports_json': clean_json_array(str(form.get('seizure_reports_json') or '[]')),
         'interview_not_conducted': 1 if str(form.get('interview_not_conducted') or '').strip().lower() in {'1', 'true', 'on', 'yes'} else 0,
         'interview_not_conducted_reason': str(form.get('interview_not_conducted_reason') or '').strip() or None,
         'interview_guidance_text': str(form.get('interview_guidance_text') or '').strip() or None,
@@ -125,7 +126,7 @@ def case_data_from_form(form: Any, user: dict[str, Any], status_options: list[st
 
 
 def preview_overrides_from_form(form: Any) -> dict[str, Any]:
-    return {
+    data: dict[str, Any] = {
         'complaint_override': str(form.get('complaint_override') or '').strip() or None,
         'own_report_override': str(form.get('own_report_override') or '').strip() or None,
         'interview_report_override': str(form.get('interview_report_override') or '').strip() or None,
@@ -133,12 +134,21 @@ def preview_overrides_from_form(form: Any) -> dict[str, Any]:
         'interview_not_conducted_reason': str(form.get('interview_not_conducted_reason') or '').strip() or None,
         'interview_guidance_text': str(form.get('interview_guidance_text') or '').strip() or None,
         'seizure_report_override': str(form.get('seizure_report_override') or '').strip() or None,
-        'complainant_signature': str(form.get('complainant_signature') or '').strip() or None,
-        'witness_signature': str(form.get('witness_signature') or '').strip() or None,
-        'investigator_signature': str(form.get('investigator_signature') or '').strip() or None,
-        'suspect_signature': str(form.get('suspect_signature') or '').strip() or None,
         'last_previewed_at': db.utcnow_iso(),
     }
+    for key in (
+        'seizure_reports_json',
+        'complainant_signature',
+        'witness_signature',
+        'investigator_signature',
+        'suspect_signature',
+    ):
+        if key in form:
+            if key == 'seizure_reports_json':
+                data[key] = clean_json_array(str(form.get(key) or '[]'))
+            else:
+                data[key] = str(form.get(key) or '').strip() or None
+    return data
 
 
 def autofill_case_drafts(case_row: dict[str, Any]) -> dict[str, Any]:

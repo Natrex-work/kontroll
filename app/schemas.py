@@ -16,6 +16,8 @@ class TextPolishRequest(BaseModel):
 
 class SummarySuggestRequest(BaseModel):
     findings: list[dict[str, Any]] = Field(default_factory=list)
+    persons: list[dict[str, Any]] = Field(default_factory=list)
+    seizure_reports: list[dict[str, Any]] = Field(default_factory=list)
     case_basis: str = Field(default='patruljeobservasjon', max_length=40)
     control_type: str = Field(default='', max_length=100)
     species: str = Field(default='', max_length=100)
