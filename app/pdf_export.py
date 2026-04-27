@@ -413,37 +413,10 @@ def _utm_from_lat_lng(lat_value: Any, lng_value: Any) -> str:
     return f"UTM sone {zone}{'N' if lat >= 0 else 'S'} Ø {round(easting)} N {round(northing)}"
 
 
-def _dms_component(value: Any, positive: str, negative: str) -> str:
-    try:
-        num = float(str(value).replace(',', '.'))
-    except (TypeError, ValueError):
-        return ''
-    prefix = positive if num >= 0 else negative
-    abs_value = abs(num)
-    deg = int(abs_value)
-    minutes_float = (abs_value - deg) * 60
-    minutes = int(minutes_float)
-    seconds = round((minutes_float - minutes) * 60)
-    if seconds >= 60:
-        seconds = 0
-        minutes += 1
-    if minutes >= 60:
-        minutes = 0
-        deg += 1
-    return f'{prefix} {deg}° {minutes:02d}\' {seconds:02d}"'
-
-
-def _case_dms(case_row: Dict[str, Any]) -> str:
+def _case_utm(case_row: Dict[str, Any]) -> str:
     if case_row.get('latitude') is None or case_row.get('longitude') is None:
         return ''
-    lat = _dms_component(case_row.get('latitude'), 'N', 'S')
-    lon = _dms_component(case_row.get('longitude'), 'Ø', 'V')
-    return f'{lat} {lon}'.strip() if lat and lon else ''
-
-
-def _case_utm(case_row: Dict[str, Any]) -> str:
-    # Compatibility name: user-facing control position is now DMS.
-    return _case_dms(case_row)
+    return _utm_from_lat_lng(case_row.get('latitude'), case_row.get('longitude'))
 
 def _fmt_value(value: Any) -> str:
     if value is None:
@@ -1308,7 +1281,7 @@ def build_text_drafts(case_row: Dict[str, Any], findings: list[Dict[str, Any]]) 
 def _location_line(case_row: Dict[str, Any]) -> str:
     bits = _non_empty(case_row.get('location_name'), _area_name_value(case_row))
     if case_row.get('latitude') is not None and case_row.get('longitude') is not None:
-        bits.append(_case_utm(case_row) or 'DMS ikke beregnet')
+        bits.append(_case_utm(case_row) or 'UTM ikke beregnet')
     return ', '.join(bits) if bits else 'ikke oppgitt sted'
 
 
@@ -3476,7 +3449,7 @@ def _draw_seizure_page(c: rl_canvas.Canvas, case_row: Dict[str, Any], packet: Di
     for idx, row in enumerate(rows[:5], start=1):
         where = str(row.get('position') or '').strip()
         if not where and case_row.get('latitude') is not None and case_row.get('longitude') is not None:
-            where = _case_utm(case_row) or 'DMS ikke beregnet'
+            where = _case_utm(case_row) or 'UTM ikke beregnet'
         desc = str(row.get('description') or row.get('violation_reason') or row.get('caption') or row.get('type') or '').strip()
         if row.get('law_text'):
             desc += '\n' + str(row.get('law_text')).strip()[:180]
@@ -3652,7 +3625,7 @@ def _draw_seizure_page(c: rl_canvas.Canvas, case_row: Dict[str, Any], packet: Di
     for idx, row in enumerate(rows[:5], start=1):
         where = str(row.get('position') or '').strip()
         if not where and case_row.get('latitude') is not None and case_row.get('longitude') is not None:
-            where = _case_utm(case_row) or 'DMS ikke beregnet'
+            where = _case_utm(case_row) or 'UTM ikke beregnet'
         desc = str(row.get('description') or row.get('violation_reason') or row.get('caption') or row.get('type') or '').strip()
         if row.get('law_text'):
             desc += '\n' + str(row.get('law_text')).strip()[:180]

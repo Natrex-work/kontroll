@@ -155,27 +155,43 @@ def check_zone_status(lat: float, lng: float, species: str = '', gear_type: str 
                 'distance_to_place_km': result.get('distance_to_place_km'),
             }
         result['debug_live_error'] = str(exc)
-    # Reverse geocoding is slow and external. Use the local nearest place when
-    # available; query live geocoding only when it adds information or when forced
-    # through KV_REVERSE_GEOCODE_ALWAYS.
-    if result.get('nearest_place') and not _REVERSE_GEOCODE_ALWAYS:
-        if not result.get('location_name'):
-            result['location_name'] = result.get('nearest_place') or ''
-        result['reverse_geocode'] = {'found': False, 'skipped': True, 'reason': 'local_nearest_place_available'}
-    else:
+    # Den lokale stedslisten er bare reserve. For rapporttekst skal nærmeste
+    # kommune/sted helst komme fra reverse geocoding når lokal treffavstand er grov.
+    local_distance = result.get('distance_to_place_km')
+    should_reverse = _REVERSE_GEOCODE_ALWAYS or not result.get('nearest_place')
+    try:
+        should_reverse = should_reverse or (local_distance is not None and float(local_distance) > 2.0)
+    except Exception:
+        should_reverse = True
+    if should_reverse:
         try:
             reverse = live_sources.reverse_geocode_live(lat, lng)
-            if reverse.get('name') and not result.get('nearest_place'):
+            if reverse.get('name'):
                 result['nearest_place'] = reverse.get('name')
-            if reverse.get('location_label'):
+            municipality = reverse.get('municipality') or ''
+            locality = reverse.get('locality') or reverse.get('name') or ''
+            label_parts = []
+            for value in [locality, municipality]:
+                value = str(value or '').strip()
+                if value and value not in label_parts:
+                    label_parts.append(value)
+            if label_parts:
+                result['location_name'] = ', '.join(label_parts)
+            elif reverse.get('location_label'):
                 result['location_name'] = reverse.get('location_label')
             elif not result.get('location_name'):
                 result['location_name'] = result.get('nearest_place') or ''
+            if municipality:
+                result['municipality'] = municipality
             result['reverse_geocode'] = reverse
         except Exception:
             if not result.get('location_name'):
                 result['location_name'] = result.get('nearest_place') or ''
             result['reverse_geocode'] = {'found': False}
+    else:
+        if not result.get('location_name'):
+            result['location_name'] = result.get('nearest_place') or ''
+        result['reverse_geocode'] = {'found': False, 'skipped': True, 'reason': 'local_nearest_place_available'}
     if result.get('match'):
         rec = rules.recommend_area_violation(area_status=result.get('status') or '', area_name=result.get('name') or '', species=species, gear_type=gear_type, notes=result.get('notes') or '')
         if rec:

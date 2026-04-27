@@ -32,7 +32,7 @@ NON_NAME_WORDS = {
     'vis', 'nummer', 'telefonnummer', 'visnummer', 'vistlf', '1881', 'gulesider', 'kontakt', 'ring', 'send', 'sms'
 }
 
-BAD_NAME_PHRASES_RE = re.compile(r'\b(?:vis\s*(?:telefon|nummer|tlf)|telefon\s*nummer|visnummer|ring|send\s*sms|1881|gulesider)\b', re.IGNORECASE)
+BAD_NAME_PHRASES_RE = re.compile(r'(?:\bvis\s*(?:telefon|nummer|tlf|mobil)\b|\b(?:telefon|mobil)\s*nummer\b|\bvisnummer\b|\bvistelefon\b|\bring\b|\bsend\s*sms\b|\b1881(?:\.no)?\b|\bgulesider(?:\.no)?\b|\bopplysningen\b|\bnummeropplysning\b)', re.IGNORECASE)
 
 
 def is_bad_person_name(value: str | None) -> bool:

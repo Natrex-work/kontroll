@@ -11,6 +11,7 @@ from .logging_setup import configure_logging
 from .middleware import BodySizeLimitMiddleware, SecurityHeadersMiddleware
 from .routers import admin, api, auth, cases, pages
 from .services.bootstrap_service import ensure_bootstrap_admin, initialize_application_data
+from .services.rules_updater import start_background_rule_refresh
 
 configure_logging(settings.log_level)
 settings.ensure_runtime_dirs()
@@ -41,6 +42,7 @@ def create_app() -> FastAPI:
     @app.on_event('startup')
     def startup() -> None:
         initialize_application_data()
+        start_background_rule_refresh()
 
     @app.exception_handler(HTTPException)
     async def friendly_http_exception(request: Request, exc: HTTPException):

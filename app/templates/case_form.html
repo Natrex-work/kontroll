@@ -175,13 +175,13 @@
         <div class="subcard">
           <h3>Posisjon og område</h3>
           <div class="grid-two compact-grid-form margin-top-s">
-            <label><span>Nærmeste sted</span><input name="location_name" id="location_name" value="{{ case.location_name or '' }}" /><span class="small coordinate-summary" id="position-coordinate-summary">DMS vises her når posisjon er satt.</span></label>
+            <label><span>Nærmeste sted</span><input name="location_name" id="location_name" value="{{ case.location_name or '' }}" /><span class="small coordinate-summary" id="position-coordinate-summary">UTM vises her når posisjon er satt.</span></label>
             <div class="position-action-group">
               <span>Handlinger</span>
               <div class="position-actions margin-top-s">
                 <button type="button" class="btn btn-secondary" id="btn-use-location">Bruk min posisjon</button>
                 <button type="button" class="btn btn-secondary" id="btn-set-manual-position">Sett manuelt i kart</button>
-                <button type="button" class="btn btn-secondary" id="btn-check-zone">Oppdater områder</button>
+                <button type="button" class="btn btn-secondary" id="btn-check-zone">Oppdater områdestatus</button>
                 <button type="button" class="btn btn-secondary" id="btn-download-map-offline">Last ned offline-kart</button>
               </div>
             </div>
@@ -192,18 +192,13 @@
                 <label><span>WGS84 øst/vest</span><input name="longitude" id="longitude" value="{{ case.longitude or '' }}" /></label>
               </div>
             </details>
-            <input type="hidden" name="area_status" id="area_status" value="{{ case.area_status or '' }}" />
+            <label><span>Områdestatus</span><input name="area_status" id="area_status" value="{{ case.area_status or '' }}" readonly /></label>
             <input type="hidden" name="area_name" id="area_name" value="{{ case.area_name or '' }}" />
-            <details class="case-disclosure span-2 area-restriction-disclosure" id="area-restriction-disclosure">
-              <summary class="case-disclosure-summary">Aktuelle områder og mulig forbud</summary>
-              <div class="area-restriction-body">
-                <label><span>Områder med mulig forbud for valgt fiskeri</span><select id="area_restriction_select"><option value="">Oppdater områder</option></select></label>
-                <div class="callout area-restriction-detail" id="area-restriction-detail">Områder med mulig forbud vises her.</div>
-              </div>
-            </details>
+            <label class="span-2"><span>Forbudsområder</span><select id="area_restriction_select"><option value="">Oppdater områdestatus for å vise aktuelle områder</option></select></label>
+            <div class="callout span-2 area-restriction-detail" id="area-restriction-detail">Lovregulerte forbudsområder for valgt art/redskap vises her etter områdesjekk.</div>
           </div>
-          <div class="callout margin-top-s hidden" id="manual-position-status"></div>
-          <div class="callout margin-top-s hidden" id="area-status-detail"></div>
+          <div class="callout margin-top-s" id="manual-position-status">Når dette steget er åpent følger appen GPS-posisjonen automatisk. Hvis GPS ikke virker, trykk «Sett manuelt i kart» og plasser nålen selv. Når manuell posisjon er aktiv, flyttes rød nål ved å dra markøren i kartet.</div>
+          <div class="callout margin-top-s" id="area-status-detail">Områdestatus og nærmeste sted vises her når posisjonen er kontrollert.</div>
         </div>
       </div>
       <div class="subcard margin-top-m">
@@ -608,5 +603,5 @@
   }
 })();
 </script>
-<script src="/static/js/case-app.js?v=v97"></script>
+<script src="/static/js/case-app.js?v=v100"></script>
 {% endblock %}
