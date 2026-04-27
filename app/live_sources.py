@@ -40,7 +40,7 @@ YGG_BASE = os.getenv('KV_YGG_BASE', os.getenv('KV_PORTAL_MAPSERVER', 'https://gi
 LOVDATA_TOPICS_PATH = DATA_DIR / 'lovdata_topics.json'
 FDIR_CACHE_JSON = CACHE_DIR / 'fdir_registry_cache.json'
 FDIR_CACHE_META = CACHE_DIR / 'fdir_registry_meta.json'
-UA = 'Minfiskerikontroll-v98/1.0 (+field trial app)'
+UA = 'Minfiskerikontroll-v97/1.0 (+field trial app)'
 HUMMER_REGISTER_URL = 'https://tableau.fiskeridir.no/t/Internet/views/Pmeldehummarfiskarargjeldander/Pmeldehummarfiskarar?:showVizHome=no'
 HUMMER_REGISTER_FALLBACK_URL = 'https://www.fiskeridir.no/statistikk-tall-og-analyse/data-og-statistikk-om-turist--og-fritidsfiske/registrerte-hummarfiskarar'
 HUMMER_CACHE_JSON = CACHE_DIR / 'hummer_registry_cache.json'
@@ -958,7 +958,7 @@ def lookup_hummer_participant_live(participant_no: str = '', name: str = '') -> 
         inferred_last = registry.infer_last_registered(best.get('participant_no'), current_year)
         person = {
             'participant_no': best.get('participant_no') or participant_no,
-            'name': best.get('name') or name,
+            'name': _clean_directory_name(best.get('name') or '') or ('' if registry.is_bad_person_name(name) else name),
             'fisher_type': best.get('fisher_type') or '',
             'source': 'Fiskeridirektoratet - registrerte hummarfiskarar',
             'source_url': url,
@@ -1319,13 +1319,20 @@ def compose_live_sources(control_type: str = '', species: str = '', gear_type: s
 
 
 _DIRECTORY_STOPWORDS = {
-    'veibeskrivelse', 'vis', 'kart', 'nær meg', 'ring', 'send sms', 'facebook', 'instagram',
-    'linkedin', 'hjelp', 'personvern', 'cookiepolicy', 'submit', 'søk', 'bunntekst', 'utgiver'
+    'veibeskrivelse', 'vis', 'vis nummer', 'vis telefon', 'telefonnummer', 'kart', 'nær meg', 'ring', 'send sms', 'facebook', 'instagram',
+    'linkedin', 'hjelp', 'personvern', 'cookiepolicy', 'submit', 'søk', 'bunntekst', 'utgiver', '1881', 'gulesider'
 }
 
 
+def _clean_directory_name(value: str) -> str:
+    name = ' '.join(str(value or '').split()).strip(' ,;|-')
+    if registry.is_bad_person_name(name):
+        return ''
+    return name
+
+
 def _looks_like_name(value: str) -> bool:
-    value = ' '.join(str(value or '').strip().split())
+    value = _clean_directory_name(value)
     if not value or len(value) < 4:
         return False
     if any(ch.isdigit() for ch in value):
@@ -1364,7 +1371,7 @@ def _extract_directory_jsonld(soup: BeautifulSoup, source_name: str, source_url:
         typ = str(obj.get('@type') or obj.get('type') or '')
         if typ and typ.lower() not in {'person', 'localbusiness', 'organization', 'contactpoint'}:
             return
-        name = str(obj.get('name') or '').strip()
+        name = _clean_directory_name(str(obj.get('name') or '').strip())
         phone = str(obj.get('telephone') or '').strip()
         address = obj.get('address')
         if isinstance(address, dict):
@@ -1522,7 +1529,7 @@ def lookup_directory_candidates(phone: str = '', name: str = '', address: str = 
         return {'found': False, 'message': 'Ingen tydelige treff i offentlige kataloger.', 'candidates': []}
     best = dict(scored[0])
     person = {
-        'name': best.get('name') or name,
+        'name': _clean_directory_name(best.get('name') or '') or ('' if registry.is_bad_person_name(name) else name),
         'address': best.get('address') or address,
         'phone': best.get('phone') or phone,
         'source': best.get('source') or 'Offentlig katalog',

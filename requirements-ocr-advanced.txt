@@ -1,5 +1,0 @@
-# Optional advanced OCR dependencies.
-# Not installed by default to keep Docker image and Render builds lighter.
-# Enable only if KV_OCR_ENABLE_DESKEW=1 is needed for skewed/rotated labels.
-numpy==2.3.5
-opencv-python-headless==4.13.0.92

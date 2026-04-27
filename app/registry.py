@@ -28,8 +28,26 @@ COMPACT_STREET_RE = re.compile(r'^([A-ZÆØÅa-zæøå][A-Za-zÆØÅæøå\-\. ]
 NAME_LINE_RE = re.compile(r'^[A-ZÆØÅ][A-Za-zÆØÅæøå\-]+(?:\s+[A-ZÆØÅ][A-Za-zÆØÅæøå\-]+){1,3}$')
 NON_NAME_WORDS = {
     'kv', 'kystvakten', 'hummer', 'deltakarnummer', 'deltakernummer', 'tlf', 'telefon', 'adresse', 'mobil', 'vak',
-    'blåse', 'blase', 'flyt', 'dobbe', 'radiokallesignal', 'fiskerimerke', 'registreringsmerke'
+    'blåse', 'blase', 'flyt', 'dobbe', 'radiokallesignal', 'fiskerimerke', 'registreringsmerke',
+    'vis', 'nummer', 'telefonnummer', 'visnummer', 'vistlf', '1881', 'gulesider', 'kontakt', 'ring', 'send', 'sms'
 }
+
+BAD_NAME_PHRASES_RE = re.compile(r'\b(?:vis\s*(?:telefon|nummer|tlf)|telefon\s*nummer|visnummer|ring|send\s*sms|1881|gulesider)\b', re.IGNORECASE)
+
+
+def is_bad_person_name(value: str | None) -> bool:
+    text = ' '.join(str(value or '').replace('|', ' ').split()).strip(' ,;|-')
+    if not text:
+        return True
+    if BAD_NAME_PHRASES_RE.search(text):
+        return True
+    words = {w.lower().strip('.,:;') for w in text.split()}
+    if words and words <= NON_NAME_WORDS:
+        return True
+    if words & {'vis', 'nummer', 'telefonnummer', '1881', 'gulesider'}:
+        return True
+    return False
+
 KNOWN_FIELD_LABELS = (
     r'navn', r'eier', r'ansvarlig', r'skipper', r'person',
     r'adresse', r'adr', r'postadresse',
@@ -217,6 +235,8 @@ def normalize_person_name(value: str) -> str:
 
 def _is_probable_name(line: str) -> bool:
     line = _clean_name_candidate(line)
+    if is_bad_person_name(line):
+        return False
     if not NAME_LINE_RE.match(line):
         return False
     words = {w.lower() for w in line.split()}

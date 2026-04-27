@@ -207,9 +207,11 @@ def lookup_registry(*, phone: str = '', vessel_reg: str = '', radio_call_sign: s
         candidates.extend(local_candidates)
         candidates.extend(case_candidates)
     else:
-        if phone_lookup or name_lookup or combined_address_lookup:
+        if phone_lookup:
             try:
-                directory_result = live_sources.lookup_directory_candidates(phone=phone_lookup, name=name_lookup, address=combined_address_lookup)
+                # 1881/Gulesider brukes bare sekundært ved mobilnummer.
+                # OCR-tekst på bildet er primærkilde for navn/adresse.
+                directory_result = live_sources.lookup_directory_candidates(phone=phone_lookup, name='', address='')
             except Exception as exc:
                 directory_result = {'found': False, 'message': f'Katalogsøk utilgjengelig: {exc}', 'candidates': []}
         if directory_result and directory_result.get('found'):
