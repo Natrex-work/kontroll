@@ -748,7 +748,7 @@ def _offence_from_finding(case_row: Dict[str, Any], item: Dict[str, Any], findin
     subject = str(case_row.get('suspect_name') or 'Ukjent gjerningsperson').strip()
     when = _fmt_datetime(case_row.get('start_time'))
     location = _location_line(case_row)
-    area_name = str(case_row.get('area_name') or case_row.get('area_status') or 'aktuelt område').strip()
+    area_name = str(case_row.get('area_name') or case_row.get('area_status') or _location_line(case_row)).strip()
     gear = str(case_row.get('gear_type') or 'redskap').strip().lower()
     species = str(case_row.get('species') or case_row.get('fishery_type') or 'fiske').strip().lower()
     note = _finding_note(item)
@@ -3049,7 +3049,7 @@ def build_summary(case_row: Dict[str, Any], findings: list[Dict[str, Any]]) -> s
         f'Kontrollen gjaldt {control_theme.lower()} og omfattet {subject}.',
     ]
     if case_row.get('area_status') or case_row.get('area_name'):
-        rows.append(f"Kontrollposisjonen er registrert i/ved {str(case_row.get('area_name') or 'aktuelt område').strip()} ({str(case_row.get('area_status') or 'områdestatus ikke angitt').strip()}).")
+        rows.append(f"Kontrollposisjonen er registrert i/ved {str(case_row.get('area_name') or case_row.get('location_name') or 'registrert kontrollposisjon').strip()} ({str(case_row.get('area_status') or 'områdestatus ikke angitt').strip()}).")
     if avvik:
         rows.append('Følgende avvik/funn er registrert for videre vurdering:')
         for idx, item in enumerate(avvik, start=1):
@@ -3344,7 +3344,7 @@ def build_summary(case_row: Dict[str, Any], findings: list[Dict[str, Any]]) -> s
             lines.append(f'{idx}. {row}')
     if case_row.get('area_status') or case_row.get('area_name'):
         lines.extend(['', '5. Område/posisjon:'])
-        lines.append(f"Kontrollposisjonen er registrert i/ved {str(case_row.get('area_name') or 'aktuelt område').strip()} ({str(case_row.get('area_status') or 'områdestatus ikke angitt').strip()}).")
+        lines.append(f"Kontrollposisjonen er registrert i/ved {str(case_row.get('area_name') or case_row.get('location_name') or 'registrert kontrollposisjon').strip()} ({str(case_row.get('area_status') or 'områdestatus ikke angitt').strip()}).")
     lines.extend(['', '6. Registrerte kontrollpunkter og avvik:'])
     if avvik:
         for idx, item in enumerate(avvik, start=1):

@@ -95,6 +95,12 @@ def api_text_polish(request: Request, payload: TextPolishRequest):
     if not text_in:
         return JSONResponse({'text': ''})
     cleaned = ' '.join(text_in.replace('\r', '\n').split())
+    if location:
+        cleaned = re.sub(r'\bi aktuelt kontrollområde\b', 'ved ' + location, cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r'\baktuelt kontrollområde\b', location, cleaned, flags=re.IGNORECASE)
+    else:
+        cleaned = re.sub(r'\bi aktuelt kontrollområde\b', 'ved registrert kontrollposisjon', cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r'\baktuelt kontrollområde\b', 'registrert kontrollposisjon', cleaned, flags=re.IGNORECASE)
     cleaned = cleaned.replace(' ,', ',').replace(' .', '.').replace(' :', ':')
     unwanted_phrases = (
         'samt å dokumentere faktiske ' + 'forhold i en ' + 'anmeldelsesegnet form',
@@ -143,7 +149,7 @@ def api_rules(request: Request, control_type: str = '', species: str = '', gear_
 @router.get('/api/zones/check')
 def api_zones_check(request: Request, lat: float = Query(..., ge=-90, le=90), lng: float = Query(..., ge=-180, le=180), species: str = '', gear_type: str = '', control_type: str = ''):
     require_any_permission(request, ['kart', 'kv_kontroll'], detail='Brukeren har ikke tilgang til kart- og omradekontroll.')
-    return JSONResponse(check_zone_status(lat, lng, species=species, gear_type=gear_type, control_type=control_type))
+    return JSONResponse(check_zone_status(lat, lng, species=species, gear_type=gear_type, control_type=control_type), headers={'Cache-Control': 'no-store, max-age=0'})
 
 
 @router.get('/api/map/catalog')

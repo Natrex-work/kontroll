@@ -3319,3 +3319,35 @@ body {
 }
 
 .margin-top-xs { margin-top: .45rem; }
+
+/* V1.0: collapse relevant map areas/layers in the case form. */
+.map-relevant-panel > summary.map-relevant-head {
+  cursor: pointer;
+  list-style: none;
+  margin-bottom: 0;
+}
+.map-relevant-panel[open] > summary.map-relevant-head {
+  margin-bottom: 12px;
+}
+.map-relevant-panel > summary.map-relevant-head::-webkit-details-marker,
+.map-relevant-item > summary::-webkit-details-marker {
+  display: none;
+}
+.map-relevant-panel > summary.map-relevant-head::after {
+  content: '▾';
+  margin-left: auto;
+  transition: transform 0.15s ease;
+}
+.map-relevant-panel:not([open]) > summary.map-relevant-head::after {
+  transform: rotate(-90deg);
+}
+.map-relevant-item > summary {
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+.map-relevant-item > summary .map-tone {
+  flex: 0 0 auto;
+}

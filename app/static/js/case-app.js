@@ -6,7 +6,7 @@
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('/static/sw.js?v=v101').catch(function () {});
+      navigator.serviceWorker.register('/static/sw.js?v=V1.0').catch(function () {});
     });
   }
 
@@ -1344,7 +1344,7 @@
     var lawBrowser = parseJson(root.dataset.lawBrowser, []);
     var mapCatalog = parseJson(root.dataset.mapCatalog, []);
     var mapFilterWrap = document.getElementById('map-layer-filters');
-    var mapFilterStorageKey = 'kv-map-layer-filter-v101:' + root.dataset.caseId;
+    var mapFilterStorageKey = 'kv-map-layer-filter-v1-0:' + root.dataset.caseId;
     var activeLayerStatuses = { 'fredningsområde': true, 'stengt område': true, 'maksimalmål område': true, 'regulert område': true, 'fiskeriområde': true };
     try {
       localStorage.removeItem('kv-map-layer-filter:' + root.dataset.caseId);
@@ -1459,11 +1459,16 @@
       return [];
     }
 
+    function hasMapSelection() {
+      return Boolean(currentControlSelection() || currentFisherySelection() || currentGearSelection());
+    }
+
     function layerAllowedBySelectionProfile(layer) {
       var id = Number(layer && layer.id);
       if (!isFinite(id)) return false;
       var preferredIds = selectionProfileLayerIds();
-      if (!preferredIds.length) return true;
+      if (!hasMapSelection()) return false;
+      if (!preferredIds.length) return layerSelectionScore(layer) > 0;
       if (preferredIds.indexOf(id) !== -1) return true;
       return layerSelectionScore(layer) > 0;
     }
@@ -1511,12 +1516,6 @@
       var rows = (mapCatalog || []).filter(function (layer) {
         return layerMatchesCurrentSelection(layer);
       });
-      if (!rows.length) {
-        rows = (mapCatalog || []).filter(function (layer) {
-          var status = String(layer && layer.status || '').trim().toLowerCase();
-          return !Object.prototype.hasOwnProperty.call(activeLayerStatuses, status) || activeLayerStatuses[status] !== false;
-        });
-      }
       return rows.slice().sort(function (a, b) {
         var scoreDiff = layerSelectionScore(b) - layerSelectionScore(a);
         if (scoreDiff) return scoreDiff;
@@ -1588,6 +1587,8 @@
         rawIds.forEach(function (rawLayerId) {
           var resolvedId = resolveCatalogLayerId(rawLayerId, hit && (hit.layer || hit.layer_name || hit.name));
           if (!isFinite(Number(resolvedId)) || seen[Number(resolvedId)]) return;
+          var resolvedLayer = layerDefinitionById(resolvedId);
+          if (resolvedLayer && !layerMatchesCurrentSelection(resolvedLayer)) return;
           seen[Number(resolvedId)] = true;
           ids.push(Number(resolvedId));
         });
@@ -1647,20 +1648,19 @@
         });
       });
       if (!items.length) {
-        caseRelevantAreasList.innerHTML = '<div class="muted small">Ingen temalag matcher filtrene akkurat nå. Slå på flere lag eller velg art/redskap.</div>';
+        caseRelevantAreasList.innerHTML = '<div class="muted small">Ingen verneområder matcher valgt kontrolltype, art, fiskeri og redskap.</div>';
         return;
       }
       caseRelevantAreasList.innerHTML = items.map(function (item) {
         return [
-          '<article class="map-relevant-item">',
+          '<details class="map-relevant-item">',
+          '<summary><span><strong>' + escapeHtml(item.title || 'Område') + '</strong></span><span class="map-tone ' + escapeHtml(mapToneClass(item.status)) + '">' + escapeHtml(item.status || 'Temalag') + '</span></summary>',
           '<div class="map-relevant-meta">',
-          '<span class="map-tone ' + escapeHtml(mapToneClass(item.status)) + '">' + escapeHtml(item.status || 'Temalag') + '</span>',
           item.emphasis ? '<span class="map-quick-tag">' + escapeHtml(item.emphasis) + '</span>' : '',
           '</div>',
-          '<strong>' + escapeHtml(item.title || 'Område') + '</strong>',
           item.summary ? '<div class="muted small">' + escapeHtml(item.summary) + '</div>' : '',
           item.meta && item.meta.length ? '<div class="map-quick-tags">' + item.meta.map(function (meta) { return '<span class="map-quick-tag">' + escapeHtml(meta) + '</span>'; }).join('') + '</div>' : '',
-          '</article>'
+          '</details>'
         ].join('');
       }).join('');
     }
@@ -1676,7 +1676,7 @@
       if (fisherySel) parts.push(fisherySel);
       if (gearSel) parts.push(gearSel);
       var summary = parts.length ? (' Valgt profil: <strong>' + escapeHtml(parts.join(' / ')) + '</strong>.') : '';
-      mapSelectionStatus.innerHTML = 'Kartet viser ' + layerCount + ' relevante temalag direkte i kartet.' + summary + ' Treffområder kan slås av og på over kartet, og lagvelgeren under kartet kan åpnes/lukkes uten å dekke selve kartflaten.';
+      mapSelectionStatus.innerHTML = 'Kartet viser ' + layerCount + ' relevante verneområder/temalag.' + summary + ' Åpne/lukk kartlag under kartet.';
       renderRelevantAreaPanel(latestZoneResult);
     }
     function syncLayerFiltersUi() {
@@ -1779,7 +1779,7 @@
         urls = urls.concat(collectTileUrls(layer, map, padding == null ? 2 : padding));
       });
       urls = uniqueUrls(urls);
-      return prefetchUrlsToCache(urls, 'kv-kontroll-v101-map-tiles').then(function (count) {
+      return prefetchUrlsToCache(urls, 'kv-kontroll-v1-0-map-tiles').then(function (count) {
         return { count: count, urls: urls };
       });
     }
@@ -3658,24 +3658,32 @@
         rows.push(row);
       }
       result = result || latestZoneResult || {};
-      if (result.match) push(areaOptionPayload(result.name || result.status || 'Forbudsområde', result.status || 'regulert område', result.notes || (result.recommended_violation && result.recommended_violation.message) || '', 'områdesjekk'));
+      if (result.match) push(areaOptionPayload(result.name || result.status || 'Verneområde', result.status || 'regulert område', result.notes || (result.recommended_violation && result.recommended_violation.message) || '', 'områdesjekk'));
       (result.hits || []).forEach(function (hit) {
+        var hitLayerIds = Array.isArray(hit && hit.layer_ids) ? hit.layer_ids : ((hit && hit.layer_id !== undefined && hit.layer_id !== null && hit.layer_id !== '') ? [hit.layer_id] : []);
+        if (hitLayerIds.length) {
+          var hitRelevant = hitLayerIds.some(function (rawLayerId) {
+            var resolvedLayer = layerDefinitionById(resolveCatalogLayerId(rawLayerId, hit && (hit.layer || hit.layer_name || hit.name)));
+            return !resolvedLayer || layerMatchesCurrentSelection(resolvedLayer);
+          });
+          if (!hitRelevant) return;
+        }
         var text = [hit.name, hit.layer, hit.source].filter(Boolean).join(' - ');
         var detail = hit.notes || hit.summary || hit.description || hit.law_text || '';
-        push(areaOptionPayload(hit.name || hit.layer || 'Forbudsområde', hit.status || hit.layer || 'regulert område', detail, hit.source || 'kart'));
+        push(areaOptionPayload(hit.name || hit.layer || 'Verneområde', hit.status || hit.layer || 'regulert område', detail, hit.source || 'kart'));
       });
       (findingsState || []).forEach(function (item) {
         var text = [item.label, item.key, item.status, item.notes, item.auto_note, item.summary_text, item.law_text, item.source_name, item.source_ref].join(' ');
         var lower = text.toLowerCase();
         if (lower.indexOf('svalbard') !== -1 && !(latNum !== null && latNum > 70)) return;
-        var hasAreaLaw = /forbudsområde|fredningsområde|stengt område|nullfiskeområde|maksimalmål område|områdeforbud|forbud mot/.test(lower);
+        var hasAreaLaw = /verneområde|fredningsområde|stengt område|nullfiskeområde|maksimalmål område|områdeforbud|forbud mot/.test(lower);
         if (hasAreaLaw && textRelevantToSelection(text)) {
-          push(areaOptionPayload(areaName && areaName.value ? areaName.value : (item.label || 'Forbudsområde'), areaStatus && areaStatus.value ? areaStatus.value : (item.status || 'avvik'), item.summary_text || item.notes || item.auto_note || item.law_text || '', item.source_name || item.source_ref || 'kontrollpunkt'));
+          push(areaOptionPayload(areaName && areaName.value ? areaName.value : (item.label || 'Verneområde'), areaStatus && areaStatus.value ? areaStatus.value : (item.status || 'avvik'), item.summary_text || item.notes || item.auto_note || item.law_text || '', item.source_name || item.source_ref || 'kontrollpunkt'));
         }
       });
       areaRestrictionSelect.innerHTML = '';
       if (!rows.length) {
-        areaRestrictionSelect.innerHTML = '<option value="">Ingen forbudsområder funnet for valgt art/redskap</option>';
+        areaRestrictionSelect.innerHTML = '<option value="">Ingen verneområder funnet for valgt art/redskap</option>';
         areaRestrictionDetail.textContent = 'Velg art/redskap og oppdater posisjon.';
         return;
       }
@@ -3691,7 +3699,7 @@
         if (areaName && row.label) areaName.value = row.label;
         if (areaStatus && row.status) areaStatus.value = row.status;
       }
-      areaRestrictionSelect.onchange = function () { showSelected(); scheduleAutosave('Forbudsområde valgt'); };
+      areaRestrictionSelect.onchange = function () { showSelected(); scheduleAutosave('Verneområde valgt'); };
       showSelected();
     }
 
@@ -4649,7 +4657,7 @@
     }
 
     function manualPositionText() {
-      if (mapState.manualPosition) return 'Manuell kontrollposisjon er valgt. Den røde nålen og koordinatene i saken brukes når appen avgjør om kontrollen er i et forbudsområde, fredningsområde eller annen regulert sone. Blå GPS-markør skjules helt til automatisk posisjon slås på igjen. Dra rød nål for å flytte kontrollposisjonen.';
+      if (mapState.manualPosition) return 'Manuell kontrollposisjon er valgt. Den røde nålen og koordinatene i saken brukes når appen avgjør om kontrollen er i et verneområde, fredningsområde eller annen regulert sone. Blå GPS-markør skjules helt til automatisk posisjon slås på igjen. Dra rød nål for å flytte kontrollposisjonen.';
       if (mapState.deviceLat !== null && mapState.deviceLng !== null) return 'GPS følger enheten automatisk så lenge manuell kontrollposisjon ikke er valgt. Blå prikk viser enheten, og rød nål oppdateres løpende og brukes i områdesjekken.';
       return 'Appen forsøker å starte GPS automatisk og følger enheten så lenge manuell kontrollposisjon ikke er valgt. Hvis GPS ikke virker, trykk «Sett manuelt i kart» og plasser nålen selv.';
     }
@@ -4760,7 +4768,7 @@
       mapState.showLegend = false;
       mapState.showLayerPanel = !!mapLayerPanelHost;
       mapState.layerPanelDefaultOpen = false;
-      mapState.layerPanelKey = 'case-map-v101';
+      mapState.layerPanelKey = 'case-map-v1-0';
       mapState.layerPanelTargetSelector = mapLayerPanelHost ? '#case-map-layer-panel-host' : '';
       mapState.rasterLayerIds = allLayerIds;
       mapState.identifyLayerIds = allLayerIds;
@@ -4778,7 +4786,7 @@
           mapState.autoRecenterOnce = false;
         }
         clearTimeout(mapState._offlineWarmTimer);
-        // v101: do not auto-download offline map packages on every position/layer update.
+        // V1.0: do not auto-download offline map packages on every position/layer update.
         // The user can still press the offline download button explicitly.
         var offlineWarmKey = currentOfflineWarmKey();
         mapState._lastOfflineWarmKey = offlineWarmKey || mapState._lastOfflineWarmKey;
@@ -4866,7 +4874,7 @@
       zoneCheckController = (typeof AbortController !== 'undefined') ? new AbortController() : null;
       var sequence = ++zoneCheckSequence;
       if (zoneResult) zoneResult.innerHTML = 'Sjekker områdestatus ...';
-      var fetchOptions = { credentials: 'same-origin' };
+      var fetchOptions = { credentials: 'same-origin', cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } };
       if (zoneCheckController) fetchOptions.signal = zoneCheckController.signal;
       return fetch(root.dataset.zonesUrl + '?' + params.toString(), fetchOptions)
         .then(function (r) {
