@@ -86,3 +86,9 @@ Health check path:
 
 ## Merknad
 Live kartlag, hummerregister, fartøyregister og andre eksterne oppslag krever internett. Når en ekstern kilde ikke svarer, brukes lokale fallback-data der det finnes trygge geografiske reserveflater og grunnleggende oppslagsdata.
+
+## v98 deploy-notat
+
+Byggelogger med `debconf: unable to initialize frontend` fra apt er normalt ikke en feil i Render/Docker. v98 setter `DEBIAN_FRONTEND=noninteractive` for å gjøre byggeloggen roligere.
+
+Standardinstallasjonen er gjort lettere ved å flytte OpenCV/numpy til `requirements-ocr-advanced.txt`. Bruk den bare hvis `KV_OCR_ENABLE_DESKEW=1` skal aktiveres.
