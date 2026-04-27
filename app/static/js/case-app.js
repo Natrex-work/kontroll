@@ -6,7 +6,7 @@
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('/static/sw.js?v=v100').catch(function () {});
+      navigator.serviceWorker.register('/static/sw.js?v=v101').catch(function () {});
     });
   }
 
@@ -101,6 +101,25 @@
   function currentCoordText() {
     if (!latitude || !longitude || !latitude.value || !longitude.value) return '';
     return latLngToUtm(latitude.value, longitude.value) || 'UTM ikke beregnet';
+  }
+  window.MKCurrentCoordText = currentCoordText;
+
+  function normalizedNearestPlaceText(result) {
+    result = result || latestZoneResult || {};
+    var municipality = String(result.municipality || (result.reverse_geocode && result.reverse_geocode.municipality) || '').trim();
+    var locality = String(result.locality || (result.reverse_geocode && (result.reverse_geocode.locality || result.reverse_geocode.name)) || result.location_name || result.nearest_place || '').trim();
+    if (locality && municipality && locality.toLowerCase().indexOf(municipality.toLowerCase()) === -1) return locality + ', ' + municipality;
+    return locality || municipality || '';
+  }
+
+  function setNearestPlaceFromResult(result) {
+    if (!locationName) return '';
+    var label = normalizedNearestPlaceText(result);
+    if (label) {
+      locationName.value = label;
+      try { locationName.dispatchEvent(new Event('change', { bubbles: true })); } catch (e) {}
+    }
+    return label;
   }
 
   function normalizeHummerParticipantNo(value) {
@@ -1325,7 +1344,7 @@
     var lawBrowser = parseJson(root.dataset.lawBrowser, []);
     var mapCatalog = parseJson(root.dataset.mapCatalog, []);
     var mapFilterWrap = document.getElementById('map-layer-filters');
-    var mapFilterStorageKey = 'kv-map-layer-filter-v100:' + root.dataset.caseId;
+    var mapFilterStorageKey = 'kv-map-layer-filter-v101:' + root.dataset.caseId;
     var activeLayerStatuses = { 'fredningsområde': true, 'stengt område': true, 'maksimalmål område': true, 'regulert område': true, 'fiskeriområde': true };
     try {
       localStorage.removeItem('kv-map-layer-filter:' + root.dataset.caseId);
@@ -1760,7 +1779,7 @@
         urls = urls.concat(collectTileUrls(layer, map, padding == null ? 2 : padding));
       });
       urls = uniqueUrls(urls);
-      return prefetchUrlsToCache(urls, 'kv-kontroll-v100-map-tiles').then(function (count) {
+      return prefetchUrlsToCache(urls, 'kv-kontroll-v101-map-tiles').then(function (count) {
         return { count: count, urls: urls };
       });
     }
@@ -3647,7 +3666,10 @@
       });
       (findingsState || []).forEach(function (item) {
         var text = [item.label, item.key, item.status, item.notes, item.auto_note, item.summary_text, item.law_text, item.source_name, item.source_ref].join(' ');
-        if (String(item.status || '').toLowerCase() === 'avvik' || /forskrift|lovdata|j-melding|j melding/.test(text.toLowerCase())) {
+        var lower = text.toLowerCase();
+        if (lower.indexOf('svalbard') !== -1 && !(latNum !== null && latNum > 70)) return;
+        var hasAreaLaw = /forbudsområde|fredningsområde|stengt område|nullfiskeområde|maksimalmål område|områdeforbud|forbud mot/.test(lower);
+        if (hasAreaLaw && textRelevantToSelection(text)) {
           push(areaOptionPayload(areaName && areaName.value ? areaName.value : (item.label || 'Forbudsområde'), areaStatus && areaStatus.value ? areaStatus.value : (item.status || 'avvik'), item.summary_text || item.notes || item.auto_note || item.law_text || '', item.source_name || item.source_ref || 'kontrollpunkt'));
         }
       });
@@ -4584,8 +4606,27 @@
     }
 
     function currentCoordText() {
-      if (!latitude.value || !longitude.value) return '';
-      return latLngToUtm(latitude.value, longitude.value) || ('UTM ikke beregnet');
+      if (!latitude || !longitude || !latitude.value || !longitude.value) return '';
+      return latLngToUtm(latitude.value, longitude.value) || 'UTM ikke beregnet';
+    }
+    window.MKCurrentCoordText = currentCoordText;
+
+    function normalizedNearestPlaceText(result) {
+      result = result || latestZoneResult || {};
+      var municipality = String(result.municipality || (result.reverse_geocode && result.reverse_geocode.municipality) || '').trim();
+      var locality = String(result.locality || (result.reverse_geocode && (result.reverse_geocode.locality || result.reverse_geocode.name)) || result.location_name || result.nearest_place || '').trim();
+      if (locality && municipality && locality.toLowerCase().indexOf(municipality.toLowerCase()) === -1) return locality + ', ' + municipality;
+      return locality || municipality || '';
+    }
+
+    function setNearestPlaceFromResult(result) {
+      if (!locationName) return '';
+      var label = normalizedNearestPlaceText(result);
+      if (label) {
+        locationName.value = label;
+        try { locationName.dispatchEvent(new Event('change', { bubbles: true })); } catch (e) {}
+      }
+      return label;
     }
 
     function syncPositionCoordinateSummary() {
@@ -4624,8 +4665,8 @@
 
       if (!areaStatusDetail) return;
       var sourceLine = '<div class="small muted">Posisjonsgrunnlag: ' + (mapState.manualPosition ? 'manuell kontrollposisjon (rød nål)' : 'lagret kontrollposisjon / GPS') + '</div>';
-      var nearestName = result && (result.location_name || result.nearest_place) ? String(result.location_name || result.nearest_place).trim() : '';
-      if (nearestName && locationName && !String(locationName.value || '').trim()) locationName.value = nearestName;
+      var nearestName = normalizedNearestPlaceText(result);
+      if (nearestName) setNearestPlaceFromResult(result);
       syncPositionCoordinateSummary();
       if (!result || !result.match) {
         var nearestMiss = nearestName ? '<div class="small muted">Nærmeste sted: ' + escapeHtml(nearestName) + (result.distance_to_place_km ? ' (' + escapeHtml(result.distance_to_place_km + ' km') + ')' : '') + '<br>' + escapeHtml(currentCoordText()) + '</div>' : (currentCoordText() ? '<div class="small muted">' + escapeHtml(currentCoordText()) + '</div>' : '');
@@ -4638,8 +4679,8 @@
       else if (status === 'fredningsområde') prefix = 'Fredningsområde';
       else if (status === 'maksimalmål område') prefix = 'Maksimalmålsområde';
       else if (status === 'regulert område') prefix = 'Regulert område';
-      var nearest = result.location_name || result.nearest_place || '';
-      if (nearest && locationName && !String(locationName.value || '').trim()) locationName.value = nearest;
+      var nearest = normalizedNearestPlaceText(result);
+      if (nearest) setNearestPlaceFromResult(result);
       var parts = ['<strong>' + escapeHtml(prefix) + ':</strong> ' + escapeHtml(result.name || result.status || '')];
       if (nearest) parts.push('<div class="small muted">Nærmeste sted: ' + escapeHtml(nearest) + (result.distance_to_place_km ? ' (' + escapeHtml(result.distance_to_place_km + ' km') + ')' : '') + '<br>' + escapeHtml(currentCoordText()) + '</div>');
       else if (currentCoordText()) parts.push('<div class="small muted">' + escapeHtml(currentCoordText()) + '</div>');
@@ -4719,7 +4760,7 @@
       mapState.showLegend = false;
       mapState.showLayerPanel = !!mapLayerPanelHost;
       mapState.layerPanelDefaultOpen = false;
-      mapState.layerPanelKey = 'case-map-v100';
+      mapState.layerPanelKey = 'case-map-v101';
       mapState.layerPanelTargetSelector = mapLayerPanelHost ? '#case-map-layer-panel-host' : '';
       mapState.rasterLayerIds = allLayerIds;
       mapState.identifyLayerIds = allLayerIds;
@@ -4737,7 +4778,7 @@
           mapState.autoRecenterOnce = false;
         }
         clearTimeout(mapState._offlineWarmTimer);
-        // v100: do not auto-download offline map packages on every position/layer update.
+        // v101: do not auto-download offline map packages on every position/layer update.
         // The user can still press the offline download button explicitly.
         var offlineWarmKey = currentOfflineWarmKey();
         mapState._lastOfflineWarmKey = offlineWarmKey || mapState._lastOfflineWarmKey;
@@ -4766,8 +4807,7 @@
       latestZoneResult = result || null;
       areaStatus.value = result.match ? (result.status || 'regulert område') : 'ingen treff';
       areaName.value = result.match ? (result.name || '') : '';
-      if (result.location_name) locationName.value = result.location_name;
-      else if (result.nearest_place) locationName.value = result.nearest_place;
+      setNearestPlaceFromResult(result);
       if (zoneResult) zoneResult.innerHTML = zoneResultHtml(result);
       updateAreaStatusDetail(result);
       updateAreaRestrictionOptions(result);
@@ -5632,7 +5672,7 @@ function renderHummerStatus(result) {
       var controlTypeLabel = String((controlType && controlType.value) || 'fiskerikontroll').trim();
       var dateLabel = currentControlDateLabel();
       var area = areaContextForNarrative();
-      var zonePlace = latestZoneResult && (latestZoneResult.location_name || latestZoneResult.nearest_place) ? String(latestZoneResult.location_name || latestZoneResult.nearest_place).trim() : '';
+      var zonePlace = normalizedNearestPlaceText(latestZoneResult);
       var rawLocation = zonePlace || String((locationName && locationName.value) || '').trim();
       var positionLabel = currentCoordText();
       var placeLabel = rawLocation ? ('ved ' + rawLocation) : (positionLabel ? ('ved kontrollposisjon ' + positionLabel) : 'ved registrert kontrollposisjon');
@@ -6965,6 +7005,9 @@ function renderHummerStatus(result) {
 
     syncOptions();
     updateCaseMap();
+    if (latitude.value && longitude.value) {
+      window.setTimeout(function () { checkZone({ force: true, skipMapUpdate: true }); }, 350);
+    }
     maintainOfflinePackages(true).then(function () { return refreshOfflinePackageList(); }).then(function () { return autoRefreshStalePackages(); });
     setTimeout(function () { if (currentStep === 2) maybeAutoStartLocation(); }, 250);
     renderFindings();
