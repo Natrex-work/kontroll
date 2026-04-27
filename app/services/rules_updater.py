@@ -14,7 +14,7 @@ from . import rules_service
 
 logger = logging.getLogger(__name__)
 
-CACHE_PATH = settings.data_dir / 'cache' / 'control_rules_refresh.json'
+CACHE_PATH = getattr(settings, 'data_dir', settings.base_dir / 'data') / 'cache' / 'control_rules_refresh.json'
 UPDATE_TIME = os.getenv('KV_RULE_UPDATE_TIME', '23:30')
 ENABLED = os.getenv('KV_RULE_UPDATE_ENABLED', '1').lower() in {'1', 'true', 'yes', 'on'}
 TZ = ZoneInfo(os.getenv('KV_RULE_UPDATE_TZ', 'Europe/Oslo'))

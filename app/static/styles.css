@@ -3320,7 +3320,7 @@ body {
 
 .margin-top-xs { margin-top: .45rem; }
 
-/* V1.0: collapse relevant map areas/layers in the case form. */
+/* V1.1: collapse relevant map areas/layers in the case form. */
 .map-relevant-panel > summary.map-relevant-head {
   cursor: pointer;
   list-style: none;

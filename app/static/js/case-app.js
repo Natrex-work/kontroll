@@ -6,7 +6,7 @@
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('/static/sw.js?v=V1.0').catch(function () {});
+      navigator.serviceWorker.register('/static/sw.js?v=V1.1').catch(function () {});
     });
   }
 
@@ -1344,7 +1344,7 @@
     var lawBrowser = parseJson(root.dataset.lawBrowser, []);
     var mapCatalog = parseJson(root.dataset.mapCatalog, []);
     var mapFilterWrap = document.getElementById('map-layer-filters');
-    var mapFilterStorageKey = 'kv-map-layer-filter-v1-0:' + root.dataset.caseId;
+    var mapFilterStorageKey = 'kv-map-layer-filter-v1-1:' + root.dataset.caseId;
     var activeLayerStatuses = { 'fredningsområde': true, 'stengt område': true, 'maksimalmål område': true, 'regulert område': true, 'fiskeriområde': true };
     try {
       localStorage.removeItem('kv-map-layer-filter:' + root.dataset.caseId);
@@ -1779,7 +1779,7 @@
         urls = urls.concat(collectTileUrls(layer, map, padding == null ? 2 : padding));
       });
       urls = uniqueUrls(urls);
-      return prefetchUrlsToCache(urls, 'kv-kontroll-v1-0-map-tiles').then(function (count) {
+      return prefetchUrlsToCache(urls, 'kv-kontroll-v1-1-map-tiles').then(function (count) {
         return { count: count, urls: urls };
       });
     }
@@ -4768,7 +4768,7 @@
       mapState.showLegend = false;
       mapState.showLayerPanel = !!mapLayerPanelHost;
       mapState.layerPanelDefaultOpen = false;
-      mapState.layerPanelKey = 'case-map-v1-0';
+      mapState.layerPanelKey = 'case-map-v1-1';
       mapState.layerPanelTargetSelector = mapLayerPanelHost ? '#case-map-layer-panel-host' : '';
       mapState.rasterLayerIds = allLayerIds;
       mapState.identifyLayerIds = allLayerIds;
@@ -4786,7 +4786,7 @@
           mapState.autoRecenterOnce = false;
         }
         clearTimeout(mapState._offlineWarmTimer);
-        // V1.0: do not auto-download offline map packages on every position/layer update.
+        // V1.1: do not auto-download offline map packages on every position/layer update.
         // The user can still press the offline download button explicitly.
         var offlineWarmKey = currentOfflineWarmKey();
         mapState._lastOfflineWarmKey = offlineWarmKey || mapState._lastOfflineWarmKey;

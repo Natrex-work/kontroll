@@ -6,7 +6,7 @@
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('/static/sw.js?v=V1.0').catch(function () {});
+      navigator.serviceWorker.register('/static/sw.js?v=V1.1').catch(function () {});
     });
   }
 
@@ -337,7 +337,7 @@
   }
 
 
-  var LAYER_PANEL_PREFS_VERSION = 'V1.0';
+  var LAYER_PANEL_PREFS_VERSION = 'V1.1';
 
   function layerPanelStorageKey(el, markerState) {
     return 'kv-temalag:' + LAYER_PANEL_PREFS_VERSION + ':' + String((markerState && markerState.layerPanelKey) || (el && el.id) || 'map');

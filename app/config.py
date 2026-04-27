@@ -130,6 +130,7 @@ class Settings:
     app_version: str
     app_version_label: str
     base_dir: Path
+    data_dir: Path
     templates_dir: Path
     static_dir: Path
     upload_dir: Path
@@ -163,6 +164,8 @@ class Settings:
     smtp_use_starttls: bool
 
     def ensure_runtime_dirs(self) -> None:
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        (self.data_dir / 'cache').mkdir(parents=True, exist_ok=True)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self.upload_dir.mkdir(parents=True, exist_ok=True)
         self.generated_dir.mkdir(parents=True, exist_ok=True)
@@ -171,9 +174,10 @@ class Settings:
 settings = Settings(
     app_name=os.getenv('KV_APP_NAME', 'Kontroll'),
     brand_org_name=os.getenv('KV_BRAND_ORG_NAME', 'Minfiskerikontroll').strip() or 'Minfiskerikontroll',
-    app_version=os.getenv('KV_APP_VERSION', '1.0.0'),
-    app_version_label=os.getenv('KV_APP_VERSION_LABEL', 'V1.0'),
+    app_version=os.getenv('KV_APP_VERSION', '1.1.0'),
+    app_version_label=os.getenv('KV_APP_VERSION_LABEL', 'V1.1'),
     base_dir=BASE_DIR,
+    data_dir=_runtime_path('KV_DATA_DIR', _RUNTIME_STORAGE_ROOT / 'data'),
     templates_dir=BASE_DIR / 'app' / 'templates',
     static_dir=BASE_DIR / 'app' / 'static',
     upload_dir=_runtime_path('KV_UPLOAD_DIR', _RUNTIME_STORAGE_ROOT / 'uploads'),
