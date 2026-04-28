@@ -1,17 +1,17 @@
-const CACHE = 'kv-kontroll-v1-1-static';
-const MAP_TILE_CACHE = 'kv-kontroll-v1-1-map-tiles';
+const CACHE = 'kv-kontroll-v1-2-static';
+const MAP_TILE_CACHE = 'kv-kontroll-v1-2-map-tiles';
 const STATIC_PREFIX = '/static/';
 const API_CACHE_PREFIXES = ['/api/map/catalog', '/api/map/bundle', '/api/map/offline-package', '/api/map/features', '/api/map/identify', '/api/rules'];
 const ASSETS = [
-  '/static/styles.css?v=V1.1',
-  '/static/js/local-media.js?v=V1.1',
-  '/static/js/local-cases.js?v=V1.1',
-  '/static/js/local-map.js?v=V1.1',
-  '/static/js/common.js?v=V1.1',
-  '/static/js/case-app.js?v=V1.1',
-  '/static/js/map-overview.js?v=V1.1',
-  '/static/js/rules-overview.js?v=V1.1',
-  '/static/js/admin-users.js?v=V1.1',
+  '/static/styles.css?v=V1.2',
+  '/static/js/local-media.js?v=V1.2',
+  '/static/js/local-cases.js?v=V1.2',
+  '/static/js/local-map.js?v=V1.2',
+  '/static/js/common.js?v=V1.2',
+  '/static/js/case-app.js?v=V1.2',
+  '/static/js/map-overview.js?v=V1.2',
+  '/static/js/rules-overview.js?v=V1.2',
+  '/static/js/admin-users.js?v=V1.2',
   '/static/icon-192.png',
   '/static/icon-512.png'
 ];

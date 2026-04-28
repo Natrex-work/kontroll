@@ -25,16 +25,15 @@ def _dedupe_candidates(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def _merge_directory_contact(person: dict[str, Any], *, phone_lookup: str = '', name_lookup: str = '', address_lookup: str = '') -> tuple[dict[str, Any], dict[str, Any]]:
     item = dict(person or {})
-    if not (item.get('name') or name_lookup or item.get('phone') or phone_lookup or item.get('address') or address_lookup):
+    phone_value = ''.join(ch for ch in str(item.get('phone') or phone_lookup or '') if ch.isdigit())[-8:]
+    if not phone_value:
         return item, {'found': False, 'message': '', 'candidates': []}
     try:
-        directory_result = live_sources.lookup_directory_candidates(
-            phone=item.get('phone') or phone_lookup,
-            name=item.get('name') or name_lookup,
-            address=item.get('address') or address_lookup,
-        )
+        # 1881/Gulesider er sekund\u00e6rkilde og brukes bare ved mobilnummer.
+        # Navn/adresse fra OCR eller offisielle registre skal ikke overstyres av katalogtekst.
+        directory_result = live_sources.lookup_directory_candidates(phone=phone_value, name='', address='')
     except Exception as exc:
-        return item, {'found': False, 'message': f'Katalogsøk utilgjengelig: {exc}', 'candidates': []}
+        return item, {'found': False, 'message': f'Katalogs\u00f8k utilgjengelig: {exc}', 'candidates': []}
 
     if not directory_result.get('found'):
         return item, directory_result
@@ -44,7 +43,7 @@ def _merge_directory_contact(person: dict[str, Any], *, phone_lookup: str = '', 
     prefer_directory = source_name in {
         'hummerliste',
         'lokal hummerliste',
-        'lokal person-/fartøyliste',
+        'lokal person-/fart\u00f8yliste',
         'fiskeridirektoratet - registrerte hummarfiskarar',
     }
     if directory_person.get('address'):

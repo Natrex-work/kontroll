@@ -29,10 +29,12 @@ NAME_LINE_RE = re.compile(r'^[A-ZÆØÅ][A-Za-zÆØÅæøå\-]+(?:\s+[A-ZÆØÅ]
 NON_NAME_WORDS = {
     'kv', 'kystvakten', 'hummer', 'deltakarnummer', 'deltakernummer', 'tlf', 'telefon', 'adresse', 'mobil', 'vak',
     'blåse', 'blase', 'flyt', 'dobbe', 'radiokallesignal', 'fiskerimerke', 'registreringsmerke',
-    'vis', 'nummer', 'telefonnummer', 'visnummer', 'vistlf', '1881', 'gulesider', 'kontakt', 'ring', 'send', 'sms'
+    'vis', 'nummer', 'telefonnummer', 'visnummer', 'vistlf', '1881', 'gulesider', 'kontakt', 'ring', 'send', 'sms',
+    'personer', 'person', 'bedrift', 'bedrifter', 'firma', 'annonse', 'kart', 'veibeskrivelse',
+    'oppføring', 'søk', 'sok', 'resultat', 'resultater', 'treff'
 }
 
-BAD_NAME_PHRASES_RE = re.compile(r'(?:\bvis\s*(?:telefon|nummer|tlf|mobil)\b|\b(?:telefon|mobil)\s*nummer\b|\bvisnummer\b|\bvistelefon\b|\bring\b|\bsend\s*sms\b|\b1881(?:\.no)?\b|\bgulesider(?:\.no)?\b|\bopplysningen\b|\bnummeropplysning\b)', re.IGNORECASE)
+BAD_NAME_PHRASES_RE = re.compile(r'(?:\bvis\s*(?:telefon|nummer|tlf|mobil)\b|\b(?:telefon|mobil)\s*nummer\b|\bvisnummer\b|\bvistelefon\b|\bring\b|\bsend\s*sms\b|\b1881(?:\.no)?\b|\bgulesider(?:\.no)?\b|\bopplysningen\b|\bnummeropplysning\b|\bpersoner\b|\bbedrift(?:er)?\b|\bfirma\b|\bannonse\b|\bkart\b|\bveibeskrivelse\b|\boppføring\b|\bsøk\b|\bsok\b|\bresultat(?:er)?\b|\btreff\b)', re.IGNORECASE)
 
 
 def is_bad_person_name(value: str | None) -> bool:
@@ -44,7 +46,7 @@ def is_bad_person_name(value: str | None) -> bool:
     words = {w.lower().strip('.,:;') for w in text.split()}
     if words and words <= NON_NAME_WORDS:
         return True
-    if words & {'vis', 'nummer', 'telefonnummer', '1881', 'gulesider'}:
+    if words & {'vis', 'nummer', 'telefonnummer', '1881', 'gulesider', 'personer', 'bedrift', 'bedrifter', 'kart', 'søk', 'sok', 'resultat', 'treff'}:
         return True
     return False
 

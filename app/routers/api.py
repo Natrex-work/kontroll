@@ -99,8 +99,8 @@ def api_text_polish(request: Request, payload: TextPolishRequest):
         cleaned = re.sub(r'\bi aktuelt kontrollområde\b', 'ved ' + location, cleaned, flags=re.IGNORECASE)
         cleaned = re.sub(r'\baktuelt kontrollområde\b', location, cleaned, flags=re.IGNORECASE)
     else:
-        cleaned = re.sub(r'\bi aktuelt kontrollområde\b', 'ved registrert kontrollposisjon', cleaned, flags=re.IGNORECASE)
-        cleaned = re.sub(r'\baktuelt kontrollområde\b', 'registrert kontrollposisjon', cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r'\bi aktuelt kontrollområde\b', 'ved kontrollposisjon', cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r'\baktuelt kontrollområde\b', 'kontrollposisjon', cleaned, flags=re.IGNORECASE)
     cleaned = cleaned.replace(' ,', ',').replace(' .', '.').replace(' :', ':')
     unwanted_phrases = (
         'samt å dokumentere faktiske ' + 'forhold i en ' + 'anmeldelsesegnet form',

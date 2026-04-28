@@ -3049,7 +3049,7 @@ def build_summary(case_row: Dict[str, Any], findings: list[Dict[str, Any]]) -> s
         f'Kontrollen gjaldt {control_theme.lower()} og omfattet {subject}.',
     ]
     if case_row.get('area_status') or case_row.get('area_name'):
-        rows.append(f"Kontrollposisjonen er registrert i/ved {str(case_row.get('area_name') or case_row.get('location_name') or 'registrert kontrollposisjon').strip()} ({str(case_row.get('area_status') or 'områdestatus ikke angitt').strip()}).")
+        rows.append(f"Kontrollposisjonen er registrert i/ved {str(case_row.get('area_name') or case_row.get('location_name') or 'kontrollposisjon').strip()} ({str(case_row.get('area_status') or 'områdestatus ikke angitt').strip()}).")
     if avvik:
         rows.append('Følgende avvik/funn er registrert for videre vurdering:')
         for idx, item in enumerate(avvik, start=1):
@@ -3344,7 +3344,7 @@ def build_summary(case_row: Dict[str, Any], findings: list[Dict[str, Any]]) -> s
             lines.append(f'{idx}. {row}')
     if case_row.get('area_status') or case_row.get('area_name'):
         lines.extend(['', '5. Område/posisjon:'])
-        lines.append(f"Kontrollposisjonen er registrert i/ved {str(case_row.get('area_name') or case_row.get('location_name') or 'registrert kontrollposisjon').strip()} ({str(case_row.get('area_status') or 'områdestatus ikke angitt').strip()}).")
+        lines.append(f"Kontrollposisjonen er registrert i/ved {str(case_row.get('area_name') or case_row.get('location_name') or 'kontrollposisjon').strip()} ({str(case_row.get('area_status') or 'områdestatus ikke angitt').strip()}).")
     lines.extend(['', '6. Registrerte kontrollpunkter og avvik:'])
     if avvik:
         for idx, item in enumerate(avvik, start=1):
