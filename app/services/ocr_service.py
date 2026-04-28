@@ -92,11 +92,11 @@ def _env_int(name: str, default: int, *, minimum: int, maximum: int) -> int:
     return max(minimum, min(maximum, value))
 
 
-OCR_MAX_SIDE = _env_int('KV_OCR_MAX_SIDE', 1500, minimum=1100, maximum=2200)
-OCR_MIN_SIDE = _env_int('KV_OCR_MIN_SIDE', 850, minimum=700, maximum=1400)
-OCR_VARIANT_LIMIT = _env_int('KV_OCR_VARIANT_LIMIT', 5, minimum=3, maximum=12)
-OCR_ATTEMPT_TIMEOUT_MAX = _env_int('KV_OCR_ATTEMPT_TIMEOUT', 5, minimum=3, maximum=10)
-OCR_ENABLE_DESKEW = os.getenv('KV_OCR_ENABLE_DESKEW', '0').lower() in {'1', 'true', 'yes', 'on'}
+OCR_MAX_SIDE = _env_int('KV_OCR_MAX_SIDE', 2100, minimum=1100, maximum=2800)
+OCR_MIN_SIDE = _env_int('KV_OCR_MIN_SIDE', 1100, minimum=700, maximum=1800)
+OCR_VARIANT_LIMIT = _env_int('KV_OCR_VARIANT_LIMIT', 12, minimum=3, maximum=16)
+OCR_ATTEMPT_TIMEOUT_MAX = _env_int('KV_OCR_ATTEMPT_TIMEOUT', 8, minimum=3, maximum=14)
+OCR_ENABLE_DESKEW = os.getenv('KV_OCR_ENABLE_DESKEW', '1').lower() in {'1', 'true', 'yes', 'on'}
 
 
 def _score_text(text: str) -> int:
@@ -375,7 +375,34 @@ def _candidate_label_crops(image: Image.Image) -> list[Image.Image]:
     for crop in _fallback_center_label_crops(image):
         if all(crop.size != existing.size for existing in crops):
             crops.append(crop)
-    return crops[:3]
+    return crops[:4]
+
+
+def _adaptive_ocr_variants(image: Image.Image, *, label_mode: bool = False) -> list[tuple[str, Image.Image, str]]:
+    local_cv2, local_np = _vision_libs()
+    if local_cv2 is None or local_np is None:
+        return []
+    try:
+        arr = local_np.array(image.convert('RGB'))
+        gray = local_cv2.cvtColor(arr, local_cv2.COLOR_RGB2GRAY)
+        gray = local_cv2.fastNlMeansDenoising(gray, None, 8 if label_mode else 6, 7, 21)
+        clahe = local_cv2.createCLAHE(clipLimit=2.6 if label_mode else 2.2, tileGridSize=(8, 8)).apply(gray)
+        block = 31 if label_mode else 35
+        if block % 2 == 0:
+            block += 1
+        adaptive = local_cv2.adaptiveThreshold(clahe, 255, local_cv2.ADAPTIVE_THRESH_GAUSSIAN_C, local_cv2.THRESH_BINARY, block, 9 if label_mode else 11)
+        otsu = local_cv2.threshold(clahe, 0, 255, local_cv2.THRESH_BINARY + local_cv2.THRESH_OTSU)[1]
+        kernel = local_np.ones((2, 2), dtype='uint8')
+        closed = local_cv2.morphologyEx(adaptive, local_cv2.MORPH_CLOSE, kernel, iterations=1)
+        prefix = 'etikett ' if label_mode else ''
+        return [
+            (prefix + 'adaptiv kontrast', Image.fromarray(clahe), '--oem 1 --psm 6 preserve_interword_spaces=1'),
+            (prefix + 'adaptiv terskel', Image.fromarray(adaptive), '--oem 1 --psm 6 preserve_interword_spaces=1'),
+            (prefix + 'otsu terskel', Image.fromarray(otsu), '--oem 1 --psm 11 preserve_interword_spaces=1'),
+            (prefix + 'lukket terskel', Image.fromarray(closed), '--oem 1 --psm 6 preserve_interword_spaces=1'),
+        ]
+    except Exception:
+        return []
 
 
 def _prepare_variants(image: Image.Image, *, label_mode: bool = False) -> list[tuple[str, Image.Image, str]]:
@@ -399,16 +426,20 @@ def _prepare_variants(image: Image.Image, *, label_mode: bool = False) -> list[t
     alt_psm = '11'
     line_psm = '6' if label_mode else '7'
     prefix = 'etikett ' if label_mode else ''
-    return [
+    variants = [
         (prefix + 'original farge', rgb, f'--oem 1 --psm {alt_psm} preserve_interword_spaces=1'),
         (prefix + 'forbedret bilde', enhanced, f'--oem 1 --psm {base_psm} preserve_interword_spaces=1'),
         (prefix + 'oppskalert dokument', upscaled, f'--oem 1 --psm {base_psm} preserve_interword_spaces=1'),
+    ]
+    variants.extend(_adaptive_ocr_variants(image, label_mode=label_mode))
+    variants.extend([
         (prefix + 'rotert venstre', rotated_left, f'--oem 1 --psm {base_psm} preserve_interword_spaces=1'),
         (prefix + 'rotert høyre', rotated_right, f'--oem 1 --psm {base_psm} preserve_interword_spaces=1'),
         (prefix + 'høy kontrast', threshold, f'--oem 1 --psm {alt_psm} preserve_interword_spaces=1'),
         (prefix + 'sparsom tekst', sparse, f'--oem 1 --psm {alt_psm} preserve_interword_spaces=1'),
         (prefix + 'enkel linje', medium, f'--oem 1 --psm {line_psm} preserve_interword_spaces=1'),
-    ]
+    ])
+    return variants
 
 
 def _clean_ocr_text(text: str) -> str:
@@ -539,7 +570,7 @@ def extract_text_from_image(content: bytes, *, filename: str = '', timeout_secon
     label_crops = _candidate_label_crops(image)
     timed_out = False
     try:
-        variant_limit = OCR_VARIANT_LIMIT if max_wall_seconds <= 28 else min(10, OCR_VARIANT_LIMIT + 2)
+        variant_limit = OCR_VARIANT_LIMIT if max_wall_seconds <= 28 else min(14, OCR_VARIANT_LIMIT + 2)
         variants = _preferred_variants(image, label_crops)[:variant_limit]
         for label, variant, config in variants:
             remaining = deadline - time.monotonic()

@@ -6,7 +6,7 @@
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('/static/sw.js?v=V1.3').catch(function () {});
+      navigator.serviceWorker.register('/static/sw.js?v=V1.5').catch(function () {});
     });
   }
 
@@ -337,7 +337,7 @@
   }
 
 
-  var LAYER_PANEL_PREFS_VERSION = 'V1.3';
+  var LAYER_PANEL_PREFS_VERSION = 'V1.5';
 
   function layerPanelStorageKey(el, markerState) {
     return 'kv-temalag:' + LAYER_PANEL_PREFS_VERSION + ':' + String((markerState && markerState.layerPanelKey) || (el && el.id) || 'map');
@@ -418,8 +418,11 @@
     if (status === 'fiskeriomrade' || blob.indexOf('kystnaere fiskeridata') !== -1) return false;
     var nonLaw = ['gytefelt', 'gyteomrade', 'oppvekst', 'beiteomrade', 'fiskeplass', 'fiskeplasser', 'rekefelt', 'lassettingsplass', 'skjellforekomst', 'havbeitelokalitet', 'statistikkomrade', 'dybde', 'sjokart'];
     var law = ['forbud', 'fiskeforbud', 'fredning', 'fredningsomrade', 'stengt', 'nullfiske', 'maksimalmal', 'regulering', 'regulert', 'forskrift', 'lov', 'j melding', 'j-melding', 'jmelding', 'verneomrade', 'bunnhabitat', 'korall', 'begrensning'];
+    var strongLaw = ['forbud', 'fiskeforbud', 'forbud mot', 'fredning', 'fredningsomrade', 'stengt', 'nullfiske', 'maksimalmal', 'begrensning', 'restriksjon', 'verneomrade', 'bunnhabitat', 'korall', 'tralforbud', 'krokbegrensning'];
+    var openArea = ['apne omrader', 'apent omrade', 'open area', 'open areas', 'tobis apne', 'tobis aapne'];
     var hasLaw = ['stengt omrade', 'fredningsomrade', 'maksimalmal omrade', 'regulert omrade', 'nullfiskeomrade'].indexOf(status) !== -1 || law.some(function (token) { return blob.indexOf(token) !== -1; });
     if (!hasLaw) return false;
+    if (openArea.some(function (token) { return blob.indexOf(token) !== -1; }) && !strongLaw.some(function (token) { return blob.indexOf(token) !== -1; })) return false;
     if (nonLaw.some(function (token) { return blob.indexOf(token) !== -1; }) && !law.some(function (token) { return blob.indexOf(token) !== -1; })) return false;
     return true;
   }
@@ -893,7 +896,7 @@
     }
 
     function legendSort(a, b) {
-      var order = { 'stengt område': 0, 'fredningsområde': 1, 'maksimalmål område': 2, 'fiskeriområde': 3, 'regulert område': 4 };
+      var order = { 'stengt område': 0, 'fredningsområde': 1, 'maksimalmål område': 2, 'nullfiskeområde': 3, 'regulert område': 4 };
       var aStatus = String(a && a.status || '').toLowerCase();
       var bStatus = String(b && b.status || '').toLowerCase();
       var diff = (order[aStatus] != null ? order[aStatus] : 99) - (order[bStatus] != null ? order[bStatus] : 99);

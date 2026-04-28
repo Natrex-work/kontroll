@@ -3320,7 +3320,7 @@ body {
 
 .margin-top-xs { margin-top: .45rem; }
 
-/* V1.3: collapse relevant map areas/layers in the case form. */
+/* V1.5: collapse relevant map areas/layers in the case form. */
 .map-relevant-panel > summary.map-relevant-head {
   cursor: pointer;
   list-style: none;
@@ -3353,7 +3353,7 @@ body {
 }
 
 
-/* V1.3: compact case map with focus mode for iPhone/iPad field use. */
+/* V1.5: compact case map with focus mode for iPhone/iPad field use. */
 .compact-map-head { align-items: center; gap: 0.75rem; }
 .map-compact-status { padding: 0.55rem 0.75rem; }
 .case-map-card .case-map { min-height: 460px; }
@@ -3385,7 +3385,7 @@ body.case-map-focus-mode { overflow: hidden; }
   }
 }
 
-/* V1.3: responsivt temakart og flere lenker per avvik. */
+/* V1.5: responsivt temakart og flere lenker per avvik. */
 .kv-temalag-panel-external,
 .kv-temalag-card,
 .kv-temalag-groups,
@@ -3457,5 +3457,174 @@ body.case-map-focus-mode { overflow: hidden; }
   }
   .kv-temalag-item {
     align-items: start;
+  }
+}
+
+
+/* V1.5: Kart og Område - responsivt temakart og faner for flere lenker. */
+.map-layer-panel-host,
+#overview-map-layer-panel-host,
+.kv-temalag-panel-external,
+.kv-temalag-card,
+.kv-temalag-section,
+.kv-temalag-items,
+.kv-temalag-item {
+  box-sizing: border-box;
+  max-width: 100%;
+}
+#overview-map-layer-panel-host .kv-temalag-card,
+.case-map-card .kv-temalag-card {
+  width: 100%;
+  overflow: hidden;
+}
+.kv-temalag-items {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 0.45rem;
+}
+.kv-temalag-item,
+.kv-temalag-item-title,
+.kv-temalag-item-meta,
+.map-relevant-item summary,
+.map-relevant-item .muted,
+.map-quick-tag {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.map-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  max-width: 100%;
+}
+.map-filter-row .check-chip {
+  max-width: 100%;
+  white-space: normal;
+}
+.deviation-link-tabs-nav {
+  display: flex;
+  gap: 0.35rem;
+  overflow-x: auto;
+  max-width: 100%;
+  padding: 0.15rem 0 0.4rem;
+  scrollbar-width: thin;
+}
+.deviation-link-tab-btn {
+  border: 1px solid var(--border-color, #d6dde8);
+  background: var(--surface-muted, #f5f7fb);
+  border-radius: 999px;
+  padding: 0.35rem 0.65rem;
+  min-width: max-content;
+  font: inherit;
+}
+.deviation-link-tab-btn.is-active {
+  background: var(--accent-soft, #e6f0ff);
+  border-color: var(--accent, #2266cc);
+  font-weight: 700;
+}
+.deviation-link-tab[hidden] {
+  display: none !important;
+}
+@media (max-width: 720px) {
+  .kv-temalag-items {
+    grid-template-columns: 1fr;
+  }
+  .kv-temalag-card details,
+  .map-relevant-item {
+    width: 100%;
+  }
+  .map-main-card,
+  .case-map-card {
+    overflow-x: hidden;
+  }
+}
+
+
+/* V1.5: Temakart skal passe mobilbredden uten horisontal zoom. */
+.map-layer-panel-host,
+.kv-temalag-panel,
+.kv-temalag-card,
+.kv-temalag-groups,
+.kv-temalag-group,
+.kv-temalag-group-body,
+.kv-temalag-items,
+.map-relevant-panel,
+.map-relevant-list,
+.map-relevant-item,
+.overview-theme-map {
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.map-layer-panel-host *,
+.kv-temalag-panel *,
+.map-relevant-panel * {
+  min-width: 0;
+  box-sizing: border-box;
+}
+.kv-temalag-panel.kv-temalag-panel-external,
+.kv-temalag-panel.kv-temalag-panel-external .kv-temalag-card {
+  width: 100%;
+  max-width: 100%;
+}
+.kv-temalag-item,
+.kv-temalag-group-toggle,
+.kv-temalag-head,
+.kv-temalag-panel-actions,
+.map-relevant-head,
+.map-filter-row,
+.map-symbol-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+.kv-temalag-item-body,
+.kv-temalag-item-title,
+.kv-temalag-item-meta,
+.kv-temalag-group-title,
+.map-relevant-list,
+.map-relevant-item,
+.map-relevant-item * {
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+.kv-temalag-panel .btn,
+.kv-temalag-panel button,
+.map-relevant-panel button,
+.map-relevant-panel .btn,
+.map-filter-row .check-chip {
+  white-space: normal;
+}
+.overview-theme-map > summary,
+.map-relevant-panel > summary {
+  cursor: pointer;
+  list-style: none;
+}
+.overview-theme-map > summary::-webkit-details-marker,
+.map-relevant-panel > summary::-webkit-details-marker {
+  display: none;
+}
+@media (max-width: 720px) {
+  .map-filter-row,
+  .kv-temalag-panel-actions,
+  .kv-temalag-head,
+  .map-relevant-head {
+    width: 100%;
+  }
+  .map-filter-row .check-chip,
+  .kv-temalag-item,
+  .kv-temalag-group-toggle,
+  .kv-temalag-show-all,
+  .kv-temalag-hide-all {
+    width: 100%;
+  }
+  .kv-temalag-item {
+    align-items: flex-start;
+  }
+  .kv-temalag-item-meta {
+    display: flex;
+    flex-wrap: wrap;
   }
 }

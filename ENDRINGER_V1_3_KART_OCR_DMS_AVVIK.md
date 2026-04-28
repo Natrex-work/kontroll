@@ -1,8 +1,8 @@
-# Endringer V1.3 - kart, OCR, DMS og avvik
+# Endringer V1.5 - kart, OCR, DMS og avvik
 
 ## Versjonering og cache
-- Appversjon er oppdatert til `1.3.0` / `V1.3`.
-- Service worker, cache-navn og statiske JS/CSS-parametre er bumpet til V1.3.
+- Appversjon er oppdatert til `1.5.0` / `V1.5`.
+- Service worker, cache-navn og statiske JS/CSS-parametre er bumpet til V1.5.
 
 ## Kart og område
 - Steget er tydeligere rettet mot `Kart og område`.

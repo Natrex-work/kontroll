@@ -963,7 +963,7 @@ def _normalize_area_generated_note(note: Any, case_row: Dict[str, Any], item: Di
     gear_text = _clean_generated_phrase(case_row.get('gear_type') or item.get('gear_type') or 'redskapet') or 'redskapet'
 
     if clean:
-        clean = re.sub(r'^I oppgitt posisjon ble .*? kontrollert(?: der det befant seg)? i [^.]+\.??\s*', '', clean, flags=re.IGNORECASE)
+        clean = re.sub(r'^Ved kontrollstedet ble .*? kontrollert(?: der det befant seg)? i [^.]+\.??\s*', '', clean, flags=re.IGNORECASE)
         clean = re.sub(r'^Posisjonen ligger i [^.]+\.??\s*', '', clean, flags=re.IGNORECASE)
         clean = re.sub('^Valgt redskap \\(([^)]+)\\) er ikke blant redskapene som er tillatt i omr\u00e5det\\.?', 'F\u00f8lgende redskap er ikke tillatt i dette omr\u00e5det: \\1.', clean, flags=re.IGNORECASE)
         clean = re.sub('^Valgt redskap \\(([^)]+)\\) m\u00e5 vurderes som ulovlig eller s\u00e6rskilt regulert i omr\u00e5det\\.?', 'F\u00f8lgende redskap er forbudt eller s\u00e6rskilt regulert i dette omr\u00e5det: \\1.', clean, flags=re.IGNORECASE)
@@ -973,11 +973,11 @@ def _normalize_area_generated_note(note: Any, case_row: Dict[str, Any], item: Di
         clean = re.sub('^Kontroller at valgt redskap er tillatt i omr\u00e5det\\.?', 'Det m\u00e5 kontrolleres om valgt redskap er tillatt i omr\u00e5det.', clean, flags=re.IGNORECASE)
         clean = _sentenceize(clean)
 
-    parts: list[str] = [f'I oppgitt posisjon ble f\u00f8lgende redskap observert og kontrollert: {gear_text.lower()}.']
+    parts: list[str] = [f'Ved kontrollstedet ble f\u00f8lgende redskap observert og kontrollert: {gear_text.lower()}.']
     if area_name and area_status:
-        parts.append(f'Kontrollposisjonen ligger innenfor {area_name}, registrert som {area_status}.')
+        parts.append(f'Kontrollstedet ligger innenfor {area_name}, registrert som {area_status}.')
     elif area_name:
-        parts.append(f'Kontrollposisjonen ligger innenfor {area_name}.')
+        parts.append(f'Kontrollstedet ligger innenfor {area_name}.')
     elif area_status:
         parts.append(f'Omr\u00e5det er registrert som {area_status}.')
     if clean:
@@ -3044,7 +3044,7 @@ def build_summary(case_row: Dict[str, Any], findings: list[Dict[str, Any]]) -> s
         f'Kontrollen gjaldt {control_theme.lower()} og omfattet {subject}.',
     ]
     if case_row.get('area_status') or case_row.get('area_name'):
-        rows.append(f"Kontrollposisjonen er registrert i/ved {str(case_row.get('area_name') or case_row.get('location_name') or 'kontrollposisjon').strip()} ({str(case_row.get('area_status') or 'områdestatus ikke angitt').strip()}).")
+        rows.append(f"Kontrollstedet er registrert i/ved {str(case_row.get('area_name') or case_row.get('location_name') or 'kontrollposisjon').strip()} ({str(case_row.get('area_status') or 'områdestatus ikke angitt').strip()}).")
     if avvik:
         rows.append('Følgende avvik/funn er registrert for videre vurdering:')
         for idx, item in enumerate(avvik, start=1):
@@ -3075,7 +3075,7 @@ def _add_v91_map_items(case_row: Dict[str, Any], evidence_rows: list[Dict[str, A
             if item:
                 if radius <= 10:
                     item['caption'] = f'Nærkart kontrollposisjon (ca. {int(round(radius))} km radius)'
-                    item['violation_reason'] = f'Automatisk generert nærkart med mer detaljert utsnitt rundt kontrollposisjonen i ca. {int(round(radius))} km radius.'
+                    item['violation_reason'] = f'Automatisk generert nærkart med mer detaljert utsnitt rundt kontrollstedet i ca. {int(round(radius))} km radius.'
                 maps.append(item)
         except Exception:
             continue
@@ -3239,9 +3239,9 @@ def build_control_reason(case_row: Dict[str, Any], findings: list[Dict[str, Any]
     location = _location_line(case_row)
     theme = _control_subject_v93(case_row).lower()
     area = str(case_row.get('area_name') or case_row.get('area_status') or '').strip()
-    text = f'Den {when} ble det gjennomført stedlig fiskerikontroll ved {location}. Patruljen var rettet mot {theme}. Formålet var å kontrollere observerbare forhold på stedet, herunder kontrollposisjon, redskap, merking, fangst/oppbevaring, involverte personer eller fartøy og øvrige kontrollpunkter som var relevante for valgt fiskeri.'
+    text = f'Den {when} ble det gjennomført stedlig fiskerikontroll ved {location}. Patruljen var rettet mot {theme}. Formålet var å kontrollere observerbare forhold på stedet, herunder kontrollsted, redskap, merking, fangst/oppbevaring, involverte personer eller fartøy og øvrige kontrollpunkter som var relevante for valgt fiskeri.'
     if area:
-        text += f' Kontrollposisjonen ble vurdert opp mot registrert områdestatus for {area}.'
+        text += f' Kontrollstedet ble vurdert opp mot registrert områdestatus for {area}.'
     return text
 
 
@@ -3339,7 +3339,7 @@ def build_summary(case_row: Dict[str, Any], findings: list[Dict[str, Any]]) -> s
             lines.append(f'{idx}. {row}')
     if case_row.get('area_status') or case_row.get('area_name'):
         lines.extend(['', '5. Område/posisjon:'])
-        lines.append(f"Kontrollposisjonen er registrert i/ved {str(case_row.get('area_name') or case_row.get('location_name') or 'kontrollposisjon').strip()} ({str(case_row.get('area_status') or 'områdestatus ikke angitt').strip()}).")
+        lines.append(f"Kontrollstedet er registrert i/ved {str(case_row.get('area_name') or case_row.get('location_name') or 'kontrollposisjon').strip()} ({str(case_row.get('area_status') or 'områdestatus ikke angitt').strip()}).")
     lines.extend(['', '6. Registrerte kontrollpunkter og avvik:'])
     if avvik:
         for idx, item in enumerate(avvik, start=1):

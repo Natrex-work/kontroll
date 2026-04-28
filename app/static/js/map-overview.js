@@ -32,9 +32,9 @@
     var packagesList = document.getElementById('overview-offline-packages-list');
     var relevantAreasList = document.getElementById('overview-relevant-areas-list');
     var filterWrap = document.getElementById('overview-layer-filters');
-    var storageKey = 'kv-overview-layer-filter-v1-2';
+    var storageKey = 'kv-overview-layer-filter-v1-5';
     var defaultView = { lat: 64.8, lng: 14.5, zoom: 4 };
-    var activeLayerStatuses = { 'fredningsområde': true, 'stengt område': true, 'maksimalmål område': true, 'regulert område': true, 'fiskeriområde': true };
+    var activeLayerStatuses = { 'fredningsområde': true, 'stengt område': true, 'maksimalmål område': true, 'regulert område': true, 'nullfiskeområde': true };
     var fisheryPortalService = el.dataset.portalMapserver || 'https://portal.fiskeridir.no/server/rest/services/fiskeridirWMS_fiskeri/MapServer';
     var vernPortalService = el.dataset.portalVernMapserver || 'https://portal.fiskeridir.no/server/rest/services/Fiskeridir_vern/MapServer';
     var state = {
@@ -44,12 +44,15 @@
       rasterOpacity: 0.9,
       enableAreaPopup: true,
       showLegend: false,
-      showLayerPanel: false,
+      showLayerPanel: true,
       mapServerUrl: fisheryPortalService,
       portalFisheryService: fisheryPortalService,
       portalVernService: vernPortalService,
       rasterServicesAuto: true,
       rasterChunkSize: 18,
+      layerPanelTargetEl: document.getElementById('overview-map-layer-panel-host'),
+      layerPanelTargetSelector: '#overview-map-layer-panel-host',
+      layerPanelKey: 'overview-map-v1-5',
       rasterLayerIds: (allLayers || []).map(function (layer) { return Number(layer && layer.id); }).filter(function (value) { return isFinite(value); }),
       rasterServices: null,
       identifyLayerIds: (allLayers || []).map(function (layer) { return Number(layer && layer.id); }).filter(function (value) { return isFinite(value); }),
@@ -142,7 +145,7 @@
         urls = urls.concat(collectTileUrls(layer, map, 2));
       });
       urls = uniqueUrls(urls);
-      return prefetchUrlsToCache(urls, 'kv-kontroll-v1-3-map-tiles').then(function (count) {
+      return prefetchUrlsToCache(urls, 'kv-kontroll-v1-5-map-tiles').then(function (count) {
         return { count: count, urls: urls };
       });
     }
@@ -163,8 +166,29 @@
       }).catch(function () { return 0; });
     }
 
+    function normalizeOverviewText(value) {
+      return String(value || '').toLowerCase()
+        .replace(/[æ]/g, 'ae').replace(/[ø]/g, 'o').replace(/[å]/g, 'a')
+        .replace(/[^a-z0-9]+/g, ' ').trim();
+    }
+
+    function isRestrictiveOverviewLayer(layer) {
+      if (!layer) return false;
+      var blob = normalizeOverviewText([layer.name, layer.description, layer.status, layer.panel_group, layer.selection_summary, layer.selection_blob].join(' '));
+      var status = normalizeOverviewText(layer.status || '');
+      var lawTokens = ['forbud', 'fiskeforbud', 'fredning', 'fredningsomrade', 'stengt', 'stengte', 'nullfiske', 'maksimalmal', 'regulering', 'regulert', 'forskrift', 'lov', 'j melding', 'jmelding', 'verneomrade', 'bunnhabitat', 'korall', 'begrensning', 'restriksjon'];
+      var strongLawTokens = ['forbud', 'fiskeforbud', 'forbud mot', 'fredning', 'fredningsomrade', 'stengt', 'stengte', 'nullfiske', 'maksimalmal', 'begrensning', 'restriksjon', 'verneomrade', 'bunnhabitat', 'korall', 'tralforbud', 'krokbegrensning'];
+      var openAreaTokens = ['apne omrader', 'apent omrade', 'open area', 'open areas', 'tobis apne', 'tobis aapne'];
+      var hasLaw = ['stengt omrade', 'fredningsomrade', 'maksimalmal omrade', 'regulert omrade', 'nullfiskeomrade'].indexOf(status) !== -1 || lawTokens.some(function (token) { return blob.indexOf(token) !== -1; });
+      if (status === 'fiskeriomrade' || blob.indexOf('kystnaere fiskeridata') !== -1 || blob.indexOf('kystnaer fiskeridata') !== -1) return false;
+      if (openAreaTokens.some(function (token) { return blob.indexOf(token) !== -1; }) && !strongLawTokens.some(function (token) { return blob.indexOf(token) !== -1; })) return false;
+      if (layer.is_restrictive_law_layer === false) return false;
+      return hasLaw || layer.is_restrictive_law_layer === true;
+    }
+
     function filteredLayers() {
       var rows = (allLayers || []).filter(function (layer) {
+        if (!isRestrictiveOverviewLayer(layer)) return false;
         var status = String(layer && layer.status || '').trim().toLowerCase();
         return !Object.prototype.hasOwnProperty.call(activeLayerStatuses, status) || activeLayerStatuses[status] !== false;
       });
@@ -179,7 +203,6 @@
       if (key === 'fredningsområde') return 'fredning';
       if (key === 'maksimalmål område') return 'maksimal';
       if (key === 'regulert område') return 'regulert';
-      if (key === 'fiskeriområde') return 'fiskeri';
       return 'annet';
     }
 
@@ -187,7 +210,7 @@
       if (!relevantAreasList) return;
       var items = [];
       var seen = {};
-      var hits = result && result.match && Array.isArray(result.hits) ? result.hits.slice(0, 4) : [];
+      var hits = result && result.match && Array.isArray(result.hits) ? result.hits.slice() : [];
       hits.forEach(function (hit) {
         var key = 'zone:' + String(hit.zone_id || hit.name || hit.layer || '');
         if (!key || seen[key]) return;
@@ -199,7 +222,7 @@
           meta: [hit.source || '', hit.layer || ''].filter(Boolean)
         });
       });
-      filteredLayers().slice(0, 8).forEach(function (layer) {
+      filteredLayers().forEach(function (layer) {
         var key = 'layer:' + String(layer && (layer.id || layer.name) || '');
         if (!key || seen[key]) return;
         seen[key] = true;
@@ -220,12 +243,11 @@
       }
       relevantAreasList.innerHTML = items.map(function (item) {
         return [
-          '<article class="map-relevant-item">',
-          '<div class="map-relevant-meta"><span class="map-tone ' + escapeHtml(toneClass(item.status)) + '">' + escapeHtml(item.status || 'Temalag') + '</span></div>',
-          '<strong>' + escapeHtml(item.title || 'Område') + '</strong>',
+          '<details class="map-relevant-item">',
+          '<summary><span class="map-relevant-meta"><span class="map-tone ' + escapeHtml(toneClass(item.status)) + '">' + escapeHtml(item.status || 'Temalag') + '</span></span><strong>' + escapeHtml(item.title || 'Område') + '</strong></summary>',
           item.summary ? '<div class="muted small">' + escapeHtml(item.summary) + '</div>' : '',
           item.meta && item.meta.length ? '<div class="map-quick-tags">' + item.meta.map(function (meta) { return '<span class="map-quick-tag">' + escapeHtml(meta) + '</span>'; }).join('') + '</div>' : '',
-          '</article>'
+          '</details>'
         ].join('');
       }).join('');
     }
@@ -240,7 +262,11 @@
     }
 
     function redrawMap() {
-      return createPortalMap(el, filteredLayers(), state).then(function () {
+      var activeLayers = filteredLayers();
+      var activeLayerIds = activeLayers.map(function (layer) { return Number(layer && layer.id); }).filter(function (value) { return isFinite(value); });
+      state.rasterLayerIds = activeLayerIds;
+      state.identifyLayerIds = activeLayerIds;
+      return createPortalMap(el, activeLayers, state).then(function () {
         if (state.recenterTo) state.recenterTo = '';
         renderRelevantAreas(state.latestZoneResult || null);
       });
@@ -259,7 +285,7 @@
       state.latestZoneResult = null;
       redrawMap();
       renderRelevantAreas(null);
-      if (statusEl) statusEl.innerHTML = 'Kartet viser nasjonalt utvalg av temalag direkte i kartet. Lagpanelet i selve kartet er skjult på mobil, så bruk filtrene over kartet og listen under for å se aktuelle områder.';
+      if (statusEl) statusEl.innerHTML = 'Kartet viser lovregulerte verne-/forbudsområder. Åpne temakartet for å velge lag.';
     }
 
     function applyPosition(position) {
@@ -407,7 +433,7 @@
     function downloadCurrentMapToDevice(options) {
       options = options || {};
       var bbox = Array.isArray(options.requestBBox) ? options.requestBBox : currentMapBbox();
-      var layerIds = Array.isArray(options.layerIds) && options.layerIds.length ? options.layerIds : (allLayers || []).map(function (layer) { return Number(layer && layer.id); }).filter(function (value) { return isFinite(value); });
+      var layerIds = Array.isArray(options.layerIds) && options.layerIds.length ? options.layerIds : filteredLayers().map(function (layer) { return Number(layer && layer.id); }).filter(function (value) { return isFinite(value); });
       if (!bbox || !layerIds.length) {
         if (statusEl && !options.silent) statusEl.innerHTML = 'Zoom inn til et område og prøv igjen for å lagre offline-kart.';
         return Promise.resolve();
@@ -512,7 +538,7 @@
       window.KVLocalMap.getPackage(packageId).then(function (row) { focusOfflinePackage(row); });
     });
 
-    if (statusEl) statusEl.innerHTML = 'Kartet viser nasjonalt utvalg av temalag direkte i kartet. Lagpanelet i selve kartet er skjult på mobil, så bruk filtrene over kartet og listen under for å se aktuelle områder.';
+    if (statusEl) statusEl.innerHTML = 'Kartet viser lovregulerte verne-/forbudsområder. Åpne temakartet for å velge lag.';
     renderRelevantAreas(null);
     redrawMap();
     setTimeout(setNationalView, 50);

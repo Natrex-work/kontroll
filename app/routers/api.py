@@ -75,6 +75,17 @@ def _parse_optional_float_query(value: str | float | int | None, *, field_name: 
     return parsed
 
 
+def _sanitize_polish_location(value: str) -> str:
+    text = re.sub(r'\s+', ' ', str(value or '')).strip()
+    if not text:
+        return ''
+    # Older clients sometimes sent "sted - område - DMS/UTM". Standardtekster skal bruke nærmeste sted.
+    text = re.split(r'\s+-\s+', text, maxsplit=1)[0].strip()
+    if re.search(r'\b(?:utm|\d{1,2}\s*[°]|[NSØE]\s*\d)', text, flags=re.IGNORECASE):
+        return ''
+    return text
+
+
 def _basis_opening_phrase(case_basis: str, source_name: str = '') -> str:
     raw_source = str(source_name or '').strip()
     if raw_source and case_basis not in {'tips', 'anmeldelse'}:
@@ -91,7 +102,7 @@ def api_text_polish(request: Request, payload: TextPolishRequest):
     case_basis = str(payload.case_basis or '').strip() or 'patruljeobservasjon'
     source_name = str(payload.source_name or '').strip()
     subject = str(payload.subject or '').strip()
-    location = str(payload.location or '').strip()
+    location = _sanitize_polish_location(str(payload.location or '').strip())
     if not text_in:
         return JSONResponse({'text': ''})
     cleaned = ' '.join(text_in.replace('\r', '\n').split())
@@ -102,11 +113,11 @@ def api_text_polish(request: Request, payload: TextPolishRequest):
         cleaned = re.sub(r'\baktuelt kontrollområde\b', location, cleaned, flags=re.IGNORECASE)
         cleaned = re.sub(r'\bkontrollposisjonen\b', location, cleaned, flags=re.IGNORECASE)
     else:
-        cleaned = re.sub(r'\bi aktuelt kontrollområde\b', 'ved oppgitt posisjon', cleaned, flags=re.IGNORECASE)
-        cleaned = re.sub(r'\bved kontrollposisjonen\b', 'ved oppgitt posisjon', cleaned, flags=re.IGNORECASE)
-        cleaned = re.sub(r'\bved kontrollposisjon\b', 'ved oppgitt posisjon', cleaned, flags=re.IGNORECASE)
-        cleaned = re.sub(r'\baktuelt kontrollområde\b', 'oppgitt posisjon', cleaned, flags=re.IGNORECASE)
-        cleaned = re.sub(r'\bkontrollposisjonen\b', 'oppgitt posisjon', cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r'\bi aktuelt kontrollområde\b', 'ved kontrollstedet', cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r'\bved kontrollposisjonen\b', 'ved kontrollstedet', cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r'\bved kontrollposisjon\b', 'ved kontrollstedet', cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r'\baktuelt kontrollområde\b', 'kontrollstedet', cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r'\bkontrollposisjonen\b', 'kontrollstedet', cleaned, flags=re.IGNORECASE)
     cleaned = cleaned.replace(' ,', ',').replace(' .', '.').replace(' :', ':')
     unwanted_phrases = (
         'samt å dokumentere faktiske ' + 'forhold i en ' + 'anmeldelsesegnet form',
@@ -327,7 +338,7 @@ async def api_ocr_extract(request: Request, file: UploadFile = File(...)):
         return JSONResponse(cached)
     started = time.monotonic()
     try:
-        result = await run_in_threadpool(extract_text_from_image, content or b"", filename=filename, timeout_seconds=16)
+        result = await run_in_threadpool(extract_text_from_image, content or b"", filename=filename, timeout_seconds=32)
     except ValueError as exc:
         return JSONResponse({'ok': False, 'message': str(exc), 'text': ''}, status_code=422)
     except RuntimeError as exc:

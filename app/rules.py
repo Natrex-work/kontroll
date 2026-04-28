@@ -662,7 +662,7 @@ def _species_items(
         ])
         if hummer_max_size_applies(area_status=area_status, area_name=area_name, area_notes=area_notes, lat=lat, lng=lng):
             length_item = _clone(HUMMER_LENGDEKRAV)
-            length_item['notes'] = 'Lengdekravet er samlet i ett kontrollpunkt fordi kontrollposisjonen ligger på strekningen fra grensen mot Sverige til og med Agder, eller fordi kartgrunnlaget viser maksimalmålområde. Registrerte målinger vurderes automatisk mot både minstemål og maksimalmål.'
+            length_item['notes'] = 'Lengdekravet er samlet i ett kontrollpunkt fordi kontrollstedet ligger på strekningen fra grensen mot Sverige til og med Agder, eller fordi kartgrunnlaget viser maksimalmålområde. Registrerte målinger vurderes automatisk mot både minstemål og maksimalmål.'
             items.append(length_item)
         else:
             items.append(_clone(HUMMER_MINSTEMAL))
@@ -707,13 +707,13 @@ def recommend_area_violation(area_status: str = '', area_name: str = '', species
         zone_name = area_name or 'hummerfredningsområde'
         if gear_n and gear_n not in ALLOWED_GEARS_HUMMER_FREDNING:
             item['status'] = 'avvik'
-            item['summary_text'] = f'I oppgitt posisjon ble {gear_type or "redskap"} observert og kontrollert i {zone_name}. Dette redskapet er ikke tillatt i hummerfredningsområdet.'
-            item['notes'] = f'I oppgitt posisjon står redskapet i {zone_name}, registrert som hummerfredningsområde. Valgt redskap ({gear_type or "redskap"}) er ikke tillatt i dette området.'
+            item['summary_text'] = f'Ved kontrollstedet ble {gear_type or "redskap"} observert og kontrollert i {zone_name}. Dette redskapet er ikke tillatt i hummerfredningsområdet.'
+            item['notes'] = f'Ved kontrollstedet står redskapet i {zone_name}, registrert som hummerfredningsområde. Valgt redskap ({gear_type or "redskap"}) er ikke tillatt i dette området.'
             message = f'Mulig lovbrudd: {gear_type or "redskap"} i hummerfredningsområde.'
         else:
             item['status'] = 'ikke kontrollert'
-            item['summary_text'] = f'I oppgitt posisjon ble redskap kontrollert i {zone_name}. Det må kontrolleres om valgt redskap er tillatt i hummerfredningsområdet.'
-            item['notes'] = f'I oppgitt posisjon ligger redskapet i {zone_name}, registrert som hummerfredningsområde. Det må kontrolleres om valgt redskap er tillatt i området.'
+            item['summary_text'] = f'Ved kontrollstedet ble redskap kontrollert i {zone_name}. Det må kontrolleres om valgt redskap er tillatt i hummerfredningsområdet.'
+            item['notes'] = f'Ved kontrollstedet ligger redskapet i {zone_name}, registrert som hummerfredningsområde. Det må kontrolleres om valgt redskap er tillatt i området.'
             message = 'Posisjonen ligger i hummerfredningsområde. Kontroller om valgt redskap er tillatt.'
         if notes:
             item['notes'] += f' Kartgrunnlag: {notes}'
@@ -723,28 +723,28 @@ def recommend_area_violation(area_status: str = '', area_name: str = '', species
         item = _clone(AREA_GENERIC_STATUS_ITEMS['stengt område'])
         item['status'] = 'avvik'
         item['label'] = f'Valgt redskap i {area_name or "stengt område"}'
-        item['summary_text'] = f'I oppgitt posisjon ble {gear_type or "redskap"} observert og kontrollert i {area_name or area_status}. Området er registrert som stengt område/nullfiskeområde.'
-        item['notes'] = f'I oppgitt posisjon står redskapet i {area_name or area_status}, registrert som stengt område eller nullfiskeområde. Valgt redskap ({gear_type or "ukjent redskap"}) er forbudt eller særskilt regulert i dette området.'
+        item['summary_text'] = f'Ved kontrollstedet ble {gear_type or "redskap"} observert og kontrollert i {area_name or area_status}. Området er registrert som stengt område/nullfiskeområde.'
+        item['notes'] = f'Ved kontrollstedet står redskapet i {area_name or area_status}, registrert som stengt område eller nullfiskeområde. Valgt redskap ({gear_type or "ukjent redskap"}) er forbudt eller særskilt regulert i dette området.'
         if notes:
             item['notes'] += f' Kartgrunnlag: {notes}'
         return {'item': item, 'message': f'Mulig lovbrudd: {gear_type or "redskap"} i stengt område/nullfiskeområde.'}
 
     if 'maksimalmål område' in status_n and species_n == 'hummer':
         item = _clone(AREA_GENERIC_STATUS_ITEMS['maksimalmål område'])
-        item['summary_text'] = f'I oppgitt posisjon ble hummerredskap kontrollert i {area_name or area_status}. Området er registrert som maksimalmålområde.'
-        item['notes'] = f'I oppgitt posisjon ligger redskapet i {area_name or area_status}, registrert som maksimalmålområde for hummer. Maksimalmål må kontrolleres i tillegg til øvrige hummerregler.'
+        item['summary_text'] = f'Ved kontrollstedet ble hummerredskap kontrollert i {area_name or area_status}. Området er registrert som maksimalmålområde.'
+        item['notes'] = f'Ved kontrollstedet ligger redskapet i {area_name or area_status}, registrert som maksimalmålområde for hummer. Maksimalmål må kontrolleres i tillegg til øvrige hummerregler.'
         return {'item': item, 'message': 'Maksimalmålområde for hummer truffet.'}
 
     if 'regulert område' in status_n:
         item = _clone(AREA_GENERIC_STATUS_ITEMS['regulert område'])
-        item['summary_text'] = f'I oppgitt posisjon ble {gear_type or "redskap"} observert og kontrollert i {area_name or area_status}. Området er registrert som regulert område.'
-        item['notes'] = f'I oppgitt posisjon ligger redskapet i {area_name or area_status}, registrert som regulert område. For valgt art og redskap gjelder særskilte regler eller begrensninger i området.'
+        item['summary_text'] = f'Ved kontrollstedet ble {gear_type or "redskap"} observert og kontrollert i {area_name or area_status}. Området er registrert som regulert område.'
+        item['notes'] = f'Ved kontrollstedet ligger redskapet i {area_name or area_status}, registrert som regulert område. For valgt art og redskap gjelder særskilte regler eller begrensninger i området.'
         return {'item': item, 'message': 'Posisjonen ligger i område med særregler.'}
 
     if 'fredningsområde' in status_n:
         item = _clone(AREA_GENERIC_STATUS_ITEMS['fredningsområde'])
-        item['summary_text'] = f'I oppgitt posisjon ble {gear_type or "redskap"} observert og kontrollert i {area_name or area_status}. Området er registrert som fredningsområde.'
-        item['notes'] = f'I oppgitt posisjon ligger redskapet i {area_name or area_status}, registrert som fredningsområde. Det må kontrolleres om valgt art og redskap er tillatt i området.'
+        item['summary_text'] = f'Ved kontrollstedet ble {gear_type or "redskap"} observert og kontrollert i {area_name or area_status}. Området er registrert som fredningsområde.'
+        item['notes'] = f'Ved kontrollstedet ligger redskapet i {area_name or area_status}, registrert som fredningsområde. Det må kontrolleres om valgt art og redskap er tillatt i området.'
         return {'item': item, 'message': 'Posisjonen ligger i fredningsområde.'}
 
     return None

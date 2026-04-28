@@ -1,8 +1,8 @@
-# Endringer V1.3
+# Endringer V1.5
 
 ## Versjonering
-- Oppdatert appversjon til `1.3.0` / `V1.3`.
-- Oppdatert cache-bust for CSS, JS, service worker og kartcache til V1.3.
+- Oppdatert appversjon til `1.5.0` / `V1.5`.
+- Oppdatert cache-bust for CSS, JS, service worker og kartcache til V1.5.
 
 ## Roller / grunnlag
 - Fjernet lange hjelpetekster i steg 1.

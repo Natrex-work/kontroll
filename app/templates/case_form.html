@@ -202,6 +202,7 @@
           <button type="button" class="btn btn-secondary btn-small" id="btn-toggle-case-map-fullscreen">Åpne kart</button>
         </div>
         <div class="callout margin-top-s map-compact-status" id="map-selection-status">Relevante verneområder vises i kartet.</div>
+        <button type="button" class="hidden" id="toggle-zone-hit-overlay" aria-hidden="true" tabindex="-1"><span id="toggle-zone-hit-overlay-text"></span></button>
         <details class="map-relevant-panel margin-top-s" id="case-relevant-areas">
           <summary class="map-relevant-head">
             <strong>Temalag</strong>
@@ -574,5 +575,5 @@
   }
 })();
 </script>
-<script src="/static/js/case-app.js?v=V1.3"></script>
+<script src="/static/js/case-app.js?v=V1.5"></script>
 {% endblock %}

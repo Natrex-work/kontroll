@@ -196,5 +196,19 @@ def check_zone_status(lat: float, lng: float, species: str = '', gear_type: str 
         rec = rules.recommend_area_violation(area_status=result.get('status') or '', area_name=result.get('name') or '', species=species, gear_type=gear_type, notes=result.get('notes') or '')
         if rec:
             result['recommended_violation'] = rec
+        hits = result.get('hits')
+        if isinstance(hits, list):
+            for hit in hits:
+                if not isinstance(hit, dict):
+                    continue
+                hit_rec = rules.recommend_area_violation(
+                    area_status=hit.get('status') or result.get('status') or '',
+                    area_name=hit.get('name') or hit.get('layer') or result.get('name') or '',
+                    species=species,
+                    gear_type=gear_type,
+                    notes=hit.get('notes') or hit.get('description') or hit.get('summary') or result.get('notes') or '',
+                )
+                if hit_rec:
+                    hit['recommended_violation'] = hit_rec
     _zone_cache_put(lat, lng, result, species=species, gear_type=gear_type, control_type=control_type)
     return result

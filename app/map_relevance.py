@@ -124,20 +124,32 @@ NON_LEGAL_COASTAL_DATA_TOKENS = (
     'dybde', 'sjokart', 'sjøkart', 'bathy', 'bathym', 'sjo og dybde', 'sjø og dybde',
 )
 
+NON_RESTRICTIVE_OPEN_AREA_TOKENS = (
+    'apne omrader', 'åpne områder', 'apent omrade', 'åpent område',
+    'open area', 'open areas', 'tobis apne', 'tobis åpne', 'tobis aapne',
+)
+
+STRONG_RESTRICTION_TOKENS = (
+    'forbud', 'fiskeforbud', 'forbud mot', 'fredning', 'fredningsomrade', 'fredningsområde',
+    'stengt', 'nullfiske', 'maksimalmal', 'maksimalmål', 'begrensning', 'restriksjon',
+    'verneomrade', 'verneområde', 'saarbar', 'sårbar', 'bunnhabitat', 'korall',
+    'tralforbud', 'trålforbud', 'krokbegrensning',
+)
+
 
 # Håndplukkede lagprofiler for å vise bare relevante lag i kontrollkartet.
 # Dette gjør kartet raskere og stopper irrelevante lag som Lofotfiske/Henningsvær
 # fra å vises i fritidskontroller for hummer i Oslofjorden.
 COMMON_GENERAL_LAYERS = {75}
 PROFILE_LAYER_GROUPS: dict[str, set[int]] = {
-    'fritids_generell': {3, 35, 75, 78, 82, 83, 85, 87, 91, 92, 94, 107, 108, 109, 110, 111, 113, 114, 214, 208},
-    'fritids_hummer': {3, 35, 75, 76, 77, 78, 82, 83, 85, 87, 91, 92, 94, 107, 108, 109, 110, 111, 113, 114, 214, 208},
-    'fritids_torsk': {3, 35, 75, 78, 82, 83, 85, 87, 91, 92, 94, 107, 108, 109, 110, 111, 113, 114, 214, 208},
-    'fritids_flatosters': {3, 35, 73, 75, 78, 87, 91, 92, 107, 108, 109, 110, 111, 113, 114, 214, 208},
-    'fritids_leppefisk': {3, 35, 75, 78, 84, 87, 91, 92, 107, 108, 109, 110, 111, 113, 114, 214, 208},
-    'fritids_steinbit': {75, 78, 87, 91, 92, 107, 108, 109, 110, 111, 113, 114, 200, 208},
-    'fritids_laks': {3, 35, 75, 78, 87, 91, 92, 107, 108, 109, 110, 111, 113, 114, 214, 208},
-    'fritids_sjoorret': {3, 35, 75, 78, 87, 91, 92, 107, 108, 109, 110, 111, 113, 114, 214, 208},
+    'fritids_generell': {3, 35, 75, 78, 82, 83, 85, 87, 91, 92, 94,208},
+    'fritids_hummer': {3, 35, 75, 76, 77, 78, 82, 83, 85, 87, 91, 92, 94,208},
+    'fritids_torsk': {3, 35, 75, 78, 82, 83, 85, 87, 91, 92, 94,208},
+    'fritids_flatosters': {3, 35, 73, 75, 78, 87, 91, 92,208},
+    'fritids_leppefisk': {3, 35, 75, 78, 84, 87, 91, 92,208},
+    'fritids_steinbit': {75, 78, 87, 91, 92,200, 208},
+    'fritids_laks': {3, 35, 75, 78, 87, 91, 92,208},
+    'fritids_sjoorret': {3, 35, 75, 78, 87, 91, 92,208},
     'kommersiell_generell': {75, 78, 88, 89, 90, 91, 92, 139, 140, 32, 33, 74, 95, 96, 97, 25, 26},
     'kommersiell_tral': {75, 78, 88, 89, 90, 91, 139, 140, 25, 26},
     'kommersiell_torsk_hyse_sei': {75, 78, 88, 91, 95, 96, 97, 74, 82, 83, 85, 94},
@@ -337,7 +349,6 @@ def default_visible_for_group(group_key: Any) -> bool:
         'korallrev',
         'verneomrader',
         'tare',
-        'sjo og dybdedata',
     }
 
 
@@ -363,6 +374,8 @@ def is_restrictive_law_layer(meta_like: dict[str, Any]) -> bool:
     if any(token in blob for token in NON_LEGAL_COASTAL_DATA_TOKENS):
         if not any(token in blob for token in LEGAL_RESTRICTION_TOKENS):
             return False
+    if any(token in blob for token in NON_RESTRICTIVE_OPEN_AREA_TOKENS) and not any(token in blob for token in STRONG_RESTRICTION_TOKENS):
+        return False
     has_legal_restriction = status in RESTRICTIVE_STATUSES or any(token in blob for token in LEGAL_RESTRICTION_TOKENS)
     if not has_legal_restriction:
         return False

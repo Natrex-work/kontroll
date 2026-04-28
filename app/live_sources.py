@@ -40,7 +40,7 @@ YGG_BASE = os.getenv('KV_YGG_BASE', os.getenv('KV_PORTAL_MAPSERVER', 'https://gi
 LOVDATA_TOPICS_PATH = DATA_DIR / 'lovdata_topics.json'
 FDIR_CACHE_JSON = CACHE_DIR / 'fdir_registry_cache.json'
 FDIR_CACHE_META = CACHE_DIR / 'fdir_registry_meta.json'
-UA = 'Minfiskerikontroll-V1.3/1.3.0 (+field trial app)'
+UA = 'Minfiskerikontroll-V1.5/1.5.0 (+field trial app)'
 HUMMER_REGISTER_URL = 'https://tableau.fiskeridir.no/t/Internet/views/Pmeldehummarfiskarargjeldander/Pmeldehummarfiskarar?:showVizHome=no'
 HUMMER_REGISTER_FALLBACK_URL = 'https://www.fiskeridir.no/statistikk-tall-og-analyse/data-og-statistikk-om-turist--og-fritidsfiske/registrerte-hummarfiskarar'
 HUMMER_CACHE_JSON = CACHE_DIR / 'hummer_registry_cache.json'
@@ -1545,7 +1545,7 @@ def lookup_directory_candidates(phone: str = '', name: str = '', address: str = 
 MAP_PORTAL_URL = os.getenv('KV_PORTAL_MAP_URL', 'https://portal.fiskeridir.no/portal/apps/webappviewer/index.html?id=ea6c536f760548fe9f56e6edcc4825d8')
 YGG_BASE = os.getenv('KV_PORTAL_MAPSERVER', 'https://portal.fiskeridir.no/server/rest/services/fiskeridirWMS_fiskeri/MapServer')
 VERN_BASE = os.getenv('KV_PORTAL_VERN_MAPSERVER', 'https://portal.fiskeridir.no/server/rest/services/Fiskeridir_vern/MapServer')
-PORTAL_LAYER_SCHEMA_VERSION = os.getenv('KV_PORTAL_LAYER_SCHEMA_VERSION', 'v72')
+PORTAL_LAYER_SCHEMA_VERSION = os.getenv('KV_PORTAL_LAYER_SCHEMA_VERSION', 'v75')
 PORTAL_LAYER_CACHE_JSON = CACHE_DIR / f'portal_layer_catalog_cache_{PORTAL_LAYER_SCHEMA_VERSION}.json'
 PORTAL_LAYER_CACHE_META = CACHE_DIR / f'portal_layer_catalog_meta_{PORTAL_LAYER_SCHEMA_VERSION}.json'
 PORTAL_LAYER_CACHE_DIR = CACHE_DIR / f'portal_layers_{PORTAL_LAYER_SCHEMA_VERSION}'
@@ -1590,15 +1590,6 @@ def _fallback_portal_layer_defs() -> list[dict[str, Any]]:
         {'id': 81, 'name': 'Krokbegrensning line', 'status': 'regulert område', 'color': '#118ab2', 'description': 'Linjer som viser krokbegrensninger.', 'geometry_type': 'esriGeometryPolyline', 'alertable': False, 'local_zone_aliases': ['Krokbegrensning line']},
         {'id': 71, 'name': 'Fjordlinjer - kysttorskregulering', 'status': 'regulert område', 'color': '#023047', 'description': 'Fjordlinjer brukt i kysttorskreguleringer.', 'geometry_type': 'esriGeometryPolyline', 'alertable': False, 'local_zone_aliases': ['Fjordlinjer - kysttorskregulering']},
         {'id': 72, 'name': 'Fjordlinjer - seinot', 'status': 'regulert område', 'color': '#219ebc', 'description': 'Fjordlinjer for seinotregulering.', 'geometry_type': 'esriGeometryPolyline', 'alertable': False, 'local_zone_aliases': ['Fjordlinjer - seinot']},
-        {'id': 107, 'name': 'Gytefelt torsk MB', 'status': 'fiskeriområde', 'color': '#2a9d8f', 'description': 'Kartlag over registrerte gytefelt for torsk.', 'geometry_type': 'esriGeometryPolygon', 'alertable': False, 'local_zone_aliases': ['Gytefelt torsk MB']},
-        {'id': 129, 'name': 'Gytefelt torsk MB dekningskart', 'status': 'fiskeriområde', 'color': '#2a9d8f', 'description': 'Dekningskart for registrerte gytefelt for torsk.', 'geometry_type': 'esriGeometryPolygon', 'alertable': False, 'local_zone_aliases': ['Gytefelt torsk MB dekningskart']},
-        {'id': 108, 'name': 'Gyteområder', 'status': 'fiskeriområde', 'color': '#2a9d8f', 'description': 'Kartlag over registrerte gyteområder.', 'geometry_type': 'esriGeometryPolygon', 'alertable': False, 'local_zone_aliases': ['Gyteområder']},
-        {'id': 109, 'name': 'Oppvekst- og beiteområde', 'status': 'fiskeriområde', 'color': '#2a9d8f', 'description': 'Kartlag over oppvekst- og beiteområder.', 'geometry_type': 'esriGeometryPolygon', 'alertable': False, 'local_zone_aliases': ['Oppvekst- og beiteområde', 'Oppvekst beiteområde']},
-        {'id': 110, 'name': 'Fiskeplasser aktive redskap', 'status': 'fiskeriområde', 'color': '#2a9d8f', 'description': 'Registrerte fiskeplasser for aktive redskap.', 'geometry_type': 'esriGeometryPoint', 'alertable': False, 'local_zone_aliases': ['Fiskeplasser aktive redskap']},
-        {'id': 111, 'name': 'Fiskeplasser passive redskap', 'status': 'fiskeriområde', 'color': '#2a9d8f', 'description': 'Registrerte fiskeplasser for passive redskap.', 'geometry_type': 'esriGeometryPoint', 'alertable': False, 'local_zone_aliases': ['Fiskeplasser passive redskap']},
-        {'id': 214, 'name': 'Rekefelt aktive redskap', 'status': 'fiskeriområde', 'color': '#2a9d8f', 'description': 'Registrerte rekefelt for aktive redskap.', 'geometry_type': 'esriGeometryPolygon', 'alertable': False, 'local_zone_aliases': ['Rekefelt aktive redskap']},
-        {'id': 113, 'name': 'Låssettingsplasser', 'status': 'fiskeriområde', 'color': '#2a9d8f', 'description': 'Registrerte låssettingsplasser.', 'geometry_type': 'esriGeometryPoint', 'alertable': False, 'local_zone_aliases': ['Låsssettingsplasser', 'Låssettingsplasser']},
-        {'id': 114, 'name': 'Skjellforekomst', 'status': 'fiskeriområde', 'color': '#2a9d8f', 'description': 'Kartlag med skjellforekomster og andre fiskerirelaterte områder.', 'geometry_type': 'esriGeometryPoint', 'alertable': False, 'local_zone_aliases': ['Skjellforekomst']},
         {'id': 70, 'name': 'Fjordlinjer - kysttorskregulering punkter', 'status': 'regulert område', 'color': '#8ecae6', 'description': 'Punkter knyttet til fjordlinjer for kysttorsk.', 'geometry_type': 'esriGeometryPoint', 'alertable': False, 'local_zone_aliases': ['Fjordlinjer - kysttorskregulering punkter']},
     ]
 
@@ -2459,6 +2450,7 @@ def classify_position_live(lat: float, lng: float, species: str = '', gear_type:
         'notes': 'Ingen treff i Fiskeridirektoratets regulerings- og vernelag for denne posisjonen.',
     }
     priorities = {'stengt område': 4, 'fredningsområde': 3, 'maksimalmål område': 2, 'regulert område': 1}
+    point_seen: set[str] = set()
 
     layers_to_check = portal_layer_catalog(fishery=species, control_type=control_type, gear_type=gear_type)
     if not layers_to_check:
@@ -2481,43 +2473,14 @@ def classify_position_live(lat: float, lng: float, species: str = '', gear_type:
             continue
         if not features:
             continue
-        feature = features[0]
-        name = _feature_attr(feature, 'navn', 'omraade', 'område', 'kat_ordning_text', 'regelverk', 'forskrift') or layer['name']
-        notes = _feature_attr(feature, 'info', 'beskrivelse', 'stengt_text', 'informasjon', 'regelverk', 'regler', 'forskrift') or layer.get('description') or layer['name']
-        url = _feature_attr(feature, 'url', 'url_lovtekst', 'lenke') or MAP_PORTAL_URL
-        hit = {
-            'layer': layer['name'],
-            'status': layer['status'],
-            'name': name,
-            'notes': notes,
-            'url': url,
-            'source': 'Fiskeridirektoratet kartportal',
-            'layer_id': layer.get('id'),
-            'layer_ids': [layer.get('id')] if layer.get('id') is not None else [],
-            'feature': _annotate_portal_feature(feature, layer),
-        }
-        hits.append(hit)
-        rank = priorities.get(layer['status'], 0)
-        if rank > highest['rank']:
-            highest = {'rank': rank, 'status': layer['status'], 'name': name, 'notes': notes}
-
-    if not hits and (species or gear_type or control_type) and not attempted_all:
-        attempted_all = True
-        for layer in _portal_layer_defs():
-            if not layer.get('alertable'):
-                continue
-            if any(int(existing.get('layer_id') or -1) == int(layer.get('id') or -2) for existing in hits):
-                continue
-            try:
-                features = _ygg_query_point(int(layer['id']), lat, lng, geometry_type=layer.get('geometry_type') or 'esriGeometryPolygon')
-            except Exception:
-                continue
-            if not features:
-                continue
-            feature = features[0]
+        for feature in features:
             name = _feature_attr(feature, 'navn', 'omraade', 'område', 'kat_ordning_text', 'regelverk', 'forskrift') or layer['name']
             notes = _feature_attr(feature, 'info', 'beskrivelse', 'stengt_text', 'informasjon', 'regelverk', 'regler', 'forskrift') or layer.get('description') or layer['name']
             url = _feature_attr(feature, 'url', 'url_lovtekst', 'lenke') or MAP_PORTAL_URL
+            dedupe_key = json.dumps([layer.get('id'), name, notes], ensure_ascii=False, sort_keys=True)
+            if dedupe_key in point_seen:
+                continue
+            point_seen.add(dedupe_key)
             hit = {
                 'layer': layer['name'],
                 'status': layer['status'],
@@ -2533,6 +2496,43 @@ def classify_position_live(lat: float, lng: float, species: str = '', gear_type:
             rank = priorities.get(layer['status'], 0)
             if rank > highest['rank']:
                 highest = {'rank': rank, 'status': layer['status'], 'name': name, 'notes': notes}
+
+    if not hits and (species or gear_type or control_type) and not attempted_all:
+        attempted_all = True
+        for layer in _portal_layer_defs():
+            if not layer.get('alertable'):
+                continue
+            if any(int(existing.get('layer_id') or -1) == int(layer.get('id') or -2) for existing in hits):
+                continue
+            try:
+                features = _ygg_query_point(int(layer['id']), lat, lng, geometry_type=layer.get('geometry_type') or 'esriGeometryPolygon')
+            except Exception:
+                continue
+            if not features:
+                continue
+            for feature in features:
+                name = _feature_attr(feature, 'navn', 'omraade', 'område', 'kat_ordning_text', 'regelverk', 'forskrift') or layer['name']
+                notes = _feature_attr(feature, 'info', 'beskrivelse', 'stengt_text', 'informasjon', 'regelverk', 'regler', 'forskrift') or layer.get('description') or layer['name']
+                url = _feature_attr(feature, 'url', 'url_lovtekst', 'lenke') or MAP_PORTAL_URL
+                dedupe_key = json.dumps([layer.get('id'), name, notes], ensure_ascii=False, sort_keys=True)
+                if dedupe_key in point_seen:
+                    continue
+                point_seen.add(dedupe_key)
+                hit = {
+                    'layer': layer['name'],
+                    'status': layer['status'],
+                    'name': name,
+                    'notes': notes,
+                    'url': url,
+                    'source': 'Fiskeridirektoratet kartportal',
+                    'layer_id': layer.get('id'),
+                    'layer_ids': [layer.get('id')] if layer.get('id') is not None else [],
+                    'feature': _annotate_portal_feature(feature, layer),
+                }
+                hits.append(hit)
+                rank = priorities.get(layer['status'], 0)
+                if rank > highest['rank']:
+                    highest = {'rank': rank, 'status': layer['status'], 'name': name, 'notes': notes}
     hits.sort(key=lambda item: (-priorities.get(item.get('status') or '', 0), _ascii_header(item.get('name'))))
     return {
         'match': bool(hits),
