@@ -3320,7 +3320,7 @@ body {
 
 .margin-top-xs { margin-top: .45rem; }
 
-/* V1.2: collapse relevant map areas/layers in the case form. */
+/* V1.3: collapse relevant map areas/layers in the case form. */
 .map-relevant-panel > summary.map-relevant-head {
   cursor: pointer;
   list-style: none;
@@ -3353,7 +3353,7 @@ body {
 }
 
 
-/* V1.2: compact case map with focus mode for iPhone/iPad field use. */
+/* V1.3: compact case map with focus mode for iPhone/iPad field use. */
 .compact-map-head { align-items: center; gap: 0.75rem; }
 .map-compact-status { padding: 0.55rem 0.75rem; }
 .case-map-card .case-map { min-height: 460px; }
@@ -3382,5 +3382,80 @@ body.case-map-focus-mode { overflow: hidden; }
   .case-map-card.is-map-focus .case-map {
     height: calc(100vh - 135px);
     min-height: calc(100vh - 135px);
+  }
+}
+
+/* V1.3: responsivt temakart og flere lenker per avvik. */
+.kv-temalag-panel-external,
+.kv-temalag-card,
+.kv-temalag-groups,
+.kv-temalag-group,
+.kv-temalag-group-body,
+.kv-temalag-items,
+.map-layer-panel-host,
+.case-map-panel,
+.case-map-panel .case-map {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
+.kv-temalag-item {
+  grid-template-columns: auto 18px minmax(0, 1fr);
+  min-width: 0;
+}
+.kv-temalag-item-title,
+.kv-temalag-item-meta,
+.kv-selection-chip,
+.kv-status-chip,
+.kv-geom-chip,
+.case-relevant-area-title,
+.case-relevant-area-meta {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+.deviation-row .deviation-links {
+  grid-column: 1 / -1;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 10px;
+  background: var(--surface-muted, #f7f9fb);
+}
+.deviation-links-head,
+.deviation-link-head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.deviation-link-tab {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px;
+  margin-top: 8px;
+  background: var(--surface, #fff);
+}
+@media (max-width: 720px) {
+  .kv-temalag-head,
+  .kv-temalag-panel-actions,
+  .kv-temalag-group-actions,
+  .deviation-links-head,
+  .deviation-link-head {
+    display: grid;
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+  .kv-temalag-search,
+  .kv-temalag-panel-actions .btn,
+  .kv-temalag-group-actions .btn,
+  .deviation-links-head .btn,
+  .deviation-link-head .btn {
+    width: 100%;
+  }
+  .kv-temalag-item {
+    align-items: start;
   }
 }

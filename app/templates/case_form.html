@@ -170,9 +170,9 @@
           <div class="callout margin-top-s">Starttid settes automatisk ved opprettelse. Sluttid settes automatisk når rapporten avsluttes og PDF eksporteres.</div>
         </div>
         <div class="subcard">
-          <h3>Posisjon og område</h3>
+          <h3>Kart og område</h3>
           <div class="grid-two compact-grid-form margin-top-s">
-            <label><span>Nærmeste sted</span><input name="location_name" id="location_name" value="{{ case.location_name or '' }}" /><span class="small coordinate-summary" id="position-coordinate-summary">UTM vises her når posisjon er satt.</span></label>
+            <label><span>Nærmeste sted</span><input name="location_name" id="location_name" value="{{ case.location_name or '' }}" /><span class="small coordinate-summary" id="position-coordinate-summary">DMS vises her når posisjon er satt.</span></label>
             <div class="position-action-group">
               <span>Handlinger</span>
               <div class="position-actions margin-top-s">
@@ -574,5 +574,5 @@
   }
 })();
 </script>
-<script src="/static/js/case-app.js?v=V1.2"></script>
+<script src="/static/js/case-app.js?v=V1.3"></script>
 {% endblock %}

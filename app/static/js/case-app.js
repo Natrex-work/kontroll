@@ -6,7 +6,7 @@
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('/static/sw.js?v=V1.2').catch(function () {});
+      navigator.serviceWorker.register('/static/sw.js?v=V1.3').catch(function () {});
     });
   }
 
@@ -67,40 +67,27 @@
     return num.toFixed(decimals || 6);
   }
 
-  function latLngToUtm(latValue, lngValue) {
+  function latLngToDms(latValue, lngValue) {
     var lat = Number(String(latValue || '').replace(',', '.'));
     var lon = Number(String(lngValue || '').replace(',', '.'));
     if (!isFinite(lat) || !isFinite(lon)) return '';
-    var zone = Math.floor((lon + 180) / 6) + 1;
-    var a = 6378137.0;
-    var f = 1 / 298.257223563;
-    var k0 = 0.9996;
-    var e = Math.sqrt(f * (2 - f));
-    var e2 = e * e;
-    var ep2 = e2 / (1 - e2);
-    var phi = lat * Math.PI / 180;
-    var lambda = lon * Math.PI / 180;
-    var lambda0 = ((zone - 1) * 6 - 180 + 3) * Math.PI / 180;
-    var sinPhi = Math.sin(phi);
-    var cosPhi = Math.cos(phi);
-    var tanPhi = Math.tan(phi);
-    var N = a / Math.sqrt(1 - e2 * sinPhi * sinPhi);
-    var T = tanPhi * tanPhi;
-    var C = ep2 * cosPhi * cosPhi;
-    var A = cosPhi * (lambda - lambda0);
-    var M = a * ((1 - e2 / 4 - 3 * e2 * e2 / 64 - 5 * e2 * e2 * e2 / 256) * phi
-      - (3 * e2 / 8 + 3 * e2 * e2 / 32 + 45 * e2 * e2 * e2 / 1024) * Math.sin(2 * phi)
-      + (15 * e2 * e2 / 256 + 45 * e2 * e2 * e2 / 1024) * Math.sin(4 * phi)
-      - (35 * e2 * e2 * e2 / 3072) * Math.sin(6 * phi));
-    var easting = k0 * N * (A + (1 - T + C) * Math.pow(A, 3) / 6 + (5 - 18 * T + T * T + 72 * C - 58 * ep2) * Math.pow(A, 5) / 120) + 500000;
-    var northing = k0 * (M + N * tanPhi * (A * A / 2 + (5 - T + 9 * C + 4 * C * C) * Math.pow(A, 4) / 24 + (61 - 58 * T + T * T + 600 * C - 330 * ep2) * Math.pow(A, 6) / 720));
-    if (lat < 0) northing += 10000000;
-    return 'UTM sone ' + zone + (lat >= 0 ? 'N' : 'S') + ' Ø ' + Math.round(easting) + ' N ' + Math.round(northing);
+    function format(value, positivePrefix, negativePrefix) {
+      var prefix = value >= 0 ? positivePrefix : negativePrefix;
+      var abs = Math.abs(value);
+      var deg = Math.floor(abs);
+      var minFloat = (abs - deg) * 60;
+      var min = Math.floor(minFloat);
+      var sec = Math.round((minFloat - min) * 60);
+      if (sec >= 60) { sec = 0; min += 1; }
+      if (min >= 60) { min = 0; deg += 1; }
+      return prefix + ' ' + deg + '° ' + min + "' " + sec + '"';
+    }
+    return format(lat, 'N', 'S') + ' ' + format(lon, 'Ø', 'V');
   }
 
   function currentCoordText() {
     if (!latitude || !longitude || !latitude.value || !longitude.value) return '';
-    return latLngToUtm(latitude.value, longitude.value) || 'UTM ikke beregnet';
+    return latLngToDms(latitude.value, longitude.value) || 'DMS ikke beregnet';
   }
   window.MKCurrentCoordText = currentCoordText;
 
@@ -332,13 +319,14 @@
     return hints;
   }
 
-  function autofillField(field, value) {
+  function autofillField(field, value, options) {
     if (!field || value === undefined || value === null) return false;
     var next = String(value || '').trim();
     if (!next) return false;
     var current = String(field.value || '').trim();
     if (current === next) return false;
-    if (!current || current.length < next.length || /^ukjent$/i.test(current)) {
+    var allowOverwrite = !!(options && options.allowOverwrite);
+    if (!current || /^ukjent$/i.test(current) || (allowOverwrite && current.length < next.length)) {
       field.value = next;
       return true;
     }
@@ -557,6 +545,7 @@
       row.seizure_ref = ref;
       row.reference = ref;
       if (!row.position && currentCoordText()) row.position = currentCoordText();
+      ensureDeviationLinks(row);
       var evaluation = evaluateMeasurementRow(item, row);
       row.delta_text = evaluation.text || '';
       row.violation_text = evaluation.violation || '';
@@ -591,7 +580,9 @@
       var position = row.position ? (' / posisjon ' + row.position) : '';
       var violation = row.violation || 'ikke spesifisert avvik';
       var note = row.note ? (' / ' + row.note) : '';
-      return ref + gearKind + legacyRef + qty + position + ': ' + violation + note;
+      var links = deviationLinksSummary(row);
+      var linkText = links ? (' / ' + links) : '';
+      return ref + gearKind + legacyRef + qty + position + ': ' + violation + note + linkText;
     }).join('; ');
   }
 
@@ -644,7 +635,60 @@
   }
 
   function defaultDeviationRow(item) {
-    return { seizure_ref: '', linked_seizure_ref: '', gear_kind: defaultDeviationGearKind(), gear_ref: '', quantity: '1', position: currentCoordText(), violation: suggestedDeviationText(item), note: '' };
+    return { seizure_ref: '', linked_seizure_ref: '', gear_kind: defaultDeviationGearKind(), gear_ref: '', quantity: '1', position: currentCoordText(), violation: suggestedDeviationText(item), note: '', links: [] };
+  }
+
+  function defaultDeviationLink() {
+    return { start: currentCoordText(), end: '', note: '' };
+  }
+
+  function ensureDeviationLinks(row) {
+    if (!row) return [];
+    if (!Array.isArray(row.links)) row.links = [];
+    row.links = row.links.map(function (entry) {
+      return {
+        start: String(entry && entry.start || '').trim(),
+        end: String(entry && entry.end || '').trim(),
+        note: String(entry && entry.note || '').trim()
+      };
+    });
+    return row.links;
+  }
+
+  function deviationLinksSummary(row) {
+    var links = ensureDeviationLinks(row);
+    if (!links.length) return '';
+    return links.map(function (entry, idx) {
+      var parts = ['Lenke ' + (idx + 1)];
+      if (entry.start) parts.push('start ' + entry.start);
+      if (entry.end) parts.push('slutt ' + entry.end);
+      if (entry.note) parts.push(entry.note);
+      return parts.join(': ');
+    }).join(' | ');
+  }
+
+  function deviationLinksHtml(row, dIndex) {
+    var links = ensureDeviationLinks(row);
+    var tabs = links.map(function (entry, linkIndex) {
+      return [
+        '<div class="deviation-link-tab" data-link-index="' + linkIndex + '">',
+        '<div class="deviation-link-head"><strong>Lenke ' + (linkIndex + 1) + '</strong><button type="button" class="btn btn-danger btn-small deviation-link-remove">Fjern</button></div>',
+        '<div class="grid-two compact-grid-form">',
+        '<label><span>Start</span><input class="deviation-link-start" value="' + escapeHtml(entry.start || '') + '" /></label>',
+        '<div class="actions-row wrap align-end"><button type="button" class="btn btn-secondary btn-small deviation-link-start-fill">Bruk posisjon</button></div>',
+        '<label><span>Slutt</span><input class="deviation-link-end" value="' + escapeHtml(entry.end || '') + '" /></label>',
+        '<div class="actions-row wrap align-end"><button type="button" class="btn btn-secondary btn-small deviation-link-end-fill">Bruk posisjon</button></div>',
+        '<label class="span-2"><span>Merknad lenke</span><input class="deviation-link-note" value="' + escapeHtml(entry.note || '') + '" /></label>',
+        '</div>',
+        '</div>'
+      ].join('');
+    }).join('');
+    return [
+      '<div class="deviation-links" data-dev-index="' + dIndex + '">',
+      '<div class="deviation-links-head"><span>Lenker</span><button type="button" class="btn btn-secondary btn-small deviation-link-add">Legg til lenke</button></div>',
+      tabs || '<div class="small muted">Ingen lenker registrert.</div>',
+      '</div>'
+    ].join('');
   }
 
   function suggestedDeviationText(item) {
@@ -778,6 +822,7 @@
         row.seizure_ref = formatSeizureRef(nextSeizureSequence());
       }
       if (!row.position && currentCoordText()) row.position = currentCoordText();
+      ensureDeviationLinks(row);
     });
     item.deviation_summary = deviationSummaryText(item);
   }
@@ -957,6 +1002,7 @@
           '<button type="button" class="btn btn-secondary btn-small deviation-camera ' + (isAvvik ? '' : 'hidden') + '">Kamera</button>',
           '<button type="button" class="btn btn-secondary btn-small deviation-file ' + (isAvvik ? '' : 'hidden') + '">Legg til bilde</button>',
           '<button type="button" class="btn btn-danger btn-small deviation-remove">Fjern</button>',
+          deviationLinksHtml(row, dIndex),
           '</div>'
         ].join('');
       }).join('') + '</div>',
@@ -1475,17 +1521,38 @@
       return Boolean(currentControlSelection() || currentFisherySelection() || currentGearSelection());
     }
 
+    function isRestrictiveLawLayer(layer) {
+      if (!layer) return false;
+      if (layer.is_restrictive_law_layer === false) return false;
+      if (layer.is_restrictive_law_layer === true) return true;
+      var blob = normalizeSelectionText([layer.name, layer.description, layer.status, layer.panel_group, layer.selection_summary, layer.selection_blob].join(' '));
+      var status = normalizeSelectionText(layer.status || '');
+      if (status === 'fiskeriomrade' || blob.indexOf('kystnaere fiskeridata') !== -1) return false;
+      var lawTokens = ['forbud', 'fiskeforbud', 'fredning', 'fredningsomrade', 'stengt', 'nullfiske', 'maksimalmal', 'regulering', 'regulert', 'forskrift', 'lov', 'j melding', 'j-melding', 'jmelding', 'verneomrade', 'bunnhabitat', 'korall', 'begrensning'];
+      var nonLawTokens = ['gytefelt', 'gyteomrade', 'oppvekst', 'beiteomrade', 'fiskeplass', 'fiskeplasser', 'rekefelt', 'lassettingsplass', 'skjellforekomst', 'havbeitelokalitet', 'statistikkomrade', 'dybde', 'sjokart'];
+      var hasLaw = ['stengt omrade', 'fredningsomrade', 'maksimalmal omrade', 'regulert omrade', 'nullfiskeomrade'].indexOf(status) !== -1 || lawTokens.some(function (token) { return blob.indexOf(token) !== -1; });
+      if (!hasLaw) return false;
+      if (nonLawTokens.some(function (token) { return blob.indexOf(token) !== -1; }) && !lawTokens.some(function (token) { return blob.indexOf(token) !== -1; })) return false;
+      return true;
+    }
+
     function layerAllowedBySelectionProfile(layer) {
       var id = Number(layer && layer.id);
       if (!isFinite(id)) return false;
       var preferredIds = selectionProfileLayerIds();
       if (!hasMapSelection()) return false;
+      if (layer && layer.is_generic && isRestrictiveLawLayer(layer)) return true;
       if (!preferredIds.length) return layerSelectionScore(layer) > 0;
       if (preferredIds.indexOf(id) !== -1) return true;
       return layerSelectionScore(layer) > 0;
     }
 
     function layerMatchesCurrentSelection(layer) {
+      if (!isRestrictiveLawLayer(layer)) return false;
+      var restrictionText = normalizeSelectionText([layer.name, layer.description, layer.status, layer.selection_summary, layer.panel_group].join(' '));
+      var latNum = latitude && latitude.value ? Number(String(latitude.value).replace(',', '.')) : null;
+      if (restrictionText.indexOf('svalbard') !== -1 && !(latNum !== null && latNum > 70)) return false;
+      if (/(breivikfjorden|borgundfjorden|henningsvaer|lofotfiske)/.test(restrictionText) && !/(torsk|skrei|kommersiell|yrkes)/.test([currentFisherySelection(), currentControlSelection(), restrictionText].join(' '))) return false;
       var status = String(layer.status || '').trim().toLowerCase();
       if (Object.prototype.hasOwnProperty.call(activeLayerStatuses, status) && !activeLayerStatuses[status]) return false;
       if (!layerAllowedBySelectionProfile(layer)) return false;
@@ -1611,7 +1678,7 @@
     function visibleFeatureDetailLayerIds(limit, forcedLayerIds) {
       limit = Math.max(4, Number(limit || 8));
       var prioritized = filteredMapCatalog().filter(function (layer) {
-        return ['stengt område', 'fredningsområde', 'maksimalmål område', 'regulert område', 'fiskeriområde'].indexOf(String(layer.status || '').toLowerCase()) !== -1;
+        return ['stengt område', 'fredningsområde', 'maksimalmål område', 'regulert område', 'nullfiskeområde'].indexOf(String(layer.status || '').toLowerCase()) !== -1;
       });
       return mergeRelevantMapLayers(prioritized, forcedLayerIds).slice(0, limit).map(function (layer) { return Number(layer.id); }).filter(function (value) { return isFinite(value); });
     }
@@ -1790,7 +1857,7 @@
         urls = urls.concat(collectTileUrls(layer, map, padding == null ? 2 : padding));
       });
       urls = uniqueUrls(urls);
-      return prefetchUrlsToCache(urls, 'kv-kontroll-v1-2-map-tiles').then(function (count) {
+      return prefetchUrlsToCache(urls, 'kv-kontroll-v1-3-map-tiles').then(function (count) {
         return { count: count, urls: urls };
       });
     }
@@ -4432,10 +4499,11 @@
         if (hints.vessel_reg && !lookupIdentifier.value) lookupIdentifier.value = hints.vessel_reg;
       }
       if (registryResult) {
-        registryResult.innerHTML = '<strong>OCR fullført</strong><div class="small muted">' + escapeHtml(result.source === 'server' ? 'Server-OCR brukt' : 'Lokal OCR brukt') + ' · ' + escapeHtml(result.strategy || '') + '. Registeroppslag kjøres automatisk videre.</div><div class="small muted">' + escapeHtml(shortOcrPreview(lookupPayloadText)) + '</div>';
+        registryResult.innerHTML = '<strong>OCR fullført</strong><div class="small muted">' + escapeHtml(result.source === 'server' ? 'Server-OCR brukt' : 'Lokal OCR brukt') + ' · ' + escapeHtml(result.strategy || '') + '. Skjemaet er fylt fra bildet. Registeroppslag kjøres ikke automatisk.</div><div class="small muted">' + escapeHtml(shortOcrPreview(lookupPayloadText)) + '</div>';
       }
       renderAutofillPreview({ source: result.source === 'server' ? 'Server-OCR' : 'Lokal OCR', detail: result.strategy || 'Tekst lest fra bilde' });
-      lookupRegistry({ force: true, automatic: true });
+      loadGearSummary();
+      scheduleAutosave('OCR-felt fylt fra bilde');
       return result;
     }
 
@@ -4624,40 +4692,27 @@
       return num.toFixed(decimals || 6);
     }
 
-    function latLngToUtm(latValue, lngValue) {
-      var lat = Number(String(latValue || '').replace(',', '.'));
-      var lon = Number(String(lngValue || '').replace(',', '.'));
-      if (!isFinite(lat) || !isFinite(lon)) return '';
-      var zone = Math.floor((lon + 180) / 6) + 1;
-      var a = 6378137.0;
-      var f = 1 / 298.257223563;
-      var k0 = 0.9996;
-      var e = Math.sqrt(f * (2 - f));
-      var e2 = e * e;
-      var ep2 = e2 / (1 - e2);
-      var phi = lat * Math.PI / 180;
-      var lambda = lon * Math.PI / 180;
-      var lambda0 = ((zone - 1) * 6 - 180 + 3) * Math.PI / 180;
-      var sinPhi = Math.sin(phi);
-      var cosPhi = Math.cos(phi);
-      var tanPhi = Math.tan(phi);
-      var N = a / Math.sqrt(1 - e2 * sinPhi * sinPhi);
-      var T = tanPhi * tanPhi;
-      var C = ep2 * cosPhi * cosPhi;
-      var A = cosPhi * (lambda - lambda0);
-      var M = a * ((1 - e2 / 4 - 3 * e2 * e2 / 64 - 5 * e2 * e2 * e2 / 256) * phi
-        - (3 * e2 / 8 + 3 * e2 * e2 / 32 + 45 * e2 * e2 * e2 / 1024) * Math.sin(2 * phi)
-        + (15 * e2 * e2 / 256 + 45 * e2 * e2 * e2 / 1024) * Math.sin(4 * phi)
-        - (35 * e2 * e2 * e2 / 3072) * Math.sin(6 * phi));
-      var easting = k0 * N * (A + (1 - T + C) * Math.pow(A, 3) / 6 + (5 - 18 * T + T * T + 72 * C - 58 * ep2) * Math.pow(A, 5) / 120) + 500000;
-      var northing = k0 * (M + N * tanPhi * (A * A / 2 + (5 - T + 9 * C + 4 * C * C) * Math.pow(A, 4) / 24 + (61 - 58 * T + T * T + 600 * C - 330 * ep2) * Math.pow(A, 6) / 720));
-      if (lat < 0) northing += 10000000;
-      return 'UTM sone ' + zone + (lat >= 0 ? 'N' : 'S') + ' Ø ' + Math.round(easting) + ' N ' + Math.round(northing);
+    function latLngToDms(latValue, lngValue) {
+    var lat = Number(String(latValue || '').replace(',', '.'));
+    var lon = Number(String(lngValue || '').replace(',', '.'));
+    if (!isFinite(lat) || !isFinite(lon)) return '';
+    function format(value, positivePrefix, negativePrefix) {
+      var prefix = value >= 0 ? positivePrefix : negativePrefix;
+      var abs = Math.abs(value);
+      var deg = Math.floor(abs);
+      var minFloat = (abs - deg) * 60;
+      var min = Math.floor(minFloat);
+      var sec = Math.round((minFloat - min) * 60);
+      if (sec >= 60) { sec = 0; min += 1; }
+      if (min >= 60) { min = 0; deg += 1; }
+      return prefix + ' ' + deg + '° ' + min + "' " + sec + '"';
     }
+    return format(lat, 'N', 'S') + ' ' + format(lon, 'Ø', 'V');
+  }
 
     function currentCoordText() {
       if (!latitude || !longitude || !latitude.value || !longitude.value) return '';
-      return latLngToUtm(latitude.value, longitude.value) || 'UTM ikke beregnet';
+      return latLngToDms(latitude.value, longitude.value) || 'DMS ikke beregnet';
     }
     window.MKCurrentCoordText = currentCoordText;
 
@@ -4686,7 +4741,7 @@
         positionCoordinateSummary.textContent = text;
         positionCoordinateSummary.classList.remove('muted');
       } else {
-        positionCoordinateSummary.textContent = 'UTM vises her når posisjon er satt.';
+        positionCoordinateSummary.textContent = 'DMS vises her når posisjon er satt.';
         positionCoordinateSummary.classList.add('muted');
       }
     }
@@ -4807,7 +4862,7 @@
           mapState.autoRecenterOnce = false;
         }
         clearTimeout(mapState._offlineWarmTimer);
-        // V1.2: do not auto-download offline map packages on every position/layer update.
+        // V1.3: do not auto-download offline map packages on every position/layer update.
         // The user can still press the offline download button explicitly.
         var offlineWarmKey = currentOfflineWarmKey();
         mapState._lastOfflineWarmKey = offlineWarmKey || mapState._lastOfflineWarmKey;
@@ -4816,6 +4871,101 @@
       });
       syncManualPositionNotice();
       syncMarkerPositionInputs();
+    }
+
+    function areaHitLayerIds(hit) {
+      if (hit && Array.isArray(hit.layer_ids) && hit.layer_ids.length) return hit.layer_ids.slice();
+      if (hit && hit.layer_id !== undefined && hit.layer_id !== null && hit.layer_id !== '') return [hit.layer_id];
+      return [];
+    }
+
+    function areaHitMatchesCurrentSelection(hit) {
+      hit = hit || {};
+      var layerIds = areaHitLayerIds(hit);
+      if (layerIds.length) {
+        return layerIds.some(function (rawLayerId) {
+          var resolvedLayer = layerDefinitionById(resolveCatalogLayerId(rawLayerId, hit.layer || hit.layer_name || hit.name));
+          return resolvedLayer && layerMatchesCurrentSelection(resolvedLayer);
+        });
+      }
+      var status = String(hit.status || '').trim().toLowerCase();
+      if (status === 'fiskeriområde' || status === 'fiskeriomrade') return false;
+      var text = normalizeSelectionText([hit.name, hit.layer, hit.description, hit.notes, hit.summary, hit.law_text, hit.source].join(' '));
+      if (/svalbard/.test(text)) {
+        var latNum = latitude && latitude.value ? Number(String(latitude.value).replace(',', '.')) : null;
+        if (!(latNum !== null && latNum > 70)) return false;
+      }
+      if (!/(forbud|fredning|fredningsomrade|stengt|nullfiske|regulert|maksimalmal|forskrift|lov|j melding|j-melding|jmelding|verneomrade|begrensning)/.test(text)) return false;
+      var selected = normalizeSelectionText([currentFisherySelection(), currentGearSelection(), currentControlSelection()].join(' '));
+      if (!selected) return true;
+      if (/hummer/.test(selected) && /hummer/.test(text)) return true;
+      if (/torsk/.test(selected) && /(torsk|kysttorsk|skrei)/.test(text)) return true;
+      if (/krabbe/.test(selected) && /krabbe/.test(text)) return true;
+      if (currentGearSelection() && text.indexOf(normalizeSelectionText(currentGearSelection())) !== -1) return true;
+      return /(stengt|nullfiske|fredning|fiskeforbud|totalforbud|forbud mot)/.test(text);
+    }
+
+    function autoAreaFindingKey(hit, index) {
+      var raw = [
+        hit && (hit.layer_id || (hit.layer_ids || [])[0]) || '',
+        hit && (hit.name || hit.layer || hit.status || '') || '',
+        hit && (hit.status || '') || '',
+        hit && (hit.source || hit.database || '') || ''
+      ].join('|');
+      if (!raw.replace(/\|/g, '').trim()) raw = String(index || 0);
+      return 'auto_area_' + hashString(raw);
+    }
+
+    function autoAreaFindingFromHit(result, hit, index) {
+      hit = hit || {};
+      var base = result && result.recommended_violation && result.recommended_violation.item ? Object.assign({}, result.recommended_violation.item) : {};
+      var label = String(hit.name || hit.layer || base.label || result.name || 'Verneområde').trim();
+      var status = String(hit.status || base.area_status || result.status || 'regulert område').trim();
+      var detail = String(hit.notes || hit.summary || hit.description || hit.law_text || base.summary_text || base.notes || '').trim();
+      var source = String(hit.source || hit.database || base.source_name || 'Fiskeridirektoratets kartportal').trim();
+      var item = Object.assign(base, {
+        key: autoAreaFindingKey(hit, index),
+        auto_area_finding: true,
+        status: 'avvik',
+        label: label,
+        area_name: label,
+        area_status: status,
+        source_name: source,
+        source_ref: String(hit.layer || hit.layer_name || status || '').trim(),
+        notes: detail || ('Kontrollposisjonen ligger i ' + label + '.'),
+        summary_text: detail || ('Kontrollposisjonen ligger i ' + label + '.'),
+        auto_note: 'Kontrollposisjonen ligger i ' + label + (status ? ' (' + status + ')' : '') + '.',
+        law_text: detail || base.law_text || ''
+      });
+      var rows = ensureDeviationState(item);
+      if (!rows.length) rows.push(defaultDeviationRow(item));
+      rows[0].violation = rows[0].violation || ('Kontrollposisjonen ligger i ' + label + (status ? ' (' + status + ')' : '') + '.');
+      rows[0].position = rows[0].position || currentCoordText();
+      syncDeviationDefaults(item);
+      return item;
+    }
+
+    function autoAreaFindingsFromZoneResult(result) {
+      if (!result || !result.match) return [];
+      var hits = Array.isArray(result.hits) ? result.hits : [];
+      var rows = [];
+      var seen = {};
+      hits.forEach(function (hit, index) {
+        if (!areaHitMatchesCurrentSelection(hit)) return;
+        var key = autoAreaFindingKey(hit, index);
+        if (seen[key]) return;
+        seen[key] = true;
+        rows.push(autoAreaFindingFromHit(result, hit, index));
+      });
+      if (!rows.length && result.recommended_violation && result.recommended_violation.item) {
+        rows.push(autoAreaFindingFromHit(result, {
+          name: result.name || result.status || 'Verneområde',
+          status: result.status || 'regulert område',
+          notes: result.notes || result.recommended_violation.message || '',
+          source: 'områdesjekk'
+        }, 0));
+      }
+      return rows;
     }
 
     function currentZoneRequestKey() {
@@ -4842,20 +4992,24 @@
       updateAreaRestrictionOptions(result);
       syncManualPositionNotice();
       findingsState = findingsState.filter(function (row) {
+        if (row && row.auto_area_finding) return false;
         return ['hummer_fredningsomrade_redskap', 'stengt_omrade_status', 'fredningsomrade_status', 'maksimalmal_omrade', 'regulert_omrade'].indexOf(row.key) === -1;
       });
-      if (result.match && result.recommended_violation && result.recommended_violation.item) {
-        var areaItem = result.recommended_violation.item;
+      autoAreaFindingsFromZoneResult(result).forEach(function (areaItem) {
         var existing = findingsState.filter(function (row) { return row.key === areaItem.key; })[0];
         if (!existing) {
           findingsState.push(areaItem);
         } else {
           existing.status = areaItem.status || existing.status;
+          existing.auto_area_finding = true;
           if (areaItem.notes) existing.notes = areaItem.notes;
           if (areaItem.law_text) existing.law_text = areaItem.law_text;
           if (areaItem.summary_text) existing.summary_text = areaItem.summary_text;
+          if (areaItem.auto_note) existing.auto_note = areaItem.auto_note;
+          if (!ensureDeviationState(existing).length) ensureDeviationState(existing).push(defaultDeviationRow(existing));
+          syncDeviationDefaults(existing);
         }
-      }
+      });
       renderFindings();
       if (result.match && result.hits && result.hits.length) {
         mergeSources(result.hits.map(function (hit) { return { name: hit.source || 'Karttreff', ref: hit.name || hit.layer || 'Områdetreff', url: hit.url || '' }; }));
@@ -5177,31 +5331,31 @@
     function applyPerson(person, fallbackLast) {
       var isCommercial = String(controlType.value || '').toLowerCase().indexOf('kom') === 0;
       if (person.name && !isBadPersonName(person.name)) {
-        suspectName.value = person.name;
-        suspectNameCommercial.value = person.name;
-        lookupName.value = person.name;
+        autofillField(suspectName, person.name);
+        autofillField(suspectNameCommercial, person.name);
+        autofillField(lookupName, person.name);
       }
-      if (!isCommercial && person.address) suspectAddress.value = person.address;
-      if (!isCommercial && person.post_place && suspectPostPlace) suspectPostPlace.value = person.post_place;
+      if (!isCommercial && person.address) autofillField(suspectAddress, person.address);
+      if (!isCommercial && person.post_place && suspectPostPlace) autofillField(suspectPostPlace, person.post_place);
       if (!isCommercial && person.phone) {
-        suspectPhone.value = person.phone;
+        autofillField(suspectPhone, person.phone);
       }
-      if (!isCommercial && person.birthdate) suspectBirthdate.value = person.birthdate;
-      if (person.vessel_name) vesselName.value = person.vessel_name;
+      if (!isCommercial && person.birthdate) autofillField(suspectBirthdate, person.birthdate);
+      if (person.vessel_name) autofillField(vesselName, person.vessel_name);
       if (person.vessel_reg) {
-        vesselReg.value = person.vessel_reg;
-        if (isCommercial) lookupIdentifier.value = person.vessel_reg;
+        autofillField(vesselReg, person.vessel_reg);
+        if (isCommercial) autofillField(lookupIdentifier, person.vessel_reg);
       }
-      if (person.radio_call_sign) radioCallSign.value = person.radio_call_sign;
-      if (person.gear_marker_id && gearMarkerId) gearMarkerId.value = normalizeGearMarkerId(person.gear_marker_id) || person.gear_marker_id;
+      if (person.radio_call_sign) autofillField(radioCallSign, person.radio_call_sign);
+      if (person.gear_marker_id && gearMarkerId) autofillField(gearMarkerId, normalizeGearMarkerId(person.gear_marker_id) || person.gear_marker_id);
       if (!isCommercial && (person.hummer_participant_no || person.participant_no)) {
-        hummerParticipantNo.value = person.hummer_participant_no || person.participant_no;
-        lookupIdentifier.value = hummerParticipantNo.value;
+        autofillField(hummerParticipantNo, person.hummer_participant_no || person.participant_no);
+        autofillField(lookupIdentifier, hummerParticipantNo.value || person.hummer_participant_no || person.participant_no);
       } else if (!isCommercial && person.phone && !lookupIdentifier.value) {
-        lookupIdentifier.value = person.phone;
+        autofillField(lookupIdentifier, person.phone);
       }
       var lastRegistered = person.hummer_last_registered || person.registered_date_display || person.last_registered_display || person.last_registered_year || fallbackLast || '';
-      if (!isCommercial && hummerLastRegistered) hummerLastRegistered.value = normalizedSeasonValue(lastRegistered);
+      if (!isCommercial && hummerLastRegistered) autofillField(hummerLastRegistered, normalizedSeasonValue(lastRegistered));
       updateExternalSearchLinks();
       renderAutofillPreview({ source: 'Registertreff', detail: person.source || 'Oppdatert fra register' });
       loadGearSummary();
@@ -5242,14 +5396,14 @@
       if (!item) return;
       var isCommercial = String(controlType.value || '').toLowerCase().indexOf('kom') === 0;
       applyPerson(item, item.hummer_last_registered || '');
-      if (item.name && !isBadPersonName(item.name)) lookupName.value = item.name;
+      if (item.name && !isBadPersonName(item.name)) autofillField(lookupName, item.name);
       if (!isCommercial && (item.hummer_participant_no || item.participant_no)) {
-        hummerParticipantNo.value = item.hummer_participant_no || item.participant_no;
-        lookupIdentifier.value = hummerParticipantNo.value;
+        autofillField(hummerParticipantNo, item.hummer_participant_no || item.participant_no);
+        autofillField(lookupIdentifier, hummerParticipantNo.value || item.hummer_participant_no || item.participant_no);
       } else if (!isCommercial && item.phone) {
-        lookupIdentifier.value = item.phone;
+        autofillField(lookupIdentifier, item.phone);
       } else if (item.vessel_reg) {
-        lookupIdentifier.value = item.vessel_reg;
+        autofillField(lookupIdentifier, item.vessel_reg);
       }
       registryResult.innerHTML = '<strong>Treff valgt</strong><div class="small muted">Oppdaterer kontaktopplysninger og registerdata ...</div>';
       lookupRegistry()
@@ -5402,7 +5556,7 @@ function renderHummerStatus(result) {
       options = options || {};
       var lookupKey = currentRegistryLookupKey();
       if (!hasRegistryLookupInput()) {
-        if (registryResult) registryResult.innerHTML = 'Ta bilde eller oppgi navn, merketøy, telefonnummer eller deltakernummer for automatisk oppslag.';
+        if (registryResult) registryResult.innerHTML = 'Ta bilde eller oppgi navn, merketøy, telefonnummer eller deltakernummer. Bruk Oppslag manuelt ved behov.';
         return Promise.resolve(null);
       }
       if (registryLookupInFlight) {
@@ -5432,7 +5586,7 @@ function renderHummerStatus(result) {
         tag_text: lookupText.value || '',
         hummer_participant_no: (!isCommercial ? (hummerParticipantNo.value || inferred.hummer_participant_no || '') : '')
       });
-      if (registryResult) registryResult.innerHTML = options.automatic === false ? 'Søker i hummerregister og 1881 / Gulesider ...' : 'Søker automatisk i hummerregister og offentlige kataloger (1881 / Gulesider) ...';
+      if (registryResult) registryResult.innerHTML = options.automatic === false ? 'Søker i hummerregister og 1881 / Gulesider ...' : 'Søker i hummerregister og offentlige kataloger (1881 / Gulesider) etter manuelt valg ...';
       updateExternalSearchLinks();
       return fetch(root.dataset.registryUrl + '?' + params.toString())
         .then(function (r) { return r.json(); })
@@ -5456,11 +5610,9 @@ function renderHummerStatus(result) {
     }
 
     function scheduleAutoRegistryLookup(reason, delay) {
-      if (!hasRegistryLookupInput()) return;
+      // Eksterne registeroppslag skal ikke starte automatisk eller overstyre OCR fra bilde.
+      // Bruk Oppslag-knappen manuelt ved behov.
       if (registryLookupTimer) window.clearTimeout(registryLookupTimer);
-      registryLookupTimer = window.setTimeout(function () {
-        lookupRegistry({ automatic: true });
-      }, typeof delay === 'number' ? delay : 650);
     }
 
     if (btnLookupPerson) btnLookupPerson.addEventListener('click', function () {
@@ -5486,6 +5638,9 @@ function renderHummerStatus(result) {
         item.auto_note = 'Ved kontroll ble det registrert ' + total + ' teiner/redskap i dette kontrollpunktet. Tillatt antall etter gjeldende kontrollgrunnlag er ' + limit + '. Overskridelsen utgjør ' + overshoot + ' teiner/redskap.';
         if (statusSel.value !== 'avvik') statusSel.value = 'avvik';
         item.status = 'avvik';
+        var autoRows = ensureDeviationState(item);
+        if (!autoRows.length) autoRows.push(defaultDeviationRow(item));
+        syncDeviationDefaults(item);
         var btn = card.querySelector('.finding-evidence-btn');
         if (btn) btn.classList.remove('hidden');
       } else {
@@ -5704,7 +5859,7 @@ function renderHummerStatus(result) {
       var zonePlace = normalizedNearestPlaceText(latestZoneResult);
       var rawLocation = zonePlace || String((locationName && locationName.value) || '').trim();
       var positionLabel = currentCoordText();
-      var placeLabel = rawLocation ? ('ved ' + rawLocation) : (positionLabel ? ('ved ' + positionLabel) : 'ved kontrollposisjonen');
+      var placeLabel = rawLocation ? ('ved ' + rawLocation) : (positionLabel ? ('ved posisjon ' + positionLabel) : 'ved oppgitt posisjon');
       if (area) placeLabel += ', innenfor/ved ' + area;
       if (positionLabel && rawLocation) placeLabel += ' (' + positionLabel + ')';
       var themeParts = [controlTypeLabel, speciesLabel, gearLabel].filter(function (item) { return String(item || '').trim(); });
@@ -5992,23 +6147,17 @@ function renderHummerStatus(result) {
     species.addEventListener('input', function () { scheduleRuleRefresh(160); });
     species.addEventListener('change', function () { syncMapSelectionStatus(); updateCaseMap(); if (latitude.value && longitude.value) checkZone(); scheduleRuleRefresh(0); loadGearSummary(); });
     startTime.addEventListener('change', function () { scheduleRuleRefresh(0); });
-    suspectNameCommercial.addEventListener('input', function () { suspectName.value = suspectNameCommercial.value; lookupName.value = suspectNameCommercial.value; updateExternalSearchLinks(); loadGearSummary(); scheduleAutoRegistryLookup('Ansvarlig endret'); });
-    suspectName.addEventListener('input', function () { suspectNameCommercial.value = suspectName.value; lookupName.value = suspectName.value; updateExternalSearchLinks(); loadGearSummary(); scheduleAutoRegistryLookup('Navn endret'); });
-    suspectAddress.addEventListener('input', function () { updateExternalSearchLinks(); loadGearSummary(); scheduleAutoRegistryLookup('Adresse endret'); });
-    suspectPhone.addEventListener('input', function () { updateExternalSearchLinks(); loadGearSummary(); scheduleAutoRegistryLookup('Mobil endret'); });
+    suspectNameCommercial.addEventListener('input', function () { suspectName.value = suspectNameCommercial.value; lookupName.value = suspectNameCommercial.value; updateExternalSearchLinks(); loadGearSummary(); });
+    suspectName.addEventListener('input', function () { suspectNameCommercial.value = suspectName.value; lookupName.value = suspectName.value; updateExternalSearchLinks(); loadGearSummary(); });
+    suspectAddress.addEventListener('input', function () { updateExternalSearchLinks(); loadGearSummary(); });
+    suspectPhone.addEventListener('input', function () { updateExternalSearchLinks(); loadGearSummary(); });
     if (observedGearCount) observedGearCount.addEventListener('input', loadGearSummary);
 
-    [lookupName, lookupIdentifier, lookupText, suspectPhone, suspectAddress, hummerParticipantNo, vesselReg, radioCallSign, gearMarkerId].forEach(function (field) {
+    [lookupName, lookupIdentifier, lookupText, suspectPhone, suspectAddress, suspectPostPlace, hummerParticipantNo, vesselReg, radioCallSign, gearMarkerId].forEach(function (field) {
       if (!field) return;
-      field.addEventListener('input', function () { scheduleAutoRegistryLookup('Felt endret'); });
-      field.addEventListener('change', function () { scheduleAutoRegistryLookup('Felt endret', 120); });
+      field.addEventListener('input', updateExternalSearchLinks);
+      field.addEventListener('change', updateExternalSearchLinks);
     });
-    if (suspectPostPlace) {
-      suspectPostPlace.addEventListener('input', function () { scheduleAutoRegistryLookup('Poststed endret'); });
-      suspectPostPlace.addEventListener('change', function () { scheduleAutoRegistryLookup('Poststed endret', 120); });
-    }
-
-    window.setTimeout(function () { scheduleAutoRegistryLookup('Initial last', 160); }, 160);
 
     findingsList.addEventListener('change', function (event) {
       var card = event.target.closest('.finding-card');
@@ -6156,6 +6305,27 @@ function renderHummerStatus(result) {
         findingsInput.value = JSON.stringify(findingsState);
         scheduleAutosave('Markeringsdata oppdatert');
       }
+      if (event.target.classList.contains('deviation-link-start') || event.target.classList.contains('deviation-link-end') || event.target.classList.contains('deviation-link-note')) {
+        var linkInputRow = event.target.closest('.deviation-row');
+        var linkInputTab = event.target.closest('.deviation-link-tab');
+        if (!linkInputRow || !linkInputTab) return;
+        var linkInputDevIdx = Number(linkInputRow.dataset.devIndex);
+        var linkInputIdx = Number(linkInputTab.dataset.linkIndex);
+        var linkInputRows = ensureDeviationState(item);
+        linkInputRows[linkInputDevIdx] = linkInputRows[linkInputDevIdx] || defaultDeviationRow(item);
+        var linkInputEntry = ensureDeviationLinks(linkInputRows[linkInputDevIdx])[linkInputIdx] || defaultDeviationLink();
+        linkInputEntry.start = (linkInputTab.querySelector('.deviation-link-start') || {}).value || '';
+        linkInputEntry.end = (linkInputTab.querySelector('.deviation-link-end') || {}).value || '';
+        linkInputEntry.note = (linkInputTab.querySelector('.deviation-link-note') || {}).value || '';
+        ensureDeviationLinks(linkInputRows[linkInputDevIdx])[linkInputIdx] = linkInputEntry;
+        syncDeviationDefaults(item);
+        item.deviation_summary = deviationSummaryText(item);
+        var linkPreview = card.querySelector('.finding-deviations .structured-preview');
+        if (linkPreview) linkPreview.textContent = item.deviation_summary;
+        findingsInput.value = JSON.stringify(findingsState);
+        scheduleAutosave('Lenke oppdatert');
+        return;
+      }
       if (event.target.classList.contains('deviation-quantity') || event.target.classList.contains('deviation-position') || event.target.classList.contains('deviation-violation') || event.target.classList.contains('deviation-note')) {
         var dRowEl = event.target.closest('.deviation-row');
         if (!dRowEl) return;
@@ -6270,6 +6440,46 @@ function renderHummerStatus(result) {
           renderFindings();
         }
         scheduleAutosave('Avviksrad fjernet');
+        return;
+      }
+      if (event.target.classList.contains('deviation-link-add')) {
+        var linkAddRow = event.target.closest('.deviation-row');
+        var linkAddIdx = Number(linkAddRow.dataset.devIndex);
+        var linkAddRows = ensureDeviationState(item);
+        linkAddRows[linkAddIdx] = linkAddRows[linkAddIdx] || defaultDeviationRow(item);
+        ensureDeviationLinks(linkAddRows[linkAddIdx]).push(defaultDeviationLink());
+        syncDeviationDefaults(item);
+        renderFindings();
+        scheduleAutosave('Lenke lagt til avvik');
+        return;
+      }
+      if (event.target.classList.contains('deviation-link-remove')) {
+        var linkRemoveRow = event.target.closest('.deviation-row');
+        var linkRemoveTab = event.target.closest('.deviation-link-tab');
+        var linkRemoveDevIdx = Number(linkRemoveRow.dataset.devIndex);
+        var linkRemoveIdx = Number(linkRemoveTab.dataset.linkIndex);
+        var linkRemoveRows = ensureDeviationState(item);
+        linkRemoveRows[linkRemoveDevIdx] = linkRemoveRows[linkRemoveDevIdx] || defaultDeviationRow(item);
+        ensureDeviationLinks(linkRemoveRows[linkRemoveDevIdx]).splice(linkRemoveIdx, 1);
+        syncDeviationDefaults(item);
+        renderFindings();
+        scheduleAutosave('Lenke fjernet fra avvik');
+        return;
+      }
+      if (event.target.classList.contains('deviation-link-start-fill') || event.target.classList.contains('deviation-link-end-fill')) {
+        var linkFillRow = event.target.closest('.deviation-row');
+        var linkFillTab = event.target.closest('.deviation-link-tab');
+        var linkFillDevIdx = Number(linkFillRow.dataset.devIndex);
+        var linkFillIdx = Number(linkFillTab.dataset.linkIndex);
+        var linkFillRows = ensureDeviationState(item);
+        linkFillRows[linkFillDevIdx] = linkFillRows[linkFillDevIdx] || defaultDeviationRow(item);
+        var linkEntry = ensureDeviationLinks(linkFillRows[linkFillDevIdx])[linkFillIdx] || defaultDeviationLink();
+        if (event.target.classList.contains('deviation-link-start-fill')) linkEntry.start = currentCoordText();
+        else linkEntry.end = currentCoordText();
+        ensureDeviationLinks(linkFillRows[linkFillDevIdx])[linkFillIdx] = linkEntry;
+        syncDeviationDefaults(item);
+        renderFindings();
+        scheduleAutosave('Lenkeposisjon satt');
         return;
       }
       if (event.target.classList.contains('deviation-position-fill')) {

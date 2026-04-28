@@ -50,6 +50,22 @@ def is_bad_person_name(value: str | None) -> bool:
         return True
     return False
 
+
+def _is_bad_ocr_fragment(value: str | None) -> bool:
+    """Avvis katalog-/logo-/søketekst som OCR ofte leser som adresse eller poststed."""
+    text = ' '.join(str(value or '').replace('|', ' ').split()).strip(' ,;|-')
+    if not text:
+        return False
+    if BAD_NAME_PHRASES_RE.search(text):
+        return True
+    compact = re.sub(r'[^0-9a-zæøå]+', '', text.lower())
+    if compact in {'1881', '1881no', 'gulesider', 'gulesiderno', 'visnummer', 'vistelefon', 'telefonnummer', 'mobilnummer'}:
+        return True
+    words = {w.lower().strip('.,:;/-') for w in text.split()}
+    if words & {'1881', 'gulesider', 'visnummer', 'vistelefon', 'telefonnummer', 'mobilnummer', 'personer', 'bedrifter', 'kart', 'resultater', 'treff', 'annonse'}:
+        return True
+    return False
+
 KNOWN_FIELD_LABELS = (
     r'navn', r'eier', r'ansvarlig', r'skipper', r'person',
     r'adresse', r'adr', r'postadresse',
@@ -124,6 +140,10 @@ def _normalize_lines(text: str) -> list[str]:
 def _normalize_address_line(line: str) -> str:
     candidate = ' '.join(str(line or '').replace('|', ' ').split()).strip(' ,;|-')
     if not candidate:
+        return ''
+    if not re.search(r'[A-Za-zÆØÅæøå0-9]', candidate):
+        return ''
+    if _is_bad_ocr_fragment(candidate):
         return ''
     upper_compact = candidate.upper().replace(' ', '')
     if LABEL_LINE_RE.match(candidate):
@@ -249,14 +269,18 @@ def _is_probable_name(line: str) -> bool:
 
 def _line_address(lines: list[str]) -> str:
     for idx, line in enumerate(lines):
+        if _is_bad_ocr_fragment(line):
+            continue
         if STREET_LINE_RE.match(line) and POSTCODE_RE.search(line):
             return line
-        if STREET_LINE_RE.match(line) and idx + 1 < len(lines) and POSTCODE_RE.match(lines[idx + 1]):
+        if STREET_LINE_RE.match(line) and idx + 1 < len(lines) and POSTCODE_RE.match(lines[idx + 1]) and not _is_bad_ocr_fragment(lines[idx + 1]):
             return f'{line}, {lines[idx + 1]}'
     for idx, line in enumerate(lines):
+        if _is_bad_ocr_fragment(line):
+            continue
         if STREET_LINE_RE.match(line):
             return line
-        if POSTCODE_RE.match(line) and idx > 0 and STREET_LINE_RE.match(lines[idx - 1]):
+        if POSTCODE_RE.match(line) and idx > 0 and STREET_LINE_RE.match(lines[idx - 1]) and not _is_bad_ocr_fragment(lines[idx - 1]):
             return f'{lines[idx - 1]}, {line}'
     return ''
 
@@ -276,8 +300,8 @@ def _extract_labeled_value(lines: list[str], labels: tuple[str, ...], *, max_lin
         for pattern in inline_patterns:
             match = pattern.match(line)
             if match:
-                value = ' '.join(match.group(1).split())
-                if value:
+                value = ' '.join(match.group(1).split()).strip(' ,;|:-#')
+                if value and not _is_bad_ocr_fragment(value):
                     return value
         for pattern in label_only_patterns:
             if not pattern.match(line):
@@ -288,6 +312,8 @@ def _extract_labeled_value(lines: list[str], labels: tuple[str, ...], *, max_lin
                     break
                 next_line = ' '.join(str(lines[idx + offset] or '').split()).strip(' ,;|')
                 if not next_line:
+                    continue
+                if _is_bad_ocr_fragment(next_line):
                     continue
                 if _looks_like_label_line(next_line):
                     break
@@ -318,7 +344,7 @@ def extract_tag_hints(tag_text: str) -> dict[str, str]:
     if not text:
         return out
 
-    lines = [_normalize_address_line(line) for line in _normalize_lines(text)]
+    lines = [line for line in (_normalize_address_line(line) for line in _normalize_lines(text)) if line and not _is_bad_ocr_fragment(line)]
     joined = ' | '.join(lines)
 
     def _pick_phone(raw: str) -> str:
@@ -414,7 +440,7 @@ def extract_tag_hints(tag_text: str) -> dict[str, str]:
             out['address'] = addr or line
             if post and not out['post_place']:
                 out['post_place'] = post
-            elif idx + 1 < len(lines) and POST_PLACE_ONLY_RE.match(lines[idx + 1]):
+            elif idx + 1 < len(lines) and POST_PLACE_ONLY_RE.match(lines[idx + 1]) and not _is_bad_ocr_fragment(lines[idx + 1]):
                 out['post_place'] = lines[idx + 1]
             continue
         if not marker_line and not out['address'] and COMPACT_STREET_RE.match(line) and not (VESSEL_RE.fullmatch(line.upper()) or FISHERIMERKE_RE.fullmatch(line.upper())):
@@ -422,7 +448,7 @@ def extract_tag_hints(tag_text: str) -> dict[str, str]:
             out['address'] = addr or _normalize_address_line(line)
             if post and not out['post_place']:
                 out['post_place'] = post
-            elif idx + 1 < len(lines) and POST_PLACE_ONLY_RE.match(lines[idx + 1]):
+            elif idx + 1 < len(lines) and POST_PLACE_ONLY_RE.match(lines[idx + 1]) and not _is_bad_ocr_fragment(lines[idx + 1]):
                 out['post_place'] = lines[idx + 1]
             continue
         if not out['vessel_reg'] and not is_hummer_line and not marker_line:
@@ -453,12 +479,14 @@ def extract_tag_hints(tag_text: str) -> dict[str, str]:
                 break
 
     if out['address']:
+        if _is_bad_ocr_fragment(out['address']):
+            out['address'] = ''
         out['address'] = re.sub(r'\b(?:tlf|telefon|mobil)[:#-]?\s*\+?47?\s*\d[\d\s]{6,}\b', '', out['address'], flags=re.I)
         out['address'] = out['address'].replace(out.get('hummer_participant_no') or '', '').strip(' ,;|')
         if out['name'] and out['address'].lower().startswith(out['name'].lower()):
             out['address'] = out['address'][len(out['name']):].lstrip(' ,;')
 
-    if out['post_place'] and out['name'] and out['post_place'].lower().startswith(out['name'].lower()):
+    if out['post_place'] and (_is_bad_ocr_fragment(out['post_place']) or (out['name'] and out['post_place'].lower().startswith(out['name'].lower()))):
         out['post_place'] = ''
 
     if out['hummer_participant_no'] and POSTCODE_RE.search(out['hummer_participant_no']):

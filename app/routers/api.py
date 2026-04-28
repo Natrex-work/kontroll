@@ -97,10 +97,16 @@ def api_text_polish(request: Request, payload: TextPolishRequest):
     cleaned = ' '.join(text_in.replace('\r', '\n').split())
     if location:
         cleaned = re.sub(r'\bi aktuelt kontrollområde\b', 'ved ' + location, cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r'\bved kontrollposisjonen\b', 'ved ' + location, cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r'\bved kontrollposisjon\b', 'ved ' + location, cleaned, flags=re.IGNORECASE)
         cleaned = re.sub(r'\baktuelt kontrollområde\b', location, cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r'\bkontrollposisjonen\b', location, cleaned, flags=re.IGNORECASE)
     else:
-        cleaned = re.sub(r'\bi aktuelt kontrollområde\b', 'ved kontrollposisjon', cleaned, flags=re.IGNORECASE)
-        cleaned = re.sub(r'\baktuelt kontrollområde\b', 'kontrollposisjon', cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r'\bi aktuelt kontrollområde\b', 'ved oppgitt posisjon', cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r'\bved kontrollposisjonen\b', 'ved oppgitt posisjon', cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r'\bved kontrollposisjon\b', 'ved oppgitt posisjon', cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r'\baktuelt kontrollområde\b', 'oppgitt posisjon', cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r'\bkontrollposisjonen\b', 'oppgitt posisjon', cleaned, flags=re.IGNORECASE)
     cleaned = cleaned.replace(' ,', ',').replace(' .', '.').replace(' :', ':')
     unwanted_phrases = (
         'samt å dokumentere faktiske ' + 'forhold i en ' + 'anmeldelsesegnet form',

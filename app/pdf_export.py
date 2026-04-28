@@ -378,6 +378,10 @@ def _styles():
 
 
 def _utm_from_lat_lng(lat_value: Any, lng_value: Any) -> str:
+    """Returner koordinat som DMS for rapportvisning.
+
+    Funksjonsnavnet beholdes for bakoverkompatibilitet med resten av PDF-koden.
+    """
     try:
         lat = float(str(lat_value).replace(',', '.'))
         lon = float(str(lng_value).replace(',', '.'))
@@ -385,32 +389,23 @@ def _utm_from_lat_lng(lat_value: Any, lng_value: Any) -> str:
         return ''
     if not (-90 <= lat <= 90 and -180 <= lon <= 180):
         return ''
-    import math
-    zone = int(math.floor((lon + 180) / 6) + 1)
-    a = 6378137.0
-    f = 1 / 298.257223563
-    k0 = 0.9996
-    e2 = f * (2 - f)
-    ep2 = e2 / (1 - e2)
-    phi = math.radians(lat)
-    lam = math.radians(lon)
-    lam0 = math.radians((zone - 1) * 6 - 180 + 3)
-    sin_phi = math.sin(phi)
-    cos_phi = math.cos(phi)
-    tan_phi = math.tan(phi)
-    n = a / math.sqrt(1 - e2 * sin_phi * sin_phi)
-    t = tan_phi * tan_phi
-    c = ep2 * cos_phi * cos_phi
-    aa = cos_phi * (lam - lam0)
-    m = a * ((1 - e2 / 4 - 3 * e2 * e2 / 64 - 5 * e2 * e2 * e2 / 256) * phi
-             - (3 * e2 / 8 + 3 * e2 * e2 / 32 + 45 * e2 * e2 * e2 / 1024) * math.sin(2 * phi)
-             + (15 * e2 * e2 / 256 + 45 * e2 * e2 * e2 / 1024) * math.sin(4 * phi)
-             - (35 * e2 * e2 * e2 / 3072) * math.sin(6 * phi))
-    easting = k0 * n * (aa + (1 - t + c) * aa ** 3 / 6 + (5 - 18 * t + t * t + 72 * c - 58 * ep2) * aa ** 5 / 120) + 500000
-    northing = k0 * (m + n * tan_phi * (aa * aa / 2 + (5 - t + 9 * c + 4 * c * c) * aa ** 4 / 24 + (61 - 58 * t + t * t + 600 * c - 330 * ep2) * aa ** 6 / 720))
-    if lat < 0:
-        northing += 10000000
-    return f"UTM sone {zone}{'N' if lat >= 0 else 'S'} Ø {round(easting)} N {round(northing)}"
+
+    def _dms(value: float, positive: str, negative: str) -> str:
+        prefix = positive if value >= 0 else negative
+        absolute = abs(value)
+        degrees = int(absolute)
+        minutes_float = (absolute - degrees) * 60
+        minutes = int(minutes_float)
+        seconds = round((minutes_float - minutes) * 60)
+        if seconds >= 60:
+            seconds = 0
+            minutes += 1
+        if minutes >= 60:
+            minutes = 0
+            degrees += 1
+        return f"{prefix} {degrees}° {minutes}' {seconds}\""
+
+    return f"{_dms(lat, 'N', 'S')} {_dms(lon, 'Ø', 'V')}"
 
 
 def _case_utm(case_row: Dict[str, Any]) -> str:
@@ -1281,7 +1276,7 @@ def build_text_drafts(case_row: Dict[str, Any], findings: list[Dict[str, Any]]) 
 def _location_line(case_row: Dict[str, Any]) -> str:
     bits = _non_empty(case_row.get('location_name'), _area_name_value(case_row))
     if case_row.get('latitude') is not None and case_row.get('longitude') is not None:
-        bits.append(_case_utm(case_row) or 'UTM ikke beregnet')
+        bits.append(_case_utm(case_row) or 'DMS ikke beregnet')
     return ', '.join(bits) if bits else 'ikke oppgitt sted'
 
 
@@ -3449,7 +3444,7 @@ def _draw_seizure_page(c: rl_canvas.Canvas, case_row: Dict[str, Any], packet: Di
     for idx, row in enumerate(rows[:5], start=1):
         where = str(row.get('position') or '').strip()
         if not where and case_row.get('latitude') is not None and case_row.get('longitude') is not None:
-            where = _case_utm(case_row) or 'UTM ikke beregnet'
+            where = _case_utm(case_row) or 'DMS ikke beregnet'
         desc = str(row.get('description') or row.get('violation_reason') or row.get('caption') or row.get('type') or '').strip()
         if row.get('law_text'):
             desc += '\n' + str(row.get('law_text')).strip()[:180]
@@ -3625,7 +3620,7 @@ def _draw_seizure_page(c: rl_canvas.Canvas, case_row: Dict[str, Any], packet: Di
     for idx, row in enumerate(rows[:5], start=1):
         where = str(row.get('position') or '').strip()
         if not where and case_row.get('latitude') is not None and case_row.get('longitude') is not None:
-            where = _case_utm(case_row) or 'UTM ikke beregnet'
+            where = _case_utm(case_row) or 'DMS ikke beregnet'
         desc = str(row.get('description') or row.get('violation_reason') or row.get('caption') or row.get('type') or '').strip()
         if row.get('law_text'):
             desc += '\n' + str(row.get('law_text')).strip()[:180]

@@ -40,7 +40,7 @@ YGG_BASE = os.getenv('KV_YGG_BASE', os.getenv('KV_PORTAL_MAPSERVER', 'https://gi
 LOVDATA_TOPICS_PATH = DATA_DIR / 'lovdata_topics.json'
 FDIR_CACHE_JSON = CACHE_DIR / 'fdir_registry_cache.json'
 FDIR_CACHE_META = CACHE_DIR / 'fdir_registry_meta.json'
-UA = 'Minfiskerikontroll-V1.2/1.2.0 (+field trial app)'
+UA = 'Minfiskerikontroll-V1.3/1.3.0 (+field trial app)'
 HUMMER_REGISTER_URL = 'https://tableau.fiskeridir.no/t/Internet/views/Pmeldehummarfiskarargjeldander/Pmeldehummarfiskarar?:showVizHome=no'
 HUMMER_REGISTER_FALLBACK_URL = 'https://www.fiskeridir.no/statistikk-tall-og-analyse/data-og-statistikk-om-turist--og-fritidsfiske/registrerte-hummarfiskarar'
 HUMMER_CACHE_JSON = CACHE_DIR / 'hummer_registry_cache.json'
@@ -1880,8 +1880,6 @@ def _portal_selection_score(row: dict[str, Any], *, fishery: str = '', control_t
         score += 7
     elif status == 'regulert område':
         score += 4
-    elif status == 'fiskeriområde':
-        score += 3
     return (score, _ascii_header(row.get('name') or ''))
 
 
@@ -1905,8 +1903,18 @@ def _portal_display_score(row: dict[str, Any], *, fishery: str = '', control_typ
 
 
 def _sorted_portal_catalog_rows(rows: list[dict[str, Any]], *, fishery: str = '', control_type: str = '', gear_type: str = '') -> list[dict[str, Any]]:
+    filtered_rows: list[dict[str, Any]] = []
+    for row in list(rows or []):
+        if not isinstance(row, dict):
+            continue
+        enriched = map_relevance.decorate_catalog_row(row)
+        if not map_relevance.is_restrictive_law_layer(enriched):
+            continue
+        if (fishery or control_type or gear_type) and not map_relevance.matches_selection(enriched, fishery=fishery, control_type=control_type, gear_type=gear_type):
+            continue
+        filtered_rows.append(enriched)
     return sorted(
-        list(rows or []),
+        filtered_rows,
         key=lambda row: (
             -_portal_display_score(row, fishery=fishery, control_type=control_type, gear_type=gear_type)[0],
             _portal_display_score(row, fishery=fishery, control_type=control_type, gear_type=gear_type)[1],
@@ -2452,7 +2460,13 @@ def classify_position_live(lat: float, lng: float, species: str = '', gear_type:
     }
     priorities = {'stengt område': 4, 'fredningsområde': 3, 'maksimalmål område': 2, 'regulert område': 1}
 
-    layers_to_check = portal_layer_catalog(fishery=species, control_type=control_type, gear_type=gear_type) or _portal_layer_defs()
+    layers_to_check = portal_layer_catalog(fishery=species, control_type=control_type, gear_type=gear_type)
+    if not layers_to_check:
+        layers_to_check = [
+            layer for layer in _portal_layer_defs()
+            if map_relevance.is_restrictive_law_layer(map_relevance.decorate_catalog_row(layer))
+            and map_relevance.matches_selection(map_relevance.decorate_catalog_row(layer), fishery=species, control_type=control_type, gear_type=gear_type)
+        ]
     # Limit live point checks. Local zone data is already evaluated before this
     # function in rules_service; repeatedly probing every portal layer is the
     # main source of slow GPS/map updates on mobile.

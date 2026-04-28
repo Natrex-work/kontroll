@@ -82,8 +82,11 @@ COMMERCIAL_HINTS = (
 _GENERIC_STATUS_NAME_HINTS = (
     'hostingsforskriften',
     'høstingsforskriften',
+    'forskrift',
     'j melding',
     'j-melding',
+    'jmelding',
+    'lov',
     'nullfiske',
     'svalbard',
     'verneomrade',
@@ -94,6 +97,31 @@ _GENERIC_STATUS_NAME_HINTS = (
     'fiskeforbud',
     'breivikfjorden',
     'borgundfjorden',
+)
+
+RESTRICTIVE_STATUSES = {
+    'stengt omrade', 'stengt område',
+    'fredningsomrade', 'fredningsområde',
+    'maksimalmal omrade', 'maksimalmål område',
+    'regulert omrade', 'regulert område',
+    'nullfiskeomrade', 'nullfiskeområde',
+}
+
+LEGAL_RESTRICTION_TOKENS = (
+    'forbud', 'fiskeforbud', 'forbudssone', 'fredning', 'fredningsomrade', 'fredningsområde',
+    'stengt', 'nullfiske', 'maksimalmal', 'maksimalmål', 'regulering', 'regulert',
+    'forskrift', 'lov', 'høstingsforskriften', 'hostingsforskriften',
+    'j melding', 'j-melding', 'jmelding', 'verneomrade', 'verneområde',
+    'saarbar', 'sårbar', 'bunnhabitat', 'korall', 'laksefjord', 'fiskeforbud',
+    'tralforbud', 'trålforbud', 'krokbegrensning', 'begrensning', 'forbud mot',
+)
+
+NON_LEGAL_COASTAL_DATA_TOKENS = (
+    'kystnaere fiskeridata', 'kystnære fiskeridata', 'gytefelt', 'gyteomrade', 'gyteområde',
+    'oppvekst', 'beiteomrade', 'beiteområde', 'fiskeplass', 'fiskeplasser', 'rekefelt',
+    'lassettingsplass', 'låssettingsplass', 'skjellforekomst', 'havbeitelokalitet',
+    'statistikkomrade', 'statistikkområde', 'hovedomraader', 'hovedområder', 'lokasjoner',
+    'dybde', 'sjokart', 'sjøkart', 'bathy', 'bathym', 'sjo og dybde', 'sjø og dybde',
 )
 
 
@@ -290,7 +318,7 @@ def layer_panel_group(name: Any, description: Any = '', status: Any = '') -> dic
     if 'tare' in blob:
         return {'panel_group': 'Tare', 'panel_group_key': 'tare', 'panel_group_order': 50}
     if any(token in blob for token in ('gytefelt', 'gyteomrade', 'gyteområde', 'oppvekst', 'beiteomrade', 'beiteområde', 'fiskeplass', 'rekefelt', 'lassettingsplass', 'låssettingsplass', 'skjellforekomst', 'havbeitelokalitet')) or normalize_text(status) in {'fiskeriomrade', 'fiskeriområde'}:
-        return {'panel_group': 'Kystnære fiskeridata', 'panel_group_key': 'kystnaere_fiskeridata', 'panel_group_order': 60}
+        return {'panel_group': 'Andre temalag', 'panel_group_key': 'andre_temalag', 'panel_group_order': 100}
     if 'tapte redskap' in blob:
         return {'panel_group': 'Tapte redskap', 'panel_group_key': 'tapte_redskap', 'panel_group_order': 70}
     if any(token in blob for token in ('hovedomraader', 'hovedområder', 'lokasjoner', 'statistikkomrade', 'statistikkområde')):
@@ -309,9 +337,38 @@ def default_visible_for_group(group_key: Any) -> bool:
         'korallrev',
         'verneomrader',
         'tare',
-        'kystnaere fiskeridata',
         'sjo og dybdedata',
     }
+
+
+def is_restrictive_law_layer(meta_like: dict[str, Any]) -> bool:
+    """True for kartlag som uttrykker lov/forskrift/J-melding med forbud eller begrensning."""
+    if not isinstance(meta_like, dict):
+        return False
+    status = normalize_text(meta_like.get('status') or '')
+    panel_key = normalize_text(meta_like.get('panel_group_key') or '')
+    geometry = normalize_text(meta_like.get('geometry_type') or '')
+    parts = [
+        meta_like.get('name') or '',
+        meta_like.get('layer') or '',
+        meta_like.get('description') or '',
+        meta_like.get('status') or '',
+        meta_like.get('selection_summary') or '',
+        meta_like.get('selection_blob') or '',
+        meta_like.get('source_ref') or '',
+    ]
+    blob = normalize_text(' '.join(str(part or '') for part in parts))
+    if panel_key == 'kystnaere fiskeridata' or status == 'fiskeriomrade':
+        return False
+    if any(token in blob for token in NON_LEGAL_COASTAL_DATA_TOKENS):
+        if not any(token in blob for token in LEGAL_RESTRICTION_TOKENS):
+            return False
+    has_legal_restriction = status in RESTRICTIVE_STATUSES or any(token in blob for token in LEGAL_RESTRICTION_TOKENS)
+    if not has_legal_restriction:
+        return False
+    if geometry and 'polygon' not in geometry and not any(token in blob for token in ('forbud', 'fredning', 'j melding', 'j-melding', 'forskrift', 'lov')):
+        return False
+    return True
 
 
 def decorate_catalog_row(row: dict[str, Any]) -> dict[str, Any]:
@@ -320,6 +377,7 @@ def decorate_catalog_row(row: dict[str, Any]) -> dict[str, Any]:
     enriched.update(meta)
     panel = layer_panel_group(row.get('name') or '', row.get('description') or '', row.get('status') or '')
     enriched.update(panel)
+    enriched['is_restrictive_law_layer'] = is_restrictive_law_layer(enriched)
     if 'default_visible' not in enriched:
         enriched['default_visible'] = default_visible_for_group(panel.get('panel_group_key'))
     return enriched

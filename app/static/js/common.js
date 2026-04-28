@@ -6,7 +6,7 @@
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('/static/sw.js?v=V1.2').catch(function () {});
+      navigator.serviceWorker.register('/static/sw.js?v=V1.3').catch(function () {});
     });
   }
 
@@ -337,7 +337,7 @@
   }
 
 
-  var LAYER_PANEL_PREFS_VERSION = 'V1.2';
+  var LAYER_PANEL_PREFS_VERSION = 'V1.3';
 
   function layerPanelStorageKey(el, markerState) {
     return 'kv-temalag:' + LAYER_PANEL_PREFS_VERSION + ':' + String((markerState && markerState.layerPanelKey) || (el && el.id) || 'map');
@@ -378,7 +378,7 @@
     if (blob.indexOf('verne') !== -1 || blob.indexOf('nasjonalpark') !== -1 || blob.indexOf('bunnhabitat') !== -1 || blob.indexOf('sårbar') !== -1 || blob.indexOf('saarbar') !== -1 || blob.indexOf('laksefjord') !== -1) return { label: 'Verneområder', key: 'verneomrader', order: 40 };
     if (blob.indexOf('tare') !== -1) return { label: 'Tare', key: 'tare', order: 50 };
     if (status.indexOf('fiskeriområde') !== -1 || status.indexOf('fiskeriomrade') !== -1 || blob.indexOf('gyte') !== -1 || blob.indexOf('oppvekst') !== -1 || blob.indexOf('fiskeplass') !== -1 || blob.indexOf('rekefelt') !== -1 || blob.indexOf('skjellforekomst') !== -1 || blob.indexOf('låssettings') !== -1 || blob.indexOf('lasettings') !== -1 || blob.indexOf('havbeitelokalitet') !== -1) {
-      return { label: 'Kystnære fiskeridata', key: 'kystnaere_fiskeridata', order: 60 };
+      return { label: 'Andre temalag', key: 'andre_temalag', order: 100 };
     }
     if (blob.indexOf('tapte redskap') !== -1) return { label: 'Tapte redskap', key: 'tapte_redskap', order: 70 };
     if (blob.indexOf('hovedomraader') !== -1 || blob.indexOf('hovedområder') !== -1 || blob.indexOf('lokasjoner') !== -1 || blob.indexOf('statistikkområde') !== -1 || blob.indexOf('statistikkomrade') !== -1) return { label: 'Statistikkområder', key: 'statistikkomrader', order: 80 };
@@ -403,11 +403,33 @@
     return 'Flate';
   }
 
+  function normalizeLayerSearchText(value) {
+    return String(value || '').toLowerCase()
+      .replace(/[åä]/g, 'a').replace(/[øö]/g, 'o').replace(/[æ]/g, 'ae')
+      .replace(/[_\-/]+/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  function isRestrictiveLawLayer(layer) {
+    if (!layer) return false;
+    if (layer.is_restrictive_law_layer === false) return false;
+    if (layer.is_restrictive_law_layer === true) return true;
+    var blob = normalizeLayerSearchText([layer.name, layer.description, layer.status, layer.panel_group, layer.selection_summary].join(' '));
+    var status = normalizeLayerSearchText(layer.status || '');
+    if (status === 'fiskeriomrade' || blob.indexOf('kystnaere fiskeridata') !== -1) return false;
+    var nonLaw = ['gytefelt', 'gyteomrade', 'oppvekst', 'beiteomrade', 'fiskeplass', 'fiskeplasser', 'rekefelt', 'lassettingsplass', 'skjellforekomst', 'havbeitelokalitet', 'statistikkomrade', 'dybde', 'sjokart'];
+    var law = ['forbud', 'fiskeforbud', 'fredning', 'fredningsomrade', 'stengt', 'nullfiske', 'maksimalmal', 'regulering', 'regulert', 'forskrift', 'lov', 'j melding', 'j-melding', 'jmelding', 'verneomrade', 'bunnhabitat', 'korall', 'begrensning'];
+    var hasLaw = ['stengt omrade', 'fredningsomrade', 'maksimalmal omrade', 'regulert omrade', 'nullfiskeomrade'].indexOf(status) !== -1 || law.some(function (token) { return blob.indexOf(token) !== -1; });
+    if (!hasLaw) return false;
+    if (nonLaw.some(function (token) { return blob.indexOf(token) !== -1; }) && !law.some(function (token) { return blob.indexOf(token) !== -1; })) return false;
+    return true;
+  }
+
   function buildLayerPanelGroups(layers, query) {
     var groupsByKey = {};
     var search = String(query || '').trim().toLowerCase();
     (layers || []).forEach(function (layer) {
       if (!layer || !isFinite(Number(layer.id))) return;
+      if (!isRestrictiveLawLayer(layer)) return;
       var haystack = [layer.name, layer.description, layer.status, layer.panel_group].join(' ').toLowerCase();
       if (search && haystack.indexOf(search) === -1) return;
       var group = layerPanelGroup(layer);
