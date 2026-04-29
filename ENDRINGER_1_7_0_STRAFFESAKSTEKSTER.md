@@ -1,4 +1,4 @@
-# Endringer 1.7.1
+# Endringer 1.8.0
 
 Denne versjonen viderefører 1.6.0 og tilpasser tekstmalene i webappen til føringene i opplastede dokumenter:
 
@@ -41,5 +41,5 @@ Denne versjonen viderefører 1.6.0 og tilpasser tekstmalene i webappen til føri
 
 ## Teknisk
 
-- Versjon og cache-bust oppdatert til `1.7.1`.
-- Service worker og statiske JS/CSS-parametre er bumpet til `1.7.1`.
+- Versjon og cache-bust oppdatert til `1.8.0`.
+- Service worker og statiske JS/CSS-parametre er bumpet til `1.8.0`.

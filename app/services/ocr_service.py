@@ -92,10 +92,10 @@ def _env_int(name: str, default: int, *, minimum: int, maximum: int) -> int:
     return max(minimum, min(maximum, value))
 
 
-OCR_MAX_SIDE = _env_int('KV_OCR_MAX_SIDE', 2400, minimum=1100, maximum=3200)
-OCR_MIN_SIDE = _env_int('KV_OCR_MIN_SIDE', 1300, minimum=700, maximum=2200)
-OCR_VARIANT_LIMIT = _env_int('KV_OCR_VARIANT_LIMIT', 16, minimum=3, maximum=22)
-OCR_ATTEMPT_TIMEOUT_MAX = _env_int('KV_OCR_ATTEMPT_TIMEOUT', 10, minimum=3, maximum=16)
+OCR_MAX_SIDE = _env_int('KV_OCR_MAX_SIDE', 2800, minimum=1100, maximum=3600)
+OCR_MIN_SIDE = _env_int('KV_OCR_MIN_SIDE', 1600, minimum=700, maximum=2600)
+OCR_VARIANT_LIMIT = _env_int('KV_OCR_VARIANT_LIMIT', 20, minimum=3, maximum=28)
+OCR_ATTEMPT_TIMEOUT_MAX = _env_int('KV_OCR_ATTEMPT_TIMEOUT', 12, minimum=3, maximum=18)
 OCR_ENABLE_DESKEW = os.getenv('KV_OCR_ENABLE_DESKEW', '1').lower() in {'1', 'true', 'yes', 'on'}
 
 
@@ -290,6 +290,9 @@ def _fallback_center_label_crops(image: Image.Image) -> list[Image.Image]:
     w, h = image.size
     crops: list[Image.Image] = []
     windows = [
+        (0.02, 0.02, 0.98, 0.98),
+        (0.05, 0.00, 0.95, 0.38),
+        (0.05, 0.55, 0.95, 0.98),
         (0.15, 0.10, 0.85, 0.52),
         (0.10, 0.15, 0.90, 0.58),
         (0.18, 0.18, 0.82, 0.62),
@@ -375,7 +378,7 @@ def _candidate_label_crops(image: Image.Image) -> list[Image.Image]:
     for crop in _fallback_center_label_crops(image):
         if all(crop.size != existing.size for existing in crops):
             crops.append(crop)
-    return crops[:4]
+    return crops[:6]
 
 
 def _adaptive_ocr_variants(image: Image.Image, *, label_mode: bool = False) -> list[tuple[str, Image.Image, str]]:
@@ -422,6 +425,7 @@ def _prepare_variants(image: Image.Image, *, label_mode: bool = False) -> list[t
         upscaled = enhanced.resize((max(1, int(round(enhanced.width * factor))), max(1, int(round(enhanced.height * factor)))), Image.Resampling.LANCZOS)
     rotated_left = upscaled.rotate(90, expand=True)
     rotated_right = upscaled.rotate(-90, expand=True)
+    rotated_180 = upscaled.rotate(180, expand=True)
     base_psm = '6'
     alt_psm = '11'
     line_psm = '6' if label_mode else '7'
@@ -435,6 +439,7 @@ def _prepare_variants(image: Image.Image, *, label_mode: bool = False) -> list[t
     variants.extend([
         (prefix + 'rotert venstre', rotated_left, f'--oem 1 --psm {base_psm} preserve_interword_spaces=1'),
         (prefix + 'rotert høyre', rotated_right, f'--oem 1 --psm {base_psm} preserve_interword_spaces=1'),
+        (prefix + 'rotert 180', rotated_180, f'--oem 1 --psm {base_psm} preserve_interword_spaces=1'),
         (prefix + 'høy kontrast', threshold, f'--oem 1 --psm {alt_psm} preserve_interword_spaces=1'),
         (prefix + 'sparsom tekst', sparse, f'--oem 1 --psm {alt_psm} preserve_interword_spaces=1'),
         (prefix + 'enkel linje', medium, f'--oem 1 --psm {line_psm} preserve_interword_spaces=1'),
@@ -465,12 +470,12 @@ def _preferred_variants(image: Image.Image, label_crops: list[Image.Image]) -> l
     deskewed = _deskew_full_image_variants(image)
     variants.extend(deskewed[:6])
     full_variants = _prepare_variants(image, label_mode=False)
-    variants.extend(full_variants[:4 if not deskewed else 3])
-    for crop in label_crops[:2]:
-        variants.extend(_prepare_variants(crop, label_mode=True)[:4])
-    variants.extend(full_variants[4:6])
-    if len(label_crops) > 2:
-        variants.extend(_prepare_variants(label_crops[2], label_mode=True)[:3])
+    variants.extend(full_variants[:5 if not deskewed else 4])
+    for crop in label_crops[:3]:
+        variants.extend(_prepare_variants(crop, label_mode=True)[:5])
+    variants.extend(full_variants[5:8])
+    if len(label_crops) > 3:
+        variants.extend(_prepare_variants(label_crops[3], label_mode=True)[:3])
     deduped: list[tuple[str, Image.Image, str]] = []
     seen: set[tuple[str, tuple[int, int], str]] = set()
     for label, variant, config in variants:
@@ -479,7 +484,7 @@ def _preferred_variants(image: Image.Image, label_crops: list[Image.Image]) -> l
             continue
         seen.add(key)
         deduped.append((label, variant, config))
-    return deduped[:16]
+    return deduped[:22]
 
 
 def _field_value_score(field: str, value: str) -> int:
@@ -570,7 +575,7 @@ def extract_text_from_image(content: bytes, *, filename: str = '', timeout_secon
     label_crops = _candidate_label_crops(image)
     timed_out = False
     try:
-        variant_limit = OCR_VARIANT_LIMIT if max_wall_seconds <= 32 else min(22, OCR_VARIANT_LIMIT + 4)
+        variant_limit = OCR_VARIANT_LIMIT if max_wall_seconds <= 32 else min(28, OCR_VARIANT_LIMIT + 6)
         variants = _preferred_variants(image, label_crops)[:variant_limit]
         for label, variant, config in variants:
             remaining = deadline - time.monotonic()

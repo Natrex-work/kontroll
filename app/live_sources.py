@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import csv
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FuturesTimeoutError
 from datetime import datetime
 import io
 import json
@@ -40,7 +40,7 @@ YGG_BASE = os.getenv('KV_YGG_BASE', os.getenv('KV_PORTAL_MAPSERVER', 'https://gi
 LOVDATA_TOPICS_PATH = DATA_DIR / 'lovdata_topics.json'
 FDIR_CACHE_JSON = CACHE_DIR / 'fdir_registry_cache.json'
 FDIR_CACHE_META = CACHE_DIR / 'fdir_registry_meta.json'
-UA = 'Minfiskerikontroll-1.7.1/1.7.1 (+field trial app)'
+UA = 'Minfiskerikontroll-1.8.0/1.8.0 (+field trial app)'
 HUMMER_REGISTER_URL = 'https://tableau.fiskeridir.no/t/Internet/views/Pmeldehummarfiskarargjeldander/Pmeldehummarfiskarar?:showVizHome=no'
 HUMMER_REGISTER_FALLBACK_URL = 'https://www.fiskeridir.no/statistikk-tall-og-analyse/data-og-statistikk-om-turist--og-fritidsfiske/registrerte-hummarfiskarar'
 HUMMER_CACHE_JSON = CACHE_DIR / 'hummer_registry_cache.json'
@@ -80,9 +80,10 @@ PORTAL_POINT_CACHE_TTL = max(20.0, float(os.getenv('KV_PORTAL_POINT_CACHE_TTL', 
 PORTAL_BUNDLE_CACHE_TTL = max(120.0, float(os.getenv('KV_PORTAL_BUNDLE_CACHE_TTL', '900') or '900'))
 _PORTAL_BUNDLE_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 _PORTAL_BUNDLE_CACHE_LOCK = threading.Lock()
-ZONE_CHECK_MAX_LIVE_LAYERS = max(4, min(30, int(os.getenv('KV_ZONE_CHECK_MAX_LIVE_LAYERS', '10') or '10')))
-ZONE_POINT_QUERY_TIMEOUT = max(1.5, min(5.0, float(os.getenv('KV_ZONE_POINT_QUERY_TIMEOUT', '3.2') or '3.2')))
+ZONE_CHECK_MAX_LIVE_LAYERS = max(3, min(18, int(os.getenv('KV_ZONE_CHECK_MAX_LIVE_LAYERS', '6') or '6')))
+ZONE_POINT_QUERY_TIMEOUT = max(0.8, min(3.5, float(os.getenv('KV_ZONE_POINT_QUERY_TIMEOUT', '1.8') or '1.8')))
 ZONE_CHECK_WORKERS = max(2, min(8, int(os.getenv('KV_ZONE_CHECK_WORKERS', '6') or '6')))
+ZONE_CHECK_TOTAL_TIMEOUT = max(1.5, min(8.0, float(os.getenv('KV_ZONE_CHECK_TOTAL_TIMEOUT', '3.0') or '3.0')))
 REVERSE_GEOCODE_CACHE_TTL = max(60.0, float(os.getenv('KV_REVERSE_GEOCODE_CACHE_TTL', '900') or '900'))
 _REVERSE_GEOCODE_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 _REVERSE_GEOCODE_CACHE_LOCK = threading.Lock()
@@ -2489,11 +2490,12 @@ def classify_position_live(lat: float, lng: float, species: str = '', gear_type:
 
     if layers_to_check:
         worker_count = max(1, min(ZONE_CHECK_WORKERS, len(layers_to_check)))
-        with ThreadPoolExecutor(max_workers=worker_count) as executor:
-            futures = [executor.submit(_hits_for_layer, layer) for layer in layers_to_check]
-            for future in as_completed(futures):
+        executor = ThreadPoolExecutor(max_workers=worker_count)
+        futures = [executor.submit(_hits_for_layer, layer) for layer in layers_to_check]
+        try:
+            for future in as_completed(futures, timeout=ZONE_CHECK_TOTAL_TIMEOUT):
                 try:
-                    layer_hits = future.result()
+                    layer_hits = future.result(timeout=0.05)
                 except Exception:
                     continue
                 for hit in layer_hits:
@@ -2505,6 +2507,13 @@ def classify_position_live(lat: float, lng: float, species: str = '', gear_type:
                     rank = priorities.get(hit.get('status') or '', 0)
                     if rank > highest['rank']:
                         highest = {'rank': rank, 'status': hit.get('status') or '', 'name': hit.get('name') or '', 'notes': hit.get('notes') or ''}
+        except FuturesTimeoutError:
+            pass
+        finally:
+            for future in futures:
+                if not future.done():
+                    future.cancel()
+            executor.shutdown(wait=False, cancel_futures=True)
 
     hits.sort(key=lambda item: (-priorities.get(item.get('status') or '', 0), _ascii_header(item.get('name'))))
     return {

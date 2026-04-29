@@ -6,7 +6,7 @@
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('/static/sw.js?v=1.7.1').catch(function () {});
+      navigator.serviceWorker.register('/static/sw.js?v=1.8.0').catch(function () {});
     });
   }
 
@@ -599,7 +599,8 @@
       var note = row.note ? (' / ' + row.note) : '';
       var links = deviationLinksSummary(row);
       var linkText = links ? (' / ' + links) : '';
-      return ref + gearKind + legacyRef + qty + position + ': ' + violation + note + linkText;
+      var groupText = 'Lenke ' + (Number(row.link_group_index || 0) + 1) + ' / ';
+      return groupText + ref + gearKind + legacyRef + qty + position + ': ' + violation + note + linkText;
     }).join('; ');
   }
 
@@ -652,7 +653,9 @@
   }
 
   function defaultDeviationRow(item) {
-    return { seizure_ref: '', linked_seizure_ref: '', gear_kind: defaultDeviationGearKind(), gear_ref: '', quantity: '1', position: currentCoordText(), violation: suggestedDeviationText(item), note: '', links: [defaultDeviationLink()], active_link_index: 0 };
+    var activeGroup = Number(item && item.active_deviation_link_index || 0);
+    if (!isFinite(activeGroup) || activeGroup < 0) activeGroup = 0;
+    return { seizure_ref: '', linked_seizure_ref: '', gear_kind: defaultDeviationGearKind(), gear_ref: '', quantity: '1', position: currentCoordText(), violation: suggestedDeviationText(item), note: '', links: [defaultDeviationLink()], active_link_index: 0, link_group_index: activeGroup };
   }
 
   function defaultDeviationLink() {
@@ -691,6 +694,47 @@
       if (entry.note) parts.push(entry.note);
       return parts.join(': ');
     }).join(' | ');
+  }
+
+  function normalizeDeviationLinkGroups(item) {
+    var rows = ensureDeviationState(item);
+    var maxGroup = 0;
+    rows.forEach(function (row, idx) {
+      if (!row) row = rows[idx] = defaultDeviationRow(item);
+      ensureDeviationLinks(row);
+      var group = Number(row.link_group_index);
+      if (!isFinite(group) || group < 0) {
+        group = Number(row.active_link_index || 0);
+        if (!isFinite(group) || group < 0) group = idx;
+      }
+      group = Math.max(0, Math.floor(group));
+      row.link_group_index = group;
+      if (group > maxGroup) maxGroup = group;
+    });
+    var active = Number(item && item.active_deviation_link_index || 0);
+    if (!isFinite(active) || active < 0) active = 0;
+    if (active > maxGroup) active = maxGroup;
+    item.active_deviation_link_index = active;
+    return { rows: rows, activeIndex: active, count: Math.max(1, maxGroup + 1) };
+  }
+
+  function deviationGroupTabsHtml(item) {
+    var state = normalizeDeviationLinkGroups(item);
+    var buttons = [];
+    for (var idx = 0; idx < state.count; idx += 1) {
+      var count = state.rows.filter(function (row) { return Number(row.link_group_index || 0) === idx; }).length;
+      var active = idx === state.activeIndex ? ' is-active' : '';
+      buttons.push('<button type="button" class="deviation-group-tab' + active + '" data-link-index="' + idx + '" aria-pressed="' + (idx === state.activeIndex ? 'true' : 'false') + '">Lenke ' + (idx + 1) + (count ? ' · ' + count : '') + '</button>');
+    }
+    return [
+      '<div class="deviation-group-tabs" role="tablist" aria-label="Lenker for avvik">',
+      '<div class="deviation-group-tabs-scroll">' + buttons.join('') + '</div>',
+      '<div class="deviation-group-actions">',
+      '<button type="button" class="btn btn-secondary btn-small deviation-group-add">Ny lenke</button>',
+      '<button type="button" class="btn btn-secondary btn-small deviation-add-group">Nytt avvik her</button>',
+      '</div>',
+      '</div>'
+    ].join('');
   }
 
   function deviationLinksHtml(row, dIndex) {
@@ -1014,17 +1058,24 @@
   function deviationSectionHtml(item) {
     var rows = ensureDeviationState(item);
     syncDeviationDefaults(item);
+    var groupState = normalizeDeviationLinkGroups(item);
+    rows = groupState.rows;
+    var activeGroup = groupState.activeIndex;
     var isAvvik = String(item.status || '').toLowerCase() === 'avvik';
     return [
       '<div class="finding-extra finding-deviations ' + (isAvvik ? '' : 'hidden') + '">',
       '<div class="subhead">Legg til redskap/beslag</div>',
+      '<div class="small muted deviation-short-help">Bla mellom lenker øverst. Hvert avvik kan ha eget eller gjenbrukt beslagsnummer.</div>',
+      deviationGroupTabsHtml(item),
       '<div class="deviation-list">' + rows.map(function (row, dIndex) {
         var linkedCount = evidenceItemsForDeviation(item, row).length;
         var selectedClass = selectedInlineTargetMatches(item, row) ? ' deviation-row-selected' : '';
         var linkedMode = Boolean(String(row.linked_seizure_ref || '').trim());
+        var rowGroup = Number(row.link_group_index || 0);
+        var groupHidden = rowGroup === activeGroup ? '' : ' hidden';
         return [
-          '<div class="deviation-row' + selectedClass + '" data-dev-index="' + dIndex + '">',
-          '<div class="deviation-row-head"><strong>Avvik ' + (dIndex + 1) + '</strong><span class="muted small">' + escapeHtml(row.seizure_ref || 'Beslag opprettes') + '</span></div>',
+          '<div class="deviation-row' + selectedClass + '" data-dev-index="' + dIndex + '" data-link-group-index="' + rowGroup + '" data-seizure-ref="' + escapeHtml(String(row.seizure_ref || '')) + '"' + groupHidden + '>',
+          '<div class="deviation-row-head"><strong>Lenke ' + (rowGroup + 1) + ' · Avvik ' + (dIndex + 1) + '</strong><span class="muted small">' + escapeHtml(row.seizure_ref || 'Beslag opprettes') + '</span></div>',
           deviationLinksHtml(row, dIndex),
           '<div class="deviation-row-fields">',
           '<input class="deviation-seizure-ref" placeholder="Beslagsnr." title="Beslagsnummer" value="' + escapeHtml(row.seizure_ref || '') + '" readonly />',
@@ -1077,7 +1128,7 @@
       '<div><strong>' + escapeHtml(item.label || item.key || ('Punkt ' + (index + 1))) + '</strong>',
       '<div class="muted small">' + escapeHtml(findingSource(item)) + '</div></div>',
       '<div class="finding-head-actions">',
-      isAvvik ? '<button type="button" class="btn btn-secondary btn-small deviation-add-top">Legg til redskap/beslag</button>' : '',
+      '<button type="button" class="btn btn-secondary btn-small deviation-add-top">' + (isAvvik ? 'Legg til redskap/beslag' : 'Avvik + beslag') + '</button>',
       (item.help_text || item.law_text) ? '<button type="button" class="help-toggle" title="Vis hjemmel og paragraf">?</button>' : '',
       '</div>',
       '</div>',
@@ -1439,7 +1490,7 @@
     var lawBrowser = parseJson(root.dataset.lawBrowser, []);
     var mapCatalog = parseJson(root.dataset.mapCatalog, []);
     var mapFilterWrap = document.getElementById('map-layer-filters');
-    var mapFilterStorageKey = 'kv-map-layer-filter-1-7-1:' + root.dataset.caseId;
+    var mapFilterStorageKey = 'kv-map-layer-filter-1-8-0:' + root.dataset.caseId;
     var activeLayerStatuses = { 'fredningsområde': true, 'stengt område': true, 'maksimalmål område': true, 'regulert område': true, 'nullfiskeområde': true };
     try {
       localStorage.removeItem('kv-map-layer-filter:' + root.dataset.caseId);
@@ -1595,7 +1646,7 @@
       if (/(breivikfjorden|borgundfjorden|henningsvaer|lofotfiske)/.test(restrictionText) && !/(torsk|skrei|kommersiell|yrkes)/.test([currentFisherySelection(), currentControlSelection(), restrictionText].join(' '))) return false;
       var status = String(layer.status || '').trim().toLowerCase();
       if (Object.prototype.hasOwnProperty.call(activeLayerStatuses, status) && !activeLayerStatuses[status]) return false;
-      // 1.7.1: Vis alle lov-/forskrifts-/J-meldingslag. Valg av
+      // 1.8.0: Vis alle lov-/forskrifts-/J-meldingslag. Valg av
       // kontrolltype, art/fiskeri og redskap brukes til sortering og
       // standard synlige lag, men skjuler ikke andre lovregulerte lag.
       return true;
@@ -1897,7 +1948,7 @@
         urls = urls.concat(collectTileUrls(layer, map, padding == null ? 2 : padding));
       });
       urls = uniqueUrls(urls);
-      return prefetchUrlsToCache(urls, 'kv-kontroll-1-7-1-map-tiles').then(function (count) {
+      return prefetchUrlsToCache(urls, 'kv-kontroll-1-8-0-map-tiles').then(function (count) {
         return { count: count, urls: urls };
       });
     }
@@ -4129,6 +4180,18 @@
       evidenceReason.value = deviationRow.violation || item.notes || item.auto_note || '';
       updateSelectedFinding(item, deviationRow, { showStepFive: false });
       renderFindings();
+      flashActiveDeviationRow();
+    }
+
+    function flashActiveDeviationRow() {
+      window.setTimeout(function () {
+        var row = findingsList ? findingsList.querySelector('.deviation-row-selected') : null;
+        if (!row && findingsList) row = findingsList.querySelector('.finding-card .deviation-row:not([hidden])');
+        if (!row) return;
+        row.classList.add('deviation-row-flash');
+        try { row.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) { try { row.scrollIntoView(); } catch (ignore) {} }
+        window.setTimeout(function () { row.classList.remove('deviation-row-flash'); }, 1600);
+      }, 0);
     }
 
     function setInlineEvidenceFeedback(message) {
@@ -4889,7 +4952,7 @@
       mapState.showLegend = false;
       mapState.showLayerPanel = !!mapLayerPanelHost;
       mapState.layerPanelDefaultOpen = false;
-      mapState.layerPanelKey = 'case-map-1-7-1';
+      mapState.layerPanelKey = 'case-map-1-8-0';
       mapState.layerPanelTargetSelector = mapLayerPanelHost ? '#case-map-layer-panel-host' : '';
       mapState.rasterLayerIds = allLayerIds;
       mapState.identifyLayerIds = allLayerIds;
@@ -4907,7 +4970,7 @@
           mapState.autoRecenterOnce = false;
         }
         clearTimeout(mapState._offlineWarmTimer);
-        // 1.7.1: do not auto-download offline map packages on every position/layer update.
+        // 1.8.0: do not auto-download offline map packages on every position/layer update.
         // The user can still press the offline download button explicitly.
         var offlineWarmKey = currentOfflineWarmKey();
         mapState._lastOfflineWarmKey = offlineWarmKey || mapState._lastOfflineWarmKey;
@@ -5013,6 +5076,26 @@
       return rows;
     }
 
+    var zoneResultStoragePrefix = 'kv-zone-result-1.8.0:';
+    function readStoredZoneResult(key) {
+      if (!key || !window.sessionStorage) return null;
+      try {
+        var cached = JSON.parse(sessionStorage.getItem(zoneResultStoragePrefix + key) || 'null');
+        if (!cached || !cached.result || !cached.ts) return null;
+        if ((Date.now() - Number(cached.ts || 0)) > 10 * 60 * 1000) return null;
+        return cached.result;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function writeStoredZoneResult(key, result) {
+      if (!key || !result || !window.sessionStorage) return;
+      try {
+        sessionStorage.setItem(zoneResultStoragePrefix + key, JSON.stringify({ ts: Date.now(), result: result }));
+      } catch (e) {}
+    }
+
     function currentZoneRequestKey() {
       var latKey = Number(latitude.value || 0).toFixed(4);
       var lngKey = Number(longitude.value || 0).toFixed(4);
@@ -5081,6 +5164,10 @@
       if (!options.force && lastZoneCheckResult && lastZoneCheckKey === requestKey && (now - lastZoneCheckAt) < 12000) {
         return Promise.resolve(applyZoneCheckResult(lastZoneCheckResult, { skipMapUpdate: true, skipSupplementaryLoads: true }));
       }
+      var storedZoneResult = !options.force ? readStoredZoneResult(requestKey) : null;
+      if (storedZoneResult) {
+        applyZoneCheckResult(storedZoneResult, { skipMapUpdate: true, skipSupplementaryLoads: true });
+      }
       var params = new URLSearchParams({
         lat: latitude.value,
         lng: longitude.value,
@@ -5093,7 +5180,7 @@
       }
       zoneCheckController = (typeof AbortController !== 'undefined') ? new AbortController() : null;
       var sequence = ++zoneCheckSequence;
-      if (zoneResult) zoneResult.innerHTML = 'Sjekker verneområder ...';
+      if (zoneResult) zoneResult.innerHTML = storedZoneResult ? 'Oppdaterer verneområder ...' : 'Sjekker verneområder ...';
       var fetchOptions = { credentials: 'same-origin', cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } };
       if (zoneCheckController) fetchOptions.signal = zoneCheckController.signal;
       return fetch(root.dataset.zonesUrl + '?' + params.toString(), fetchOptions)
@@ -5106,6 +5193,7 @@
           lastZoneCheckKey = requestKey;
           lastZoneCheckAt = Date.now();
           lastZoneCheckResult = result || null;
+          writeStoredZoneResult(requestKey, result || null);
           return applyZoneCheckResult(result);
         })
         .catch(function (err) {
@@ -5200,6 +5288,26 @@
       scheduleAutosave('Manuell posisjon aktivert');
     }
 
+    var devicePositionStorageKey = 'kv-device-position-1.8.0';
+    function readCachedDevicePosition() {
+      if (!window.localStorage) return null;
+      try {
+        var cached = JSON.parse(localStorage.getItem(devicePositionStorageKey) || 'null');
+        if (!cached || !isFinite(Number(cached.lat)) || !isFinite(Number(cached.lng))) return null;
+        if ((Date.now() - Number(cached.ts || 0)) > 15 * 60 * 1000) return null;
+        return { lat: Number(cached.lat), lng: Number(cached.lng), accuracy: Number(cached.accuracy || 50) };
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function storeCachedDevicePosition(lat, lng, accuracy) {
+      if (!window.localStorage) return;
+      try {
+        localStorage.setItem(devicePositionStorageKey, JSON.stringify({ ts: Date.now(), lat: Number(lat), lng: Number(lng), accuracy: Number(accuracy || 50) }));
+      } catch (e) {}
+    }
+
     function startLocationWatch(options) {
       options = options || {};
       var deviceOnly = !!options.deviceOnly || mapState.manualPosition === true;
@@ -5217,6 +5325,7 @@
         mapState.deviceLat = Number(lat);
         mapState.deviceLng = Number(lng);
         mapState.deviceAccuracy = Number(accuracy || mapState.deviceAccuracy || 12);
+        storeCachedDevicePosition(lat, lng, mapState.deviceAccuracy);
         syncManualPositionNotice();
         if (deviceOnly || !mapStepIsVisible()) {
           updateCaseMap(deviceOnly && mapStepIsVisible() && shouldRecenter ? { recenterTo: 'device' } : {});
@@ -5226,16 +5335,27 @@
       }
       if (mapState.lastDeviceLat !== null && mapState.lastDeviceLng !== null) {
         applyDevicePosition(mapState.lastDeviceLat, mapState.lastDeviceLng, mapState.deviceAccuracy || 12, recenter);
+      } else {
+        var cachedDevicePosition = readCachedDevicePosition();
+        if (cachedDevicePosition) applyDevicePosition(cachedDevicePosition.lat, cachedDevicePosition.lng, cachedDevicePosition.accuracy, recenter);
       }
-      navigator.geolocation.getCurrentPosition(function (position) {
+      var handleGeoPosition = function (position, shouldRecenter) {
         var currentLat = Number(position.coords.latitude.toFixed(6));
         var currentLng = Number(position.coords.longitude.toFixed(6));
         var currentAccuracy = Number(position.coords.accuracy || 12);
-        applyDevicePosition(currentLat, currentLng, currentAccuracy, recenter);
+        applyDevicePosition(currentLat, currentLng, currentAccuracy, shouldRecenter);
+      };
+      navigator.geolocation.getCurrentPosition(function (position) {
+        handleGeoPosition(position, recenter);
       }, function (err) {
-        if (zoneResult) zoneResult.innerHTML = 'Kunne ikke hente posisjon: ' + escapeHtml(err.message || err) + '. Du kan fortsatt sette posisjon manuelt i kartet.';
+        if (zoneResult) zoneResult.innerHTML = 'Kunne ikke hente posisjon raskt. Prøver videre ...';
         syncManualPositionNotice();
-      }, { enableHighAccuracy: false, timeout: 3500, maximumAge: 180000 });
+      }, { enableHighAccuracy: false, timeout: 1500, maximumAge: 600000 });
+      window.setTimeout(function () {
+        navigator.geolocation.getCurrentPosition(function (position) {
+          handleGeoPosition(position, recenter && !readCachedDevicePosition());
+        }, function () {}, { enableHighAccuracy: true, timeout: 6000, maximumAge: 60000 });
+      }, 150);
       if (locationWatchId !== null) return;
       locationWatchId = navigator.geolocation.watchPosition(function (position) {
         var currentLat = Number(position.coords.latitude.toFixed(6));
@@ -5246,6 +5366,7 @@
         mapState.deviceAccuracy = currentAccuracy;
         mapState.deviceLat = currentLat;
         mapState.deviceLng = currentLng;
+        storeCachedDevicePosition(currentLat, currentLng, currentAccuracy);
         if (mapState.followAutoPosition === false || !mapStepIsVisible()) {
           updateCaseMap();
           syncManualPositionNotice();
@@ -5255,7 +5376,7 @@
       }, function (err) {
         if (zoneResult) zoneResult.innerHTML = 'Kunne ikke hente posisjon: ' + escapeHtml(err.message || err) + '. Du kan fortsatt sette posisjon manuelt i kartet.';
         syncManualPositionNotice();
-      }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 20000 });
+      }, { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 });
     }
 
     function maybeAutoStartLocation() {
@@ -6301,6 +6422,7 @@ function renderHummerStatus(result) {
         if (event.target.value === 'avvik') {
           var autoRows = ensureDeviationState(findingsState[idx]);
           if (!autoRows.length) autoRows.push(defaultDeviationRow(findingsState[idx]));
+          normalizeDeviationLinkGroups(findingsState[idx]);
           syncDeviationDefaults(findingsState[idx]);
           selectedInlineEvidenceTarget = { finding_key: findingsState[idx].key || '', seizure_ref: (autoRows[0] && autoRows[0].seizure_ref) || '' };
           inlineEvidenceFeedback = 'Avvik valgt. Legg til eller koble redskap/beslag.';
@@ -6309,6 +6431,7 @@ function renderHummerStatus(result) {
         }
         findingsInput.value = JSON.stringify(findingsState);
         renderFindings();
+        if (event.target.value === 'avvik') flashActiveDeviationRow();
         scheduleAutosave('Kontrollpunktstatus endret');
         return;
       }
@@ -6540,12 +6663,59 @@ function renderHummerStatus(result) {
         renderFindings();
         scheduleAutosave('Sluttposisjon satt');
       }
+      if (event.target.classList.contains('deviation-group-tab')) {
+        event.preventDefault();
+        item.status = 'avvik';
+        findingsState[idx].status = 'avvik';
+        item.active_deviation_link_index = Number(event.target.dataset.linkIndex || 0);
+        normalizeDeviationLinkGroups(item);
+        findingsInput.value = JSON.stringify(findingsState);
+        renderFindings();
+        scheduleAutosave('Aktiv lenke valgt');
+        return;
+      }
+      if (event.target.classList.contains('deviation-group-add')) {
+        event.preventDefault();
+        item.status = 'avvik';
+        findingsState[idx].status = 'avvik';
+        var groupRows = ensureDeviationState(item);
+        var groupState = normalizeDeviationLinkGroups(item);
+        item.active_deviation_link_index = groupState.count;
+        var groupRow = defaultDeviationRow(item);
+        groupRow.link_group_index = item.active_deviation_link_index;
+        groupRows.push(groupRow);
+        syncDeviationDefaults(item);
+        item.deviation_summary = deviationSummaryText(item);
+        findingsInput.value = JSON.stringify(findingsState);
+        setInlineEvidenceTarget(item, groupRow, 'Ny lenke er opprettet med egen avviksrad.');
+        scheduleAutosave('Ny lenke lagt til avvik');
+        return;
+      }
+      if (event.target.classList.contains('deviation-add-group')) {
+        event.preventDefault();
+        item.status = 'avvik';
+        findingsState[idx].status = 'avvik';
+        normalizeDeviationLinkGroups(item);
+        var activeGroup = Number(item.active_deviation_link_index || 0);
+        var rowsForGroup = ensureDeviationState(item);
+        var rowForGroup = defaultDeviationRow(item);
+        rowForGroup.link_group_index = activeGroup;
+        rowsForGroup.push(rowForGroup);
+        syncDeviationDefaults(item);
+        item.deviation_summary = deviationSummaryText(item);
+        findingsInput.value = JSON.stringify(findingsState);
+        setInlineEvidenceTarget(item, rowForGroup, 'Nytt avvik er lagt til på valgt lenke.');
+        scheduleAutosave('Nytt avvik lagt til lenke');
+        return;
+      }
       if (event.target.classList.contains('deviation-add') || event.target.classList.contains('deviation-add-top')) {
         event.preventDefault();
         item.status = 'avvik';
         findingsState[idx].status = 'avvik';
+        normalizeDeviationLinkGroups(item);
         var addRows = ensureDeviationState(item);
         var newRow = defaultDeviationRow(item);
+        newRow.link_group_index = Number(item.active_deviation_link_index || 0);
         addRows.push(newRow);
         syncDeviationDefaults(item);
         item.deviation_summary = deviationSummaryText(item);

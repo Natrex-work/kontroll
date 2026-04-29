@@ -3320,7 +3320,7 @@ body {
 
 .margin-top-xs { margin-top: .45rem; }
 
-/* 1.7.1: collapse relevant map areas/layers in the case form. */
+/* 1.8.0: collapse relevant map areas/layers in the case form. */
 .map-relevant-panel > summary.map-relevant-head {
   cursor: pointer;
   list-style: none;
@@ -3353,7 +3353,7 @@ body {
 }
 
 
-/* 1.7.1: compact case map with focus mode for iPhone/iPad field use. */
+/* 1.8.0: compact case map with focus mode for iPhone/iPad field use. */
 .compact-map-head { align-items: center; gap: 0.75rem; }
 .map-compact-status { padding: 0.55rem 0.75rem; }
 .case-map-card .case-map { min-height: 460px; }
@@ -3385,7 +3385,7 @@ body.case-map-focus-mode { overflow: hidden; }
   }
 }
 
-/* 1.7.1: responsivt temakart og flere lenker per avvik. */
+/* 1.8.0: responsivt temakart og flere lenker per avvik. */
 .kv-temalag-panel-external,
 .kv-temalag-card,
 .kv-temalag-groups,
@@ -3461,7 +3461,7 @@ body.case-map-focus-mode { overflow: hidden; }
 }
 
 
-/* 1.7.1: Kart og Område - responsivt temakart og faner for flere lenker. */
+/* 1.8.0: Kart og Område - responsivt temakart og faner for flere lenker. */
 .map-layer-panel-host,
 #overview-map-layer-panel-host,
 .kv-temalag-panel-external,
@@ -3541,7 +3541,7 @@ body.case-map-focus-mode { overflow: hidden; }
 }
 
 
-/* 1.7.1: Temakart skal passe mobilbredden uten horisontal zoom. */
+/* 1.8.0: Temakart skal passe mobilbredden uten horisontal zoom. */
 .map-layer-panel-host,
 .kv-temalag-panel,
 .kv-temalag-card,
@@ -3629,7 +3629,7 @@ body.case-map-focus-mode { overflow: hidden; }
   }
 }
 
-/* 1.7.1: raskere, smalere feltvisning for iPhone/iPad. */
+/* 1.8.0: raskere, smalere feltvisning for iPhone/iPad. */
 .case-map-card,
 .case-map-panel,
 .map-layer-panel-host,
@@ -3732,5 +3732,165 @@ body.case-map-focus-mode { overflow: hidden; }
   }
   .person-autofill-actions .btn {
     width: 100%;
+  }
+}
+
+/* 1.8.0: mobile-friendly control point deviations and link navigation */
+.deviation-group-tabs {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0.55rem 0 0.75rem;
+  max-width: 100%;
+}
+.deviation-group-tabs-scroll {
+  display: flex;
+  gap: 0.45rem;
+  overflow-x: auto;
+  padding-bottom: 0.2rem;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  max-width: 100%;
+}
+.deviation-group-tab {
+  border: 1px solid var(--border-color, #d5e3eb);
+  background: #fff;
+  color: var(--text-color, #102a3a);
+  border-radius: 999px;
+  padding: 0.5rem 0.75rem;
+  white-space: nowrap;
+  min-height: 2.35rem;
+  font-weight: 700;
+}
+.deviation-group-tab.is-active {
+  background: var(--brand-color, #0c7fa5);
+  color: #fff;
+  border-color: var(--brand-color, #0c7fa5);
+}
+.deviation-group-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  max-width: 100%;
+}
+.deviation-short-help {
+  margin-top: 0.25rem;
+}
+.deviation-row-flash {
+  animation: deviationFlash 1.5s ease-out;
+}
+@keyframes deviationFlash {
+  0% { box-shadow: 0 0 0 0 rgba(12, 127, 165, 0.45); }
+  60% { box-shadow: 0 0 0 8px rgba(12, 127, 165, 0.08); }
+  100% { box-shadow: none; }
+}
+@media (max-width: 760px) {
+  #findings-list,
+  .findings-list,
+  .finding-card,
+  .finding-body,
+  .finding-extra,
+  .finding-deviations,
+  .deviation-list,
+  .deviation-row,
+  .deviation-links,
+  .deviation-row-fields,
+  .deviation-link-tab,
+  .deviation-group-tabs {
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+  .finding-card {
+    padding: 0.9rem;
+    border-radius: 18px;
+    overflow: hidden;
+  }
+  .finding-head {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.55rem;
+    align-items: start;
+  }
+  .finding-head > div:first-child,
+  .finding-head strong,
+  .finding-head .muted {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    word-break: normal;
+  }
+  .finding-head strong {
+    font-size: 1.03rem;
+    line-height: 1.18;
+  }
+  .finding-head .muted {
+    font-size: 0.92rem;
+    line-height: 1.25;
+  }
+  .finding-body label,
+  .finding-body input,
+  .finding-body select,
+  .finding-body textarea,
+  .deviation-row input,
+  .deviation-row select,
+  .deviation-row textarea {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+  .finding-status {
+    width: min(100%, 18rem);
+  }
+  .deviation-row {
+    padding: 0.75rem;
+    border-radius: 16px;
+  }
+  .deviation-row-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.15rem;
+  }
+  .deviation-row-head strong,
+  .deviation-row-head span {
+    overflow-wrap: anywhere;
+  }
+  .deviation-row-fields,
+  .deviation-links .compact-grid-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.55rem;
+  }
+  .deviation-row .btn,
+  .deviation-group-actions .btn,
+  .deviation-links .btn {
+    width: 100%;
+    justify-content: center;
+  }
+  .deviation-link-tabs-nav {
+    display: flex;
+    gap: 0.4rem;
+    overflow-x: auto;
+    max-width: 100%;
+    -webkit-overflow-scrolling: touch;
+  }
+  .deviation-link-tab-btn {
+    flex: 0 0 auto;
+  }
+  .deviation-group-tabs-scroll {
+    margin-left: -0.05rem;
+    padding-left: 0.05rem;
+  }
+}
+@media (max-width: 760px) {
+  .finding-head-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.45rem;
+    max-width: 8.5rem;
+  }
+  .finding-head-actions .btn,
+  .finding-head-actions .help-toggle {
+    width: 100%;
+    min-width: 0;
+    white-space: normal;
   }
 }

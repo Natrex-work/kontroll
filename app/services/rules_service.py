@@ -9,7 +9,7 @@ from .. import area, live_sources, rules
 from .case_service import merge_source_rows
 
 _ZONE_STATUS_CACHE: dict[tuple[float, float, str, str, str], tuple[float, dict[str, Any]]] = {}
-_ZONE_STATUS_CACHE_SECONDS = max(15.0, min(600.0, float(os.getenv('KV_ZONE_STATUS_CACHE_SECONDS', '90') or '90')))
+_ZONE_STATUS_CACHE_SECONDS = max(15.0, min(600.0, float(os.getenv('KV_ZONE_STATUS_CACHE_SECONDS', '300') or '300')))
 _REVERSE_GEOCODE_ALWAYS = os.getenv('KV_REVERSE_GEOCODE_ALWAYS', '0').lower() in {'1', 'true', 'yes', 'on'}
 
 _RULE_BUNDLE_CACHE: dict[tuple[str, str, str, str, str, str, float | None, float | None], tuple[float, dict[str, Any]]] = {}

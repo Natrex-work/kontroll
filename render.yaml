@@ -16,9 +16,9 @@ services:
       - key: KV_BRAND_ORG_NAME
         value: Minfiskerikontroll
       - key: KV_APP_VERSION
-        value: 1.7.1
+        value: 1.8.0
       - key: KV_APP_VERSION_LABEL
-        value: 1.7.1
+        value: 1.8.0
       - key: KV_STORAGE_ROOT
         value: /var/data/fiskerikontroll
       - key: KV_DATA_DIR
@@ -29,3 +29,11 @@ services:
         value: /var/data/fiskerikontroll/uploads
       - key: KV_GENERATED_DIR
         value: /var/data/fiskerikontroll/generated
+      - key: KV_ZONE_CHECK_MAX_LIVE_LAYERS
+        value: '6'
+      - key: KV_ZONE_POINT_QUERY_TIMEOUT
+        value: '1.8'
+      - key: KV_ZONE_CHECK_TOTAL_TIMEOUT
+        value: '3.0'
+      - key: KV_ZONE_STATUS_CACHE_SECONDS
+        value: '300'
