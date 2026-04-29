@@ -33,14 +33,14 @@ CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 LIVE_ENABLED = os.getenv('KV_LIVE_SOURCES', '1') not in {'0', 'false', 'False'}
 REQUEST_TIMEOUT = float(os.getenv('KV_HTTP_TIMEOUT', '20'))
-PORTAL_REQUEST_TIMEOUT = float(os.getenv('KV_PORTAL_HTTP_TIMEOUT', '8'))
+PORTAL_REQUEST_TIMEOUT = float(os.getenv('KV_PORTAL_HTTP_TIMEOUT', '5'))
 FDIR_TAR_URL = os.getenv('KV_FDIR_TAR_URL', 'https://register.fiskeridir.no/fartoyreg/last/frtyweb.tar')
 JM_URL = os.getenv('KV_JM_URL', 'https://www.fiskeridir.no/yrkesfiske/j-meldinger')
 YGG_BASE = os.getenv('KV_YGG_BASE', os.getenv('KV_PORTAL_MAPSERVER', 'https://gis.fiskeridir.no/server/rest/services/Fiskeridir_vern/MapServer'))
 LOVDATA_TOPICS_PATH = DATA_DIR / 'lovdata_topics.json'
 FDIR_CACHE_JSON = CACHE_DIR / 'fdir_registry_cache.json'
 FDIR_CACHE_META = CACHE_DIR / 'fdir_registry_meta.json'
-UA = 'Minfiskerikontroll-V1.5/1.5.0 (+field trial app)'
+UA = 'Minfiskerikontroll-1.6.0/1.6.0 (+field trial app)'
 HUMMER_REGISTER_URL = 'https://tableau.fiskeridir.no/t/Internet/views/Pmeldehummarfiskarargjeldander/Pmeldehummarfiskarar?:showVizHome=no'
 HUMMER_REGISTER_FALLBACK_URL = 'https://www.fiskeridir.no/statistikk-tall-og-analyse/data-og-statistikk-om-turist--og-fritidsfiske/registrerte-hummarfiskarar'
 HUMMER_CACHE_JSON = CACHE_DIR / 'hummer_registry_cache.json'
@@ -80,7 +80,9 @@ PORTAL_POINT_CACHE_TTL = max(20.0, float(os.getenv('KV_PORTAL_POINT_CACHE_TTL', 
 PORTAL_BUNDLE_CACHE_TTL = max(120.0, float(os.getenv('KV_PORTAL_BUNDLE_CACHE_TTL', '900') or '900'))
 _PORTAL_BUNDLE_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 _PORTAL_BUNDLE_CACHE_LOCK = threading.Lock()
-ZONE_CHECK_MAX_LIVE_LAYERS = max(4, min(30, int(os.getenv('KV_ZONE_CHECK_MAX_LIVE_LAYERS', '14') or '14')))
+ZONE_CHECK_MAX_LIVE_LAYERS = max(4, min(30, int(os.getenv('KV_ZONE_CHECK_MAX_LIVE_LAYERS', '10') or '10')))
+ZONE_POINT_QUERY_TIMEOUT = max(1.5, min(5.0, float(os.getenv('KV_ZONE_POINT_QUERY_TIMEOUT', '3.2') or '3.2')))
+ZONE_CHECK_WORKERS = max(2, min(8, int(os.getenv('KV_ZONE_CHECK_WORKERS', '6') or '6')))
 REVERSE_GEOCODE_CACHE_TTL = max(60.0, float(os.getenv('KV_REVERSE_GEOCODE_CACHE_TTL', '900') or '900'))
 _REVERSE_GEOCODE_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 _REVERSE_GEOCODE_CACHE_LOCK = threading.Lock()
@@ -549,7 +551,7 @@ def reverse_geocode_live(lat: float, lng: float) -> dict[str, Any]:
         if cached and (now - cached[0]) <= REVERSE_GEOCODE_CACHE_TTL:
             return dict(cached[1])
     url = 'https://nominatim.openstreetmap.org/reverse'
-    resp = _safe_get(url, params={'lat': lat, 'lon': lng, 'format': 'jsonv2', 'zoom': 14, 'addressdetails': 1}, timeout=min(REQUEST_TIMEOUT, 4.0))
+    resp = _safe_get(url, params={'lat': lat, 'lon': lng, 'format': 'jsonv2', 'zoom': 14, 'addressdetails': 1}, timeout=min(REQUEST_TIMEOUT, 2.5))
     data = resp.json()
     address = data.get('address') or {}
     locality = address.get('hamlet') or address.get('suburb') or address.get('neighbourhood') or address.get('village') or address.get('town') or address.get('city') or address.get('municipality') or ''
@@ -1545,7 +1547,7 @@ def lookup_directory_candidates(phone: str = '', name: str = '', address: str = 
 MAP_PORTAL_URL = os.getenv('KV_PORTAL_MAP_URL', 'https://portal.fiskeridir.no/portal/apps/webappviewer/index.html?id=ea6c536f760548fe9f56e6edcc4825d8')
 YGG_BASE = os.getenv('KV_PORTAL_MAPSERVER', 'https://portal.fiskeridir.no/server/rest/services/fiskeridirWMS_fiskeri/MapServer')
 VERN_BASE = os.getenv('KV_PORTAL_VERN_MAPSERVER', 'https://portal.fiskeridir.no/server/rest/services/Fiskeridir_vern/MapServer')
-PORTAL_LAYER_SCHEMA_VERSION = os.getenv('KV_PORTAL_LAYER_SCHEMA_VERSION', 'v75')
+PORTAL_LAYER_SCHEMA_VERSION = os.getenv('KV_PORTAL_LAYER_SCHEMA_VERSION', 'v76')
 PORTAL_LAYER_CACHE_JSON = CACHE_DIR / f'portal_layer_catalog_cache_{PORTAL_LAYER_SCHEMA_VERSION}.json'
 PORTAL_LAYER_CACHE_META = CACHE_DIR / f'portal_layer_catalog_meta_{PORTAL_LAYER_SCHEMA_VERSION}.json'
 PORTAL_LAYER_CACHE_DIR = CACHE_DIR / f'portal_layers_{PORTAL_LAYER_SCHEMA_VERSION}'
@@ -2236,7 +2238,7 @@ def _ygg_query_point(layer_id: int, lat: float, lng: float, *, geometry_type: st
         'returnGeometry': 'true',
         'outFields': '*',
     }
-    data = _safe_get(f'{YGG_BASE}/{layer_id}/query', params=params, timeout=min(PORTAL_REQUEST_TIMEOUT, 6)).json()
+    data = _safe_get(f'{YGG_BASE}/{layer_id}/query', params=params, timeout=ZONE_POINT_QUERY_TIMEOUT).json()
     payload = list(data.get('features') or [])
     _portal_point_cache_put(cache_key, payload)
     return payload
@@ -2259,7 +2261,7 @@ def _portal_identify_point(layer_id: int, lat: float, lng: float) -> list[dict[s
         'outFields': '*',
     }
     try:
-        data = _safe_get(f'{YGG_BASE}/{layer_id}/query', params=params, timeout=min(PORTAL_REQUEST_TIMEOUT, 6)).json()
+        data = _safe_get(f'{YGG_BASE}/{layer_id}/query', params=params, timeout=ZONE_POINT_QUERY_TIMEOUT).json()
     except Exception:
         return []
     payload = list(data.get('features') or [])
@@ -2442,6 +2444,7 @@ def fetch_portal_bundle(*, layer_ids: list[int] | None = None, bbox: tuple[float
     return payload
 
 def classify_position_live(lat: float, lng: float, species: str = '', gear_type: str = '', control_type: str = '') -> dict[str, Any]:
+    """Fast point check against restrictive law/regulation layers."""
     hits: list[dict[str, Any]] = []
     highest = {
         'rank': 0,
@@ -2449,7 +2452,7 @@ def classify_position_live(lat: float, lng: float, species: str = '', gear_type:
         'name': '',
         'notes': 'Ingen treff i Fiskeridirektoratets regulerings- og vernelag for denne posisjonen.',
     }
-    priorities = {'stengt område': 4, 'fredningsområde': 3, 'maksimalmål område': 2, 'regulert område': 1}
+    priorities = {'stengt område': 4, 'fredningsområde': 3, 'maksimalmål område': 2, 'regulert område': 1, 'nullfiskeområde': 4}
     point_seen: set[str] = set()
 
     layers_to_check = portal_layer_catalog(fishery=species, control_type=control_type, gear_type=gear_type)
@@ -2459,31 +2462,21 @@ def classify_position_live(lat: float, lng: float, species: str = '', gear_type:
             if map_relevance.is_restrictive_law_layer(map_relevance.decorate_catalog_row(layer))
             and map_relevance.matches_selection(map_relevance.decorate_catalog_row(layer), fishery=species, control_type=control_type, gear_type=gear_type)
         ]
-    # Limit live point checks. Local zone data is already evaluated before this
-    # function in rules_service; repeatedly probing every portal layer is the
-    # main source of slow GPS/map updates on mobile.
     layers_to_check = [layer for layer in layers_to_check if layer.get('alertable')][:ZONE_CHECK_MAX_LIVE_LAYERS]
-    attempted_all = True
-    for layer in layers_to_check:
-        if not layer.get('alertable'):
-            continue
+
+    def _hits_for_layer(layer: dict[str, Any]) -> list[dict[str, Any]]:
         try:
             features = _ygg_query_point(int(layer['id']), lat, lng, geometry_type=layer.get('geometry_type') or 'esriGeometryPolygon')
         except Exception:
-            continue
-        if not features:
-            continue
-        for feature in features:
-            name = _feature_attr(feature, 'navn', 'omraade', 'område', 'kat_ordning_text', 'regelverk', 'forskrift') or layer['name']
-            notes = _feature_attr(feature, 'info', 'beskrivelse', 'stengt_text', 'informasjon', 'regelverk', 'regler', 'forskrift') or layer.get('description') or layer['name']
+            return []
+        rows: list[dict[str, Any]] = []
+        for feature in features or []:
+            name = _feature_attr(feature, 'navn', 'omraade', 'område', 'kat_ordning_text', 'regelverk', 'forskrift') or layer.get('name') or 'Karttreff'
+            notes = _feature_attr(feature, 'info', 'beskrivelse', 'stengt_text', 'informasjon', 'regelverk', 'regler', 'forskrift') or layer.get('description') or layer.get('name') or ''
             url = _feature_attr(feature, 'url', 'url_lovtekst', 'lenke') or MAP_PORTAL_URL
-            dedupe_key = json.dumps([layer.get('id'), name, notes], ensure_ascii=False, sort_keys=True)
-            if dedupe_key in point_seen:
-                continue
-            point_seen.add(dedupe_key)
-            hit = {
-                'layer': layer['name'],
-                'status': layer['status'],
+            rows.append({
+                'layer': layer.get('name') or '',
+                'status': layer.get('status') or 'regulert område',
                 'name': name,
                 'notes': notes,
                 'url': url,
@@ -2491,48 +2484,28 @@ def classify_position_live(lat: float, lng: float, species: str = '', gear_type:
                 'layer_id': layer.get('id'),
                 'layer_ids': [layer.get('id')] if layer.get('id') is not None else [],
                 'feature': _annotate_portal_feature(feature, layer),
-            }
-            hits.append(hit)
-            rank = priorities.get(layer['status'], 0)
-            if rank > highest['rank']:
-                highest = {'rank': rank, 'status': layer['status'], 'name': name, 'notes': notes}
+            })
+        return rows
 
-    if not hits and (species or gear_type or control_type) and not attempted_all:
-        attempted_all = True
-        for layer in _portal_layer_defs():
-            if not layer.get('alertable'):
-                continue
-            if any(int(existing.get('layer_id') or -1) == int(layer.get('id') or -2) for existing in hits):
-                continue
-            try:
-                features = _ygg_query_point(int(layer['id']), lat, lng, geometry_type=layer.get('geometry_type') or 'esriGeometryPolygon')
-            except Exception:
-                continue
-            if not features:
-                continue
-            for feature in features:
-                name = _feature_attr(feature, 'navn', 'omraade', 'område', 'kat_ordning_text', 'regelverk', 'forskrift') or layer['name']
-                notes = _feature_attr(feature, 'info', 'beskrivelse', 'stengt_text', 'informasjon', 'regelverk', 'regler', 'forskrift') or layer.get('description') or layer['name']
-                url = _feature_attr(feature, 'url', 'url_lovtekst', 'lenke') or MAP_PORTAL_URL
-                dedupe_key = json.dumps([layer.get('id'), name, notes], ensure_ascii=False, sort_keys=True)
-                if dedupe_key in point_seen:
+    if layers_to_check:
+        worker_count = max(1, min(ZONE_CHECK_WORKERS, len(layers_to_check)))
+        with ThreadPoolExecutor(max_workers=worker_count) as executor:
+            futures = [executor.submit(_hits_for_layer, layer) for layer in layers_to_check]
+            for future in as_completed(futures):
+                try:
+                    layer_hits = future.result()
+                except Exception:
                     continue
-                point_seen.add(dedupe_key)
-                hit = {
-                    'layer': layer['name'],
-                    'status': layer['status'],
-                    'name': name,
-                    'notes': notes,
-                    'url': url,
-                    'source': 'Fiskeridirektoratet kartportal',
-                    'layer_id': layer.get('id'),
-                    'layer_ids': [layer.get('id')] if layer.get('id') is not None else [],
-                    'feature': _annotate_portal_feature(feature, layer),
-                }
-                hits.append(hit)
-                rank = priorities.get(layer['status'], 0)
-                if rank > highest['rank']:
-                    highest = {'rank': rank, 'status': layer['status'], 'name': name, 'notes': notes}
+                for hit in layer_hits:
+                    dedupe_key = json.dumps([hit.get('layer_id'), hit.get('name'), hit.get('notes')], ensure_ascii=False, sort_keys=True)
+                    if dedupe_key in point_seen:
+                        continue
+                    point_seen.add(dedupe_key)
+                    hits.append(hit)
+                    rank = priorities.get(hit.get('status') or '', 0)
+                    if rank > highest['rank']:
+                        highest = {'rank': rank, 'status': hit.get('status') or '', 'name': hit.get('name') or '', 'notes': hit.get('notes') or ''}
+
     hits.sort(key=lambda item: (-priorities.get(item.get('status') or '', 0), _ascii_header(item.get('name'))))
     return {
         'match': bool(hits),
@@ -2545,3 +2518,4 @@ def classify_position_live(lat: float, lng: float, species: str = '', gear_type:
         'lng': lng,
         'portal_url': MAP_PORTAL_URL,
     }
+

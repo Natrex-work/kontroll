@@ -6,7 +6,7 @@
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('/static/sw.js?v=V1.5').catch(function () {});
+      navigator.serviceWorker.register('/static/sw.js?v=1.6.0').catch(function () {});
     });
   }
 
@@ -652,7 +652,7 @@
   }
 
   function defaultDeviationRow(item) {
-    return { seizure_ref: '', linked_seizure_ref: '', gear_kind: defaultDeviationGearKind(), gear_ref: '', quantity: '1', position: currentCoordText(), violation: suggestedDeviationText(item), note: '', links: [] };
+    return { seizure_ref: '', linked_seizure_ref: '', gear_kind: defaultDeviationGearKind(), gear_ref: '', quantity: '1', position: currentCoordText(), violation: suggestedDeviationText(item), note: '', links: [defaultDeviationLink()], active_link_index: 0 };
   }
 
   function defaultDeviationLink() {
@@ -855,7 +855,8 @@
         row.seizure_ref = formatSeizureRef(nextSeizureSequence());
       }
       if (!row.position && currentCoordText()) row.position = currentCoordText();
-      ensureDeviationLinks(row);
+      var rowLinks = ensureDeviationLinks(row);
+      if (!rowLinks.length) { row.links = [defaultDeviationLink()]; row.active_link_index = 0; }
     });
     item.deviation_summary = deviationSummaryText(item);
   }
@@ -1023,6 +1024,9 @@
         var linkedMode = Boolean(String(row.linked_seizure_ref || '').trim());
         return [
           '<div class="deviation-row' + selectedClass + '" data-dev-index="' + dIndex + '">',
+          '<div class="deviation-row-head"><strong>Avvik ' + (dIndex + 1) + '</strong><span class="muted small">' + escapeHtml(row.seizure_ref || 'Beslag opprettes') + '</span></div>',
+          deviationLinksHtml(row, dIndex),
+          '<div class="deviation-row-fields">',
           '<input class="deviation-seizure-ref" placeholder="Beslagsnr." title="Beslagsnummer" value="' + escapeHtml(row.seizure_ref || '') + '" readonly />',
           '<select class="deviation-existing-gear" title="Tidligere beslag/redskap i saken">' + deviationExistingGearOptionsHtml(row) + '</select>',
           '<select class="deviation-gear-kind" title="Type redskap" ' + (linkedMode ? 'disabled' : '') + '>' + deviationGearOptions().map(function (opt) { return '<option value="' + escapeHtml(opt) + '" ' + (String(row.gear_kind || '') === opt ? 'selected' : '') + '>' + escapeHtml(opt) + '</option>'; }).join('') + '</select>',
@@ -1035,7 +1039,7 @@
           '<button type="button" class="btn btn-secondary btn-small deviation-camera ' + (isAvvik ? '' : 'hidden') + '">Kamera</button>',
           '<button type="button" class="btn btn-secondary btn-small deviation-file ' + (isAvvik ? '' : 'hidden') + '">Legg til bilde</button>',
           '<button type="button" class="btn btn-danger btn-small deviation-remove">Fjern</button>',
-          deviationLinksHtml(row, dIndex),
+          '</div>',
           '</div>'
         ].join('');
       }).join('') + '</div>',
@@ -1435,7 +1439,7 @@
     var lawBrowser = parseJson(root.dataset.lawBrowser, []);
     var mapCatalog = parseJson(root.dataset.mapCatalog, []);
     var mapFilterWrap = document.getElementById('map-layer-filters');
-    var mapFilterStorageKey = 'kv-map-layer-filter-v1-5:' + root.dataset.caseId;
+    var mapFilterStorageKey = 'kv-map-layer-filter-1-6-0:' + root.dataset.caseId;
     var activeLayerStatuses = { 'fredningsområde': true, 'stengt område': true, 'maksimalmål område': true, 'regulert område': true, 'nullfiskeområde': true };
     try {
       localStorage.removeItem('kv-map-layer-filter:' + root.dataset.caseId);
@@ -1591,7 +1595,7 @@
       if (/(breivikfjorden|borgundfjorden|henningsvaer|lofotfiske)/.test(restrictionText) && !/(torsk|skrei|kommersiell|yrkes)/.test([currentFisherySelection(), currentControlSelection(), restrictionText].join(' '))) return false;
       var status = String(layer.status || '').trim().toLowerCase();
       if (Object.prototype.hasOwnProperty.call(activeLayerStatuses, status) && !activeLayerStatuses[status]) return false;
-      // V1.5: Vis alle lov-/forskrifts-/J-meldingslag. Valg av
+      // 1.6.0: Vis alle lov-/forskrifts-/J-meldingslag. Valg av
       // kontrolltype, art/fiskeri og redskap brukes til sortering og
       // standard synlige lag, men skjuler ikke andre lovregulerte lag.
       return true;
@@ -1893,7 +1897,7 @@
         urls = urls.concat(collectTileUrls(layer, map, padding == null ? 2 : padding));
       });
       urls = uniqueUrls(urls);
-      return prefetchUrlsToCache(urls, 'kv-kontroll-v1-5-map-tiles').then(function (count) {
+      return prefetchUrlsToCache(urls, 'kv-kontroll-1-6-0-map-tiles').then(function (count) {
         return { count: count, urls: urls };
       });
     }
@@ -2291,6 +2295,7 @@
     var localMediaStatus = document.getElementById('local-media-status');
     var localMediaStatusText = document.getElementById('local-media-status-text');
     var btnLookupPerson = document.getElementById('btn-lookup-person');
+    var btnPhoneLookup = document.getElementById('btn-phone-lookup');
     var btnSyncLocalMedia = document.getElementById('btn-sync-local-media');
     var localCaseStatusBox = document.getElementById('local-case-status-box');
     var localCaseStatusText = document.getElementById('local-case-status-text');
@@ -2372,6 +2377,10 @@
       lastAutoSaveLat: null,
       lastAutoSaveLng: null,
       lastAutoSaveTs: 0,
+      lastMapRenderLat: null,
+      lastMapRenderLng: null,
+      lastMapRenderTs: 0,
+      pendingZoneTimer: null,
       autoRecenterOnce: !hasInitialCoords && storedPositionMode !== 'manual',
       lastProgrammaticRecenterTs: 0
     };
@@ -4224,8 +4233,8 @@
       return loadImageForOcr(file).then(function (image) {
         var uploadMobile = mode === 'upload-mobile';
         var serverHighRes = mode === 'server-highres';
-        var maxSide = serverHighRes ? 1800 : (uploadMobile ? 1280 : (mode === 'document' ? 1400 : 1440));
-        var quality = serverHighRes ? 0.88 : (uploadMobile ? 0.78 : (mode === 'document' ? 0.84 : 0.86));
+        var maxSide = serverHighRes ? 2400 : (uploadMobile ? 1600 : (mode === 'document' ? 1800 : 1800));
+        var quality = serverHighRes ? 0.92 : (uploadMobile ? 0.84 : (mode === 'document' ? 0.88 : 0.9));
         var longest = Math.max(image.naturalWidth || image.width || 1, image.naturalHeight || image.height || 1);
         var scale = longest > maxSide ? maxSide / longest : 1;
         var width = Math.max(1, Math.round((image.naturalWidth || image.width || 1) * scale));
@@ -4267,8 +4276,8 @@
       return [file && file.name || '', file && file.size || 0, file && file.lastModified || 0].join('|');
     }
 
-    var OCR_SERVER_TIMEOUT_MS = 36000;
-    var OCR_ORIGINAL_MAX_BYTES = 8 * 1024 * 1024;
+    var OCR_SERVER_TIMEOUT_MS = 60000;
+    var OCR_ORIGINAL_MAX_BYTES = 12 * 1024 * 1024;
     var ocrResultCache = Object.create(null);
 
     function buildOcrUploadFile(file, mode) {
@@ -4444,6 +4453,7 @@
       if (mobileFirst) {
         attempts.push(function () { return buildOcrUploadFile(file, 'document').then(function (uploadFile) { return { file: uploadFile, label: 'optimalisert mobilbilde' }; }); });
         attempts.push(function () { return buildOcrUploadFile(file, 'server-highres').then(function (uploadFile) { return { file: uploadFile, label: 'forbedret original' }; }); });
+        if (originalAllowed) attempts.push(function () { return Promise.resolve({ file: file, label: 'originalbilde' }); });
       } else {
         if (originalAllowed) attempts.push(function () { return Promise.resolve({ file: file, label: 'originalbilde' }); });
         attempts.push(function () { return buildOcrUploadFile(file, 'server-highres').then(function (uploadFile) { return { file: uploadFile, label: 'forbedret original' }; }); });
@@ -4843,7 +4853,7 @@
         longitude.value = Number(lng).toFixed(6);
         mapState.lat = Number(latitude.value);
         mapState.lng = Number(longitude.value);
-        checkZone();
+        scheduleZoneCheck({}, 350);
         scheduleAutosave('Kartposisjon oppdatert');
       };
       mapState.onManualMove = function (lat, lng) {
@@ -4856,7 +4866,7 @@
         mapState.lat = Number(latitude.value);
         mapState.lng = Number(longitude.value);
         syncManualPositionNotice();
-        checkZone();
+        scheduleZoneCheck({ force: true }, 250);
         scheduleAutosave('Manuell kartposisjon oppdatert');
       };
       mapState.recenterTo = options.recenterTo || '';
@@ -4866,20 +4876,20 @@
       var zoneLayerIds = zoneMatchedLayerIds(latestZoneResult);
       var displayLayers = mergeRelevantMapLayers(filteredMapCatalog(), zoneLayerIds);
       var defaultVisibleIds = defaultVisibleMapCatalog(zoneLayerIds).map(function (layer) { return Number(layer && layer.id); }).filter(function (value) { return isFinite(value); });
-      var featureDetailIds = visibleFeatureDetailLayerIds(18, zoneLayerIds);
+      var featureDetailIds = visibleFeatureDetailLayerIds(8, zoneLayerIds);
       var allLayerIds = displayLayers.map(function (layer) { return Number(layer && layer.id); }).filter(function (value) { return isFinite(value); });
       var fisheryPortalService = root.dataset.portalMapserver || (caseMap && caseMap.dataset ? (caseMap.dataset.portalMapserver || '') : '') || 'https://portal.fiskeridir.no/server/rest/services/fiskeridirWMS_fiskeri/MapServer';
       var vernPortalService = root.dataset.portalVernMapserver || (caseMap && caseMap.dataset ? (caseMap.dataset.portalVernMapserver || '') : '') || 'https://portal.fiskeridir.no/server/rest/services/Fiskeridir_vern/MapServer';
-      mapState.fetchFeatureDetails = true;
+      mapState.fetchFeatureDetails = options.fetchFeatureDetails === true || mapState.requestFeatureDetails === true;
       mapState.featureDetailLayerIds = featureDetailIds;
       mapState.defaultVisibleLayerIds = defaultVisibleIds;
       mapState.highlightLayerIds = zoneLayerIds.slice();
-      mapState.detailFetchThresholdZoom = 8;
+      mapState.detailFetchThresholdZoom = 13;
       mapState.enableAreaPopup = true;
       mapState.showLegend = false;
       mapState.showLayerPanel = !!mapLayerPanelHost;
       mapState.layerPanelDefaultOpen = false;
-      mapState.layerPanelKey = 'case-map-v1-5';
+      mapState.layerPanelKey = 'case-map-1-6-0';
       mapState.layerPanelTargetSelector = mapLayerPanelHost ? '#case-map-layer-panel-host' : '';
       mapState.rasterLayerIds = allLayerIds;
       mapState.identifyLayerIds = allLayerIds;
@@ -4887,7 +4897,7 @@
       mapState.portalFisheryService = fisheryPortalService;
       mapState.portalVernService = vernPortalService;
       mapState.rasterServicesAuto = true;
-      mapState.rasterChunkSize = 8;
+      mapState.rasterChunkSize = 32;
       mapState.rasterOpacity = 0.9;
       mapState.rasterServices = null;
       createPortalMap(caseMap, displayLayers, mapState).then(function () {
@@ -4897,7 +4907,7 @@
           mapState.autoRecenterOnce = false;
         }
         clearTimeout(mapState._offlineWarmTimer);
-        // V1.5: do not auto-download offline map packages on every position/layer update.
+        // 1.6.0: do not auto-download offline map packages on every position/layer update.
         // The user can still press the offline download button explicitly.
         var offlineWarmKey = currentOfflineWarmKey();
         mapState._lastOfflineWarmKey = offlineWarmKey || mapState._lastOfflineWarmKey;
@@ -5110,6 +5120,18 @@
         });
     }
 
+    function scheduleZoneCheck(options, delay) {
+      options = options || {};
+      var wait = Math.max(0, Number(delay || 450));
+      if (mapState.pendingZoneTimer) window.clearTimeout(mapState.pendingZoneTimer);
+      return new Promise(function (resolve) {
+        mapState.pendingZoneTimer = window.setTimeout(function () {
+          mapState.pendingZoneTimer = null;
+          resolve(checkZone(options));
+        }, wait);
+      });
+    }
+
     function applyAutoPosition(lat, lng, accuracy, shouldRecenter) {
       mapState.followAutoPosition = true;
       mapState.manualPosition = false;
@@ -5124,15 +5146,21 @@
       mapState.deviceAccuracy = Number(accuracy || mapState.deviceAccuracy || 12);
       syncManualPositionNotice();
       var recenterNow = !!shouldRecenter || mapState.autoRecenterOnce === true;
-      updateCaseMap(recenterNow ? { recenterTo: 'device', recenterZoom: null } : {});
-      if (recenterNow) mapState.autoRecenterOnce = false;
       var now = Date.now();
-      var shouldZoneCheck = !isFinite(mapState.lastZoneCheckLat) || !isFinite(mapState.lastZoneCheckLng) || (now - mapState.lastZoneCheckTs) > 8000 || distanceMeters(mapState.lastZoneCheckLat, mapState.lastZoneCheckLng, mapState.lat, mapState.lng) > Math.max(15, Number(mapState.deviceAccuracy || 0));
+      var shouldRenderMap = recenterNow || !isFinite(mapState.lastMapRenderLat) || !isFinite(mapState.lastMapRenderLng) || (now - mapState.lastMapRenderTs) > 1200 || distanceMeters(mapState.lastMapRenderLat, mapState.lastMapRenderLng, mapState.lat, mapState.lng) > 6;
+      if (shouldRenderMap) {
+        mapState.lastMapRenderLat = mapState.lat;
+        mapState.lastMapRenderLng = mapState.lng;
+        mapState.lastMapRenderTs = now;
+        updateCaseMap(recenterNow ? { recenterTo: 'device', recenterZoom: null } : {});
+      }
+      if (recenterNow) mapState.autoRecenterOnce = false;
+      var shouldZoneCheck = !isFinite(mapState.lastZoneCheckLat) || !isFinite(mapState.lastZoneCheckLng) || (now - mapState.lastZoneCheckTs) > 15000 || distanceMeters(mapState.lastZoneCheckLat, mapState.lastZoneCheckLng, mapState.lat, mapState.lng) > Math.max(25, Number(mapState.deviceAccuracy || 0) * 1.5);
       if (shouldZoneCheck) {
         mapState.lastZoneCheckLat = mapState.lat;
         mapState.lastZoneCheckLng = mapState.lng;
         mapState.lastZoneCheckTs = now;
-        checkZone();
+        scheduleZoneCheck({}, 650);
       }
       var shouldAutosave = !isFinite(mapState.lastAutoSaveLat) || !isFinite(mapState.lastAutoSaveLng) || (now - mapState.lastAutoSaveTs) > 30000 || distanceMeters(mapState.lastAutoSaveLat, mapState.lastAutoSaveLng, mapState.lat, mapState.lng) > 20;
       if (shouldAutosave) {
@@ -5168,7 +5196,7 @@
       mapState.lng = Number(longitude.value);
       syncManualPositionNotice();
       updateCaseMap({ recenterTo: 'case' });
-      checkZone();
+      scheduleZoneCheck({ force: true }, 250);
       scheduleAutosave('Manuell posisjon aktivert');
     }
 
@@ -5207,7 +5235,7 @@
       }, function (err) {
         if (zoneResult) zoneResult.innerHTML = 'Kunne ikke hente posisjon: ' + escapeHtml(err.message || err) + '. Du kan fortsatt sette posisjon manuelt i kartet.';
         syncManualPositionNotice();
-      }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 3000 });
+      }, { enableHighAccuracy: false, timeout: 3500, maximumAge: 180000 });
       if (locationWatchId !== null) return;
       locationWatchId = navigator.geolocation.watchPosition(function (position) {
         var currentLat = Number(position.coords.latitude.toFixed(6));
@@ -5227,7 +5255,7 @@
       }, function (err) {
         if (zoneResult) zoneResult.innerHTML = 'Kunne ikke hente posisjon: ' + escapeHtml(err.message || err) + '. Du kan fortsatt sette posisjon manuelt i kartet.';
         syncManualPositionNotice();
-      }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 3000 });
+      }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 20000 });
     }
 
     function maybeAutoStartLocation() {
@@ -5314,7 +5342,7 @@
       mapState.manualPosition = true;
       syncManualPositionNotice();
       updateCaseMap({ recenterTo: 'case' });
-      checkZone();
+      scheduleZoneCheck({ force: true }, 250);
       scheduleAutosave('Manuell posisjon oppdatert');
     }
 
@@ -5587,6 +5615,70 @@ function renderHummerStatus(result) {
       return false;
     }
 
+    function cleanPhoneLookupValue(value) {
+      var digits = String(value || '').replace(/\D+/g, '');
+      if (digits.length === 10 && digits.indexOf('47') === 0) digits = digits.slice(2);
+      if (digits.length === 11 && digits.indexOf('047') === 0) digits = digits.slice(3);
+      return /^\d{8}$/.test(digits) ? digits : '';
+    }
+
+    function applyPhoneLookupResult(result, phone) {
+      result = result || {};
+      renderRegistryCandidates(result.candidates || []);
+      var person = result.person || (result.hummer_check && result.hummer_check.person) || null;
+      if (!result.found || !person) {
+        if (registryResult) registryResult.innerHTML = '<strong>Ingen treff på mobilnummer</strong><div class="small muted">Kontroller nummeret eller bruk vanlig Oppslag.</div>';
+        return result;
+      }
+      var isCommercial = String(controlType.value || '').toLowerCase().indexOf('kom') === 0;
+      if (phone && !isCommercial) autofillField(suspectPhone, phone, { allowOverwrite: true });
+      if (phone && lookupIdentifier) autofillField(lookupIdentifier, phone, { allowOverwrite: true });
+      if (person.name && !isBadPersonName(person.name)) {
+        autofillField(suspectName, person.name, { allowOverwrite: true });
+        autofillField(suspectNameCommercial, person.name, { allowOverwrite: true });
+        autofillField(lookupName, person.name, { allowOverwrite: true });
+      }
+      if (!isCommercial && person.address && !isBadOcrFragment(person.address)) autofillField(suspectAddress, person.address, { allowOverwrite: true });
+      if (!isCommercial && person.post_place && suspectPostPlace && !isBadOcrFragment(person.post_place)) autofillField(suspectPostPlace, person.post_place, { allowOverwrite: true });
+      if (person.birthdate && suspectBirthdate) autofillField(suspectBirthdate, person.birthdate, { allowOverwrite: true });
+      renderHummerStatus(result.hummer_check || { found: Boolean(person.hummer_participant_no || person.participant_no), person: person, source: person.source || result.source || 'Mobiloppslag' });
+      if (registryResult) registryResult.innerHTML = '<strong>Mobiloppslag treff</strong><div class="small muted">Navn, adresse og poststed er hentet fra telefonoppslag.</div>';
+      renderAutofillPreview({ source: 'Mobiloppslag', detail: person.source || result.source || '1881 / Gulesider' });
+      updateExternalSearchLinks();
+      loadGearSummary();
+      scheduleAutosave('Mobiloppslag oppdatert persondata');
+      if (person.source_url) mergeSources([{ name: person.source || 'Mobiloppslag', ref: phone || 'Telefonoppslag', url: person.source_url }]);
+      return result;
+    }
+
+    function lookupPhoneNumber() {
+      var phone = cleanPhoneLookupValue((suspectPhone && suspectPhone.value) || (lookupIdentifier && lookupIdentifier.value) || '');
+      if (!phone) {
+        if (registryResult) registryResult.innerHTML = '<strong>Oppgi mobilnummer</strong><div class="small muted">Skriv inn et 8-sifret mobilnummer i feltet Mobilnummer eller identifikator.</div>';
+        return Promise.resolve(null);
+      }
+      if (suspectPhone) suspectPhone.value = phone;
+      if (lookupIdentifier) lookupIdentifier.value = phone;
+      if (registryResult) registryResult.innerHTML = 'Søker mobilnummer ...';
+      var params = new URLSearchParams({
+        phone: phone,
+        vessel_reg: '',
+        radio_call_sign: '',
+        name: '',
+        address: '',
+        post_place: '',
+        tag_text: '',
+        hummer_participant_no: ''
+      });
+      return fetch(root.dataset.registryUrl + '?' + params.toString(), { credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (payload) { return applyPhoneLookupResult(payload || {}, phone); })
+        .catch(function () {
+          if (registryResult) registryResult.innerHTML = '<strong>Mobiloppslag feilet</strong><div class="small muted">Prøv igjen eller fyll inn manuelt.</div>';
+          return null;
+        });
+    }
+
     function lookupRegistry(options) {
       options = options || {};
       var lookupKey = currentRegistryLookupKey();
@@ -5649,6 +5741,10 @@ function renderHummerStatus(result) {
       // Bruk Oppslag-knappen manuelt ved behov.
       if (registryLookupTimer) window.clearTimeout(registryLookupTimer);
     }
+
+    if (btnPhoneLookup) btnPhoneLookup.addEventListener('click', function () {
+      lookupPhoneNumber();
+    });
 
     if (btnLookupPerson) btnLookupPerson.addEventListener('click', function () {
       lookupRegistry({ force: true, automatic: false });
@@ -6173,11 +6269,11 @@ function renderHummerStatus(result) {
       if (target.form === form || target.getAttribute('form') === 'case-form' || target.closest('#case-form')) scheduleAutosave('Skjemadata endret');
     });
 
-    controlType.addEventListener('change', function () { syncOptions(); syncMapSelectionStatus(); updateCaseMap(); if (latitude.value && longitude.value) checkZone(); scheduleRuleRefresh(0); loadGearSummary(); });
-    fisheryType.addEventListener('change', function () { if (!species.value || species.value === fisheryType.dataset.lastValue) species.value = fisheryType.value; fisheryType.dataset.lastValue = fisheryType.value; syncMapSelectionStatus(); updateCaseMap(); if (latitude.value && longitude.value) checkZone(); scheduleRuleRefresh(0); loadGearSummary(); });
-    gearType.addEventListener('change', function () { syncMapSelectionStatus(); updateCaseMap(); if (latitude.value && longitude.value) checkZone(); scheduleRuleRefresh(0); loadGearSummary(); });
+    controlType.addEventListener('change', function () { syncOptions(); syncMapSelectionStatus(); updateCaseMap(); if (latitude.value && longitude.value) scheduleZoneCheck({ force: true }, 250); scheduleRuleRefresh(0); loadGearSummary(); });
+    fisheryType.addEventListener('change', function () { if (!species.value || species.value === fisheryType.dataset.lastValue) species.value = fisheryType.value; fisheryType.dataset.lastValue = fisheryType.value; syncMapSelectionStatus(); updateCaseMap(); if (latitude.value && longitude.value) scheduleZoneCheck({ force: true }, 250); scheduleRuleRefresh(0); loadGearSummary(); });
+    gearType.addEventListener('change', function () { syncMapSelectionStatus(); updateCaseMap(); if (latitude.value && longitude.value) scheduleZoneCheck({ force: true }, 250); scheduleRuleRefresh(0); loadGearSummary(); });
     species.addEventListener('input', function () { scheduleRuleRefresh(160); });
-    species.addEventListener('change', function () { syncMapSelectionStatus(); updateCaseMap(); if (latitude.value && longitude.value) checkZone(); scheduleRuleRefresh(0); loadGearSummary(); });
+    species.addEventListener('change', function () { syncMapSelectionStatus(); updateCaseMap(); if (latitude.value && longitude.value) scheduleZoneCheck({ force: true }, 250); scheduleRuleRefresh(0); loadGearSummary(); });
     startTime.addEventListener('change', function () { scheduleRuleRefresh(0); });
     suspectNameCommercial.addEventListener('input', function () { suspectName.value = suspectNameCommercial.value; lookupName.value = suspectNameCommercial.value; updateExternalSearchLinks(); loadGearSummary(); });
     suspectName.addEventListener('input', function () { suspectNameCommercial.value = suspectName.value; lookupName.value = suspectName.value; updateExternalSearchLinks(); loadGearSummary(); });
@@ -6442,10 +6538,14 @@ function renderHummerStatus(result) {
       }
       if (event.target.classList.contains('deviation-add') || event.target.classList.contains('deviation-add-top')) {
         event.preventDefault();
+        item.status = 'avvik';
+        findingsState[idx].status = 'avvik';
         var addRows = ensureDeviationState(item);
         var newRow = defaultDeviationRow(item);
         addRows.push(newRow);
         syncDeviationDefaults(item);
+        item.deviation_summary = deviationSummaryText(item);
+        findingsInput.value = JSON.stringify(findingsState);
         setInlineEvidenceTarget(item, newRow, 'Nytt redskap er valgt for direkte bildebevis.');
         scheduleAutosave('Ny avviksrad lagt til');
         return;

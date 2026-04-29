@@ -338,7 +338,7 @@ async def api_ocr_extract(request: Request, file: UploadFile = File(...)):
         return JSONResponse(cached)
     started = time.monotonic()
     try:
-        result = await run_in_threadpool(extract_text_from_image, content or b"", filename=filename, timeout_seconds=32)
+        result = await run_in_threadpool(extract_text_from_image, content or b"", filename=filename, timeout_seconds=50)
     except ValueError as exc:
         return JSONResponse({'ok': False, 'message': str(exc), 'text': ''}, status_code=422)
     except RuntimeError as exc:

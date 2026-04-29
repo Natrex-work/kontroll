@@ -3,8 +3,8 @@ FROM python:3.11-slim
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PORT=10000 \
-    KV_APP_VERSION=1.5.0 \
-    KV_APP_VERSION_LABEL=V1.5 \
+    KV_APP_VERSION=1.6.0 \
+    KV_APP_VERSION_LABEL=1.6.0 \
     SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
     REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
 

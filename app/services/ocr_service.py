@@ -92,10 +92,10 @@ def _env_int(name: str, default: int, *, minimum: int, maximum: int) -> int:
     return max(minimum, min(maximum, value))
 
 
-OCR_MAX_SIDE = _env_int('KV_OCR_MAX_SIDE', 2100, minimum=1100, maximum=2800)
-OCR_MIN_SIDE = _env_int('KV_OCR_MIN_SIDE', 1100, minimum=700, maximum=1800)
-OCR_VARIANT_LIMIT = _env_int('KV_OCR_VARIANT_LIMIT', 12, minimum=3, maximum=16)
-OCR_ATTEMPT_TIMEOUT_MAX = _env_int('KV_OCR_ATTEMPT_TIMEOUT', 8, minimum=3, maximum=14)
+OCR_MAX_SIDE = _env_int('KV_OCR_MAX_SIDE', 2400, minimum=1100, maximum=3200)
+OCR_MIN_SIDE = _env_int('KV_OCR_MIN_SIDE', 1300, minimum=700, maximum=2200)
+OCR_VARIANT_LIMIT = _env_int('KV_OCR_VARIANT_LIMIT', 16, minimum=3, maximum=22)
+OCR_ATTEMPT_TIMEOUT_MAX = _env_int('KV_OCR_ATTEMPT_TIMEOUT', 10, minimum=3, maximum=16)
 OCR_ENABLE_DESKEW = os.getenv('KV_OCR_ENABLE_DESKEW', '1').lower() in {'1', 'true', 'yes', 'on'}
 
 
@@ -555,7 +555,7 @@ def extract_text_from_image(content: bytes, *, filename: str = '', timeout_secon
     if not content:
         raise ValueError('Bildefilen er tom.')
     started = time.monotonic()
-    max_wall_seconds = max(10.0, min(float(timeout_seconds or 25), 32.0))
+    max_wall_seconds = max(10.0, min(float(timeout_seconds or 25), 50.0))
     deadline = started + max_wall_seconds
     try:
         image = _load_image(content)
@@ -570,7 +570,7 @@ def extract_text_from_image(content: bytes, *, filename: str = '', timeout_secon
     label_crops = _candidate_label_crops(image)
     timed_out = False
     try:
-        variant_limit = OCR_VARIANT_LIMIT if max_wall_seconds <= 28 else min(14, OCR_VARIANT_LIMIT + 2)
+        variant_limit = OCR_VARIANT_LIMIT if max_wall_seconds <= 32 else min(22, OCR_VARIANT_LIMIT + 4)
         variants = _preferred_variants(image, label_crops)[:variant_limit]
         for label, variant, config in variants:
             remaining = deadline - time.monotonic()

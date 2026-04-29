@@ -3320,7 +3320,7 @@ body {
 
 .margin-top-xs { margin-top: .45rem; }
 
-/* V1.5: collapse relevant map areas/layers in the case form. */
+/* 1.6.0: collapse relevant map areas/layers in the case form. */
 .map-relevant-panel > summary.map-relevant-head {
   cursor: pointer;
   list-style: none;
@@ -3353,7 +3353,7 @@ body {
 }
 
 
-/* V1.5: compact case map with focus mode for iPhone/iPad field use. */
+/* 1.6.0: compact case map with focus mode for iPhone/iPad field use. */
 .compact-map-head { align-items: center; gap: 0.75rem; }
 .map-compact-status { padding: 0.55rem 0.75rem; }
 .case-map-card .case-map { min-height: 460px; }
@@ -3385,7 +3385,7 @@ body.case-map-focus-mode { overflow: hidden; }
   }
 }
 
-/* V1.5: responsivt temakart og flere lenker per avvik. */
+/* 1.6.0: responsivt temakart og flere lenker per avvik. */
 .kv-temalag-panel-external,
 .kv-temalag-card,
 .kv-temalag-groups,
@@ -3461,7 +3461,7 @@ body.case-map-focus-mode { overflow: hidden; }
 }
 
 
-/* V1.5: Kart og Område - responsivt temakart og faner for flere lenker. */
+/* 1.6.0: Kart og Område - responsivt temakart og faner for flere lenker. */
 .map-layer-panel-host,
 #overview-map-layer-panel-host,
 .kv-temalag-panel-external,
@@ -3541,7 +3541,7 @@ body.case-map-focus-mode { overflow: hidden; }
 }
 
 
-/* V1.5: Temakart skal passe mobilbredden uten horisontal zoom. */
+/* 1.6.0: Temakart skal passe mobilbredden uten horisontal zoom. */
 .map-layer-panel-host,
 .kv-temalag-panel,
 .kv-temalag-card,
@@ -3626,5 +3626,111 @@ body.case-map-focus-mode { overflow: hidden; }
   .kv-temalag-item-meta {
     display: flex;
     flex-wrap: wrap;
+  }
+}
+
+/* 1.6.0: raskere, smalere feltvisning for iPhone/iPad. */
+.case-map-card,
+.case-map-panel,
+.map-layer-panel-host,
+.kv-temalag-panel,
+.kv-temalag-panel-external,
+.kv-temalag-card,
+.kv-temalag-items,
+.kv-temalag-item {
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+.kv-temalag-item,
+.kv-temalag-card summary,
+.kv-temalag-card .details-text {
+  white-space: normal;
+}
+.deviation-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.65rem;
+  max-width: 100%;
+  overflow: hidden;
+}
+.deviation-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  max-width: 100%;
+}
+.deviation-row-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.65rem;
+  align-items: end;
+  max-width: 100%;
+  min-width: 0;
+}
+.deviation-row-fields label,
+.deviation-row label,
+.deviation-link-tab label {
+  min-width: 0;
+  max-width: 100%;
+}
+.deviation-row input,
+.deviation-row select,
+.deviation-row textarea,
+.deviation-row .btn {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.deviation-links {
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+.deviation-links-head,
+.deviation-link-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.deviation-link-tabs-nav {
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0.2rem 0 0.35rem;
+  max-width: 100%;
+}
+.deviation-link-tab-btn {
+  flex: 0 0 auto;
+  min-width: 82px;
+  width: auto;
+  white-space: nowrap;
+}
+@media (max-width: 720px) {
+  .deviation-row-fields,
+  .deviation-link-tab .grid-two,
+  .finding-card .compact-grid-form {
+    grid-template-columns: 1fr;
+  }
+  .deviation-row-head,
+  .deviation-links-head,
+  .deviation-link-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .deviation-row .actions-row,
+  .deviation-link-tab .actions-row,
+  .person-autofill-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+  .person-autofill-actions .btn {
+    width: 100%;
   }
 }
