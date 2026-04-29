@@ -108,12 +108,14 @@ def api_text_polish(request: Request, payload: TextPolishRequest):
     cleaned = ' '.join(text_in.replace('\r', '\n').split())
     if location:
         cleaned = re.sub(r'\bi aktuelt kontrollområde\b', 'ved ' + location, cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r'\bved registrert kontrollposisjon\b', 'ved ' + location, cleaned, flags=re.IGNORECASE)
         cleaned = re.sub(r'\bved kontrollposisjonen\b', 'ved ' + location, cleaned, flags=re.IGNORECASE)
         cleaned = re.sub(r'\bved kontrollposisjon\b', 'ved ' + location, cleaned, flags=re.IGNORECASE)
         cleaned = re.sub(r'\baktuelt kontrollområde\b', location, cleaned, flags=re.IGNORECASE)
         cleaned = re.sub(r'\bkontrollposisjonen\b', location, cleaned, flags=re.IGNORECASE)
     else:
         cleaned = re.sub(r'\bi aktuelt kontrollområde\b', 'ved kontrollstedet', cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r'\bved registrert kontrollposisjon\b', 'ved kontrollstedet', cleaned, flags=re.IGNORECASE)
         cleaned = re.sub(r'\bved kontrollposisjonen\b', 'ved kontrollstedet', cleaned, flags=re.IGNORECASE)
         cleaned = re.sub(r'\bved kontrollposisjon\b', 'ved kontrollstedet', cleaned, flags=re.IGNORECASE)
         cleaned = re.sub(r'\baktuelt kontrollområde\b', 'kontrollstedet', cleaned, flags=re.IGNORECASE)
@@ -148,7 +150,7 @@ def api_text_polish(request: Request, payload: TextPolishRequest):
             cleaned = cleaned.rstrip('.') + '.'
     elif mode == 'interview_summary':
         subject_text = subject or 'Avhørte'
-        cleaned = f"{subject_text} forklarte i hovedsak følgende: {cleaned.rstrip('.')} .".replace(' .', '.')
+        cleaned = f"{subject_text} forklarte i hovedsak at {cleaned.rstrip('.')} .".replace(' .', '.')
     else:
         cleaned = cleaned.rstrip('.') + '.'
     return JSONResponse({'text': cleaned})

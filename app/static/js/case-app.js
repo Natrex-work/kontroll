@@ -6,7 +6,7 @@
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('/static/sw.js?v=1.6.0').catch(function () {});
+      navigator.serviceWorker.register('/static/sw.js?v=1.7.1').catch(function () {});
     });
   }
 
@@ -1439,7 +1439,7 @@
     var lawBrowser = parseJson(root.dataset.lawBrowser, []);
     var mapCatalog = parseJson(root.dataset.mapCatalog, []);
     var mapFilterWrap = document.getElementById('map-layer-filters');
-    var mapFilterStorageKey = 'kv-map-layer-filter-1-6-0:' + root.dataset.caseId;
+    var mapFilterStorageKey = 'kv-map-layer-filter-1-7-1:' + root.dataset.caseId;
     var activeLayerStatuses = { 'fredningsområde': true, 'stengt område': true, 'maksimalmål område': true, 'regulert område': true, 'nullfiskeområde': true };
     try {
       localStorage.removeItem('kv-map-layer-filter:' + root.dataset.caseId);
@@ -1595,7 +1595,7 @@
       if (/(breivikfjorden|borgundfjorden|henningsvaer|lofotfiske)/.test(restrictionText) && !/(torsk|skrei|kommersiell|yrkes)/.test([currentFisherySelection(), currentControlSelection(), restrictionText].join(' '))) return false;
       var status = String(layer.status || '').trim().toLowerCase();
       if (Object.prototype.hasOwnProperty.call(activeLayerStatuses, status) && !activeLayerStatuses[status]) return false;
-      // 1.6.0: Vis alle lov-/forskrifts-/J-meldingslag. Valg av
+      // 1.7.1: Vis alle lov-/forskrifts-/J-meldingslag. Valg av
       // kontrolltype, art/fiskeri og redskap brukes til sortering og
       // standard synlige lag, men skjuler ikke andre lovregulerte lag.
       return true;
@@ -1897,7 +1897,7 @@
         urls = urls.concat(collectTileUrls(layer, map, padding == null ? 2 : padding));
       });
       urls = uniqueUrls(urls);
-      return prefetchUrlsToCache(urls, 'kv-kontroll-1-6-0-map-tiles').then(function (count) {
+      return prefetchUrlsToCache(urls, 'kv-kontroll-1-7-1-map-tiles').then(function (count) {
         return { count: count, urls: urls };
       });
     }
@@ -3543,7 +3543,7 @@
           '<div class="crew-row" data-index="' + idx + '">',
           '<input class="crew-name" placeholder="Navn" value="' + escapeHtml(item.name || '') + '" />',
           '<select class="crew-role">',
-          ['Vitne', 'Båtfører', 'Båtassistent'].map(function (role) { return '<option value="' + role + '" ' + (role === item.role ? 'selected' : '') + '>' + role + '</option>'; }).join(''),
+          ['Observatør', 'Båtfører', 'Båtassistent'].map(function (role) { return '<option value="' + role + '" ' + (role === item.role ? 'selected' : '') + '>' + role + '</option>'; }).join(''),
           '</select>',
           '<button type="button" class="btn btn-danger btn-small crew-remove">Fjern</button>',
           '</div>'
@@ -3554,7 +3554,7 @@
     }
 
     document.getElementById('btn-add-crew').addEventListener('click', function () {
-      crewState.push({ name: '', role: 'Vitne' });
+      crewState.push({ name: '', role: 'Observatør' });
       renderCrew();
     setAutosaveStatus('Klar for autosave', 'is-saved');
     });
@@ -3562,7 +3562,7 @@
       var row = event.target.closest('.crew-row');
       if (!row) return;
       var idx = Number(row.dataset.index);
-      crewState[idx] = crewState[idx] || { name: '', role: 'Vitne' };
+      crewState[idx] = crewState[idx] || { name: '', role: 'Observatør' };
       crewState[idx].name = row.querySelector('.crew-name').value;
       crewState[idx].role = row.querySelector('.crew-role').value;
       crewInput.value = JSON.stringify(crewState);
@@ -4889,7 +4889,7 @@
       mapState.showLegend = false;
       mapState.showLayerPanel = !!mapLayerPanelHost;
       mapState.layerPanelDefaultOpen = false;
-      mapState.layerPanelKey = 'case-map-1-6-0';
+      mapState.layerPanelKey = 'case-map-1-7-1';
       mapState.layerPanelTargetSelector = mapLayerPanelHost ? '#case-map-layer-panel-host' : '';
       mapState.rasterLayerIds = allLayerIds;
       mapState.identifyLayerIds = allLayerIds;
@@ -4907,7 +4907,7 @@
           mapState.autoRecenterOnce = false;
         }
         clearTimeout(mapState._offlineWarmTimer);
-        // 1.6.0: do not auto-download offline map packages on every position/layer update.
+        // 1.7.1: do not auto-download offline map packages on every position/layer update.
         // The user can still press the offline download button explicitly.
         var offlineWarmKey = currentOfflineWarmKey();
         mapState._lastOfflineWarmKey = offlineWarmKey || mapState._lastOfflineWarmKey;
@@ -5849,72 +5849,76 @@ function renderHummerStatus(result) {
       var avvik = findings.filter(function (item) {
         return item && String(item.status || '').toLowerCase() === 'avvik';
       });
+      var place = String(payload && payload.location_name || '').trim() || 'kontrollstedet';
+      if (place.indexOf(' - ') !== -1) place = place.split(' - ')[0].trim() || place;
       var areaNameText = String(payload && payload.area_name || '').trim();
       var areaStatusText = String(payload && payload.area_status || '').trim();
       var gearText = String(payload && payload.gear_type || '').trim();
       var speciesText = String(payload && (payload.species || payload.fishery_type) || '').trim();
-      var introParts = [];
-      if (payload && payload.basis_details) introParts.push(String(payload.basis_details).trim().replace(/\s+/g, ' '));
-      if (payload && payload.location_name) introParts.push('Kontrollen ble gjennomført ved ' + String(payload.location_name).trim() + '.');
-      if (areaNameText && areaStatusText && String(areaStatusText).toLowerCase() !== 'ingen treff') {
-        introParts.push('Kontrollstedet ligger i eller ved ' + areaNameText + ' (' + areaStatusText + ').');
-      }
+      var controlText = String(payload && payload.control_type || '').trim();
+      var subject = String(payload && payload.suspect_name || '').trim() || 'kontrollert person/fartøy';
+      var when = String(payload && payload.start_time || '').trim().replace('T', ' ').slice(0, 16) || currentControlDateLabel();
+      var topic = [controlText, speciesText, gearText].filter(function (item) { return String(item || '').trim(); }).join(' / ') || 'fiskerikontroll';
 
       function sentenceize(text) {
         var clean = String(text || '').trim().replace(/\s+/g, ' ');
+        clean = clean.replace(/\bi aktuelt kontrollområde\b/ig, 'ved ' + place);
+        clean = clean.replace(/\bved kontrollposisjonen\b/ig, 'ved ' + place);
+        clean = clean.replace(/\bved kontrollposisjon\b/ig, 'ved ' + place);
+        clean = clean.replace(/\bkontrollposisjonen\b/ig, place);
+        clean = clean.replace(/ved ved /ig, 'ved ');
         if (!clean) return '';
         if (!/[.!?]$/.test(clean)) clean += '.';
         return clean;
       }
 
-      function isAreaFinding(item) {
-        var key = String(item && item.key || '').toLowerCase();
-        return ['hummer_fredningsomrade_redskap', 'stengt_omrade_status', 'fredningsomrade_status', 'maksimalmal_omrade', 'regulert_omrade'].indexOf(key) !== -1;
+      function findingLine(item, idx) {
+        var label = String(item && (item.label || item.key) || ('Avvik ' + idx)).trim();
+        var note = String(item && (item.summary_text || item.notes || item.auto_note || '') || '').trim();
+        var ref = [item && (item.source_name || item.law_name), item && (item.source_ref || item.section)].filter(function (x) { return String(x || '').trim(); }).join(' - ');
+        return String(idx) + '. ' + sentenceize(label + (note ? ' - ' + note : '') + (ref ? ' (' + ref + ')' : ''));
       }
 
-      function normalizeAreaNarrative(note) {
-        var clean = String(note || '').trim().replace(/\s+/g, ' ');
-        if (!clean) return '';
-        clean = clean.replace(/^Posisjonen ligger i [^.]+\.\s*/i, '');
-        clean = clean.replace(/^Valgt redskap \(([^)]+)\) er ikke blant redskapene som er tillatt i området\.?/i, '$1 er ikke tillatt i dette området.');
-        clean = clean.replace(/^Valgt redskap \(([^)]+)\) må vurderes som ulovlig eller særskilt regulert i området\.?/i, 'I dette området er $1 forbudt eller særskilt regulert.');
-        clean = clean.replace(/^Kontroller at valgt redskap er tillatt i området\.?/i, 'Det må kontrolleres om valgt redskap er tillatt i området.');
-        clean = clean.replace(/^Kontroller områdets særregler for valgt art og redskap\.?/i, 'I området gjelder særskilte regler for valgt art og redskap.');
-        clean = clean.replace(/^Kontroller om valgt art og redskap er tillatt\.?/i, 'Det må kontrolleres om valgt art og redskap er tillatt i området.');
-        return sentenceize(clean);
+      var basis = String(payload && payload.basis_details || '').trim();
+      if (!basis) {
+        basis = 'Den ' + when + ' ble det gjennomført stedlig fiskerikontroll ved ' + place + '. Kontrollen gjaldt ' + topic.toLowerCase() + '. Formålet var å kontrollere faktiske forhold på stedet og sikre notoritet rundt observasjoner, bevis og eventuelle beslag.';
+      } else {
+        basis = sentenceize(basis);
       }
 
-      function localAreaPoint(item) {
-        var label = areaNameText || String(item && item.label || 'aktuelt område').trim();
-        var status = areaStatusText || String(item && item.area_status || item && item.status || 'regulert område').trim();
-        var gearLabel = gearText || 'redskapet';
-        var subjectBits = [];
-        if (speciesText) subjectBits.push('valgt art');
-        if (gearText) subjectBits.push('valgt redskap');
-        var ruleText = normalizeAreaNarrative(item && (item.summary_text || item.notes || item.auto_note || ''));
-        if (!ruleText) {
-          ruleText = sentenceize('I dette området gjelder særskilte forbud eller begrensninger' + (subjectBits.length ? ' for ' + subjectBits.join(' og ') : '') + '.');
-        }
-        var intro = 'Ved kontrollstedet ble følgende redskap observert og kontrollert: ' + gearLabel.toLowerCase() + '.';
-        var areaLine = label ? ('Kontrollstedet ligger innenfor ' + label + (status ? ' (' + status + ')' : '') + '.') : '';
-        var statusText = 'I dette området gjelder følgende forbud eller begrensninger:';
-        return '- ' + [sentenceize(intro), sentenceize(areaLine), statusText, ruleText].filter(Boolean).join(' ');
+      var lines = [
+        'Oppsummering / anmeldelsesgrunnlag',
+        '',
+        '1. Tid, sted og kontrolltema',
+        'Den ' + when + ' ble det gjennomført kontroll ved ' + place + '. Kontrollen gjaldt ' + topic.toLowerCase() + ' og omfattet ' + subject + '.',
+      ];
+      if (areaNameText || (areaStatusText && areaStatusText.toLowerCase() !== 'ingen treff')) {
+        lines.push('Kontrollstedet er vurdert mot registrert områdestatus/verneområde: ' + [areaNameText, areaStatusText].filter(Boolean).join(' - ') + '.');
       }
-
-      var points = avvik.map(function (item, idx) {
-        var note = sentenceize(String(item && (item.summary_text || item.notes || item.auto_note) || '').trim());
-        var base = String(item && (item.label || item.key) || ('Avvik ' + (idx + 1))).trim();
-        if (isAreaFinding(item)) return localAreaPoint(item);
-        return '- ' + sentenceize(base) + (note ? ' ' + note : '');
-      });
-      if (!points.length) points.push('- Ingen avvik er registrert i kontrollpunktene ennå.');
-      var summaryText = introParts.concat(['Oppsummering av registrerte forhold:', points.join('\n')]).join('\n\n').trim();
+      lines = lines.concat(['', '2. Bakgrunn og gjennomføring', basis, '', '3. Registrerte funn og avvik']);
+      if (!avvik.length) {
+        lines.push('Det er ikke registrert avvik i kontrollpunktene på tidspunktet for tekstutkastet.');
+      } else {
+        avvik.forEach(function (item, idx) { lines.push(findingLine(item, idx + 1)); });
+      }
+      lines = lines.concat(['', '4. Beslag, bildebevis og dokumentasjon']);
+      if (payload && payload.seizure_reports && payload.seizure_reports.length) {
+        payload.seizure_reports.forEach(function (row, idx) {
+          var ref = String(row.seizure_ref || row.gear_ref || ('Beslag ' + (idx + 1))).trim();
+          var desc = String(row.description || row.violation_reason || row.type || 'registrert beslag/avvik').trim();
+          lines.push((idx + 1) + '. ' + sentenceize(ref + ': ' + desc));
+        });
+      } else {
+        lines.push('Det er ikke registrert beslag i saken.');
+      }
+      lines = lines.concat(['', '5. Dokumentgrunnlag', 'Utkastet beskriver faktum, kontrollobservasjoner, beslag/bildebevis og forklaringer slik de er registrert i saken. Endelig vurdering av skyld og reaksjon ligger til påtalemyndigheten.']);
+      var summaryText = lines.join('\n').trim();
       return {
-        basis_details: payload && payload.basis_details ? payload.basis_details : '',
-        notes: avvik.length ? 'Registrerte avvik følger kontrollpunktene og beslag-/bevisdelen i saken.' : 'Ingen avvik er registrert i kontrollpunktene ennå.',
+        basis_details: basis,
+        notes: avvik.length ? 'Egenrapport bør beskrive egne observasjoner, hvem som observerte hva, og hvilke beslag/bilder som dokumenterer funnene.' : 'Ingen avvik er registrert i kontrollpunktene ennå.',
         summary: summaryText,
         complaint_preview: summaryText,
-        source_label: 'lokalt utkast'
+        source_label: 'rask straffesaksmal'
       };
     }
 
@@ -6005,20 +6009,20 @@ function renderHummerStatus(result) {
 
       if (preset === 'auto') preset = autoPreset();
       var opening = 'Den ' + dateLabel + ' gjennomførte patruljen stedlig fiskerikontroll ' + placeLabel + '.';
-      var purposeBase = 'Formålet med patruljen var å kontrollere etterlevelse av regelverket for ' + theme.toLowerCase() + ', med særlig vekt på kontrollsted, redskap, merking, fangst/oppbevaring og andre kontrollpunkter som var relevante for valgt fiskeri.';
+      var purposeBase = 'Formålet med patruljen var å kontrollere faktiske forhold på stedet og etterlevelse av regelverket for ' + theme.toLowerCase() + ', med særlig vekt på redskap, merking, fangst eller oppbevaring, involverte personer/fartøy og relevante område- eller redskapsbestemmelser.';
       var controlArea = area ? (' Kontrollen ble gjennomført i tilknytning til registrert område: ' + area + '.') : '';
       var basisNote = '';
       if (basis === 'tips') {
-        basisNote = ' Patruljen ble rettet mot observerbare forhold på stedet. Rapportteksten beskriver kontrollens formål, observasjoner og gjennomførte kontrollhandlinger.';
+        basisNote = ' Patruljen ble rettet mot observerbare forhold på stedet. Teksten beskriver kontrollens formål, faktiske observasjoner, bevis og gjennomførte kontrollhandlinger.';
       } else if (basis === 'anmeldelse') {
-        basisNote = ' Patruljen ble gjennomført som oppfølging av en kontrollsituasjon, med formål å klarlegge stedlige forhold og sikre en etterprøvbar beskrivelse av gjennomførte kontrollhandlinger.';
+        basisNote = ' Patruljen ble gjennomført som oppfølging av registrerte opplysninger, med formål å klarlegge faktum og sikre notoritet rundt observasjoner og bevis.';
       }
       var texts = {
-        'patrol-general': opening + ' Patruljen var en ordinær kontrollpatrulje rettet mot ' + theme.toLowerCase() + '. ' + purposeBase + controlArea + basisNote,
-        'patrol-fixed': opening + ' Patruljen var rettet mot kontroll av faststående fiskeredskap. Kontrollformålet var å kontrollere plassering, merking, røktingsforhold, fangst/oppbevaring og om redskapen var brukt i samsvar med gjeldende område- og redskapsbestemmelser.' + controlArea + basisNote,
-        'patrol-hummer': opening + ' Patruljen var rettet mot kontroll av hummerfiske. Kontrollformålet var å kontrollere deltakelse/påmelding der dette var relevant, deltakernummer, merking av vak og redskap, antall teiner, fluktåpninger/rømningshull, lengdemål, oppbevaring og eventuelle område- eller tidsbegrensninger.' + controlArea + basisNote,
-        'patrol-samleteine': opening + ' Patruljen var rettet mot kontroll av samleteine/sanketeine. Kontrollformålet var å kontrollere merking, plassering, oppbevaring av hummer i sjø, lengdemåling og om vilkår for bruk av redskapen var oppfylt.' + controlArea + basisNote,
-        'patrol-garnlenke': opening + ' Patruljen var rettet mot kontroll av garnlenke/lenkefiske. Kontrollformålet var å kontrollere start- og sluttposisjon, merking, ansvarlig person eller fartøy og om redskapen sto i samsvar med gjeldende område- og redskapsbestemmelser.' + controlArea + basisNote
+        'patrol-general': opening + ' Patruljen var rettet mot ' + theme.toLowerCase() + '. ' + purposeBase + controlArea + basisNote,
+        'patrol-fixed': opening + ' Patruljen var rettet mot kontroll av faststående fiskeredskap. Kontrollformålet var å dokumentere plassering, merking, røktingsforhold, fangst/oppbevaring, ansvarlig person/fartøy og om redskapen var brukt i samsvar med gjeldende område- og redskapsbestemmelser.' + controlArea + basisNote,
+        'patrol-hummer': opening + ' Patruljen var rettet mot kontroll av hummerfiske. Kontrollformålet var å dokumentere deltakelse/påmelding der dette var relevant, deltakernummer, merking av vak og redskap, antall teiner, fluktåpninger/rømningshull, lengdemål, oppbevaring og eventuelle område- eller tidsbegrensninger.' + controlArea + basisNote,
+        'patrol-samleteine': opening + ' Patruljen var rettet mot kontroll av samleteine/sanketeine. Kontrollformålet var å dokumentere merking, plassering, oppbevaring av hummer i sjø, lengdemåling og om vilkår for bruk av redskapen var oppfylt.' + controlArea + basisNote,
+        'patrol-garnlenke': opening + ' Patruljen var rettet mot kontroll av garnlenke/lenkefiske. Kontrollformålet var å dokumentere start- og sluttposisjon, merking, ansvarlig person eller fartøy og om redskapen sto i samsvar med gjeldende område- og redskapsbestemmelser.' + controlArea + basisNote
       };
 
       basisDetails.value = texts[preset] || (opening + ' ' + purposeBase + controlArea + basisNote);
@@ -6857,9 +6861,9 @@ function renderHummerStatus(result) {
       var law = item.law_text || item.help_text || item.source_ref || '';
       var note = item.notes || item.auto_note || item.summary_text || '';
       var rows = [];
-      rows.push('D' + idx + '. Kontrollpunkt: ' + label);
-      if (law) rows.push('   - Aktuell regel/hjemmel i saken: ' + law);
+      rows.push('Lenke ' + idx + ': ' + label);
       if (note) rows.push('   - Observasjon som skal avklares: ' + note);
+      if (law) rows.push('   - Aktuelt regelgrunnlag i saken: ' + law);
       var deviations = ensureDeviationState(item) || [];
       if (deviations.length) {
         rows.push('   - Tilknyttede beslag/redskap:');
@@ -6870,11 +6874,10 @@ function renderHummerStatus(result) {
           rows.push('     * ' + ref + ': ' + violation + '.' + position);
         });
       }
-      rows.push('   - Spørsmål: Forklar tilknytningen til redskapet, fangsten, fartøyet eller aktiviteten.');
-      rows.push('   - Spørsmål: Når og hvor ble redskapet satt eller aktiviteten gjennomført?');
-      rows.push('   - Spørsmål: Hvem hadde faktisk rådighet over redskapet/fangsten på kontrolltidspunktet?');
-      rows.push('   - Spørsmål: Hvilken kunnskap hadde vedkommende om område, fredningstid, merkekrav, minstemål/maksimalmål eller annet relevant regelverk?');
-      rows.push('   - Spørsmål: Finnes dokumentasjon, tillatelse, bilder, vitner eller andre opplysninger som bør innhentes?');
+      rows.push('   - Forklar tilknytning til redskap, fangst, fartøy, person eller aktivitet.');
+      rows.push('   - Forklar når, hvor og av hvem redskapet ble satt, brukt, røktet eller tatt opp.');
+      rows.push('   - Forklar hvilken kunnskap vedkommende hadde om område, fredning, redskapskrav, merkekrav, minstemål/maksimalmål eller andre relevante regler.');
+      rows.push('   - Avklar om det finnes kvittering, tillatelse, bilder, sporingsdata, vitner eller annen dokumentasjon som bør sikres.');
       return rows.join('\n');
     }
 
@@ -6883,37 +6886,50 @@ function renderHummerStatus(result) {
       if (suspectName.value || suspectNameCommercial.value) persons.push('Mistenkt/hovedperson: ' + (suspectName.value || suspectNameCommercial.value));
       (personsState || []).forEach(function (p) { if (p && p.name) persons.push((p.role || 'Person') + ': ' + p.name); });
       var avvik = avvikItemsForInterview();
+      var place = String((normalizedNearestPlaceText(latestZoneResult) || (locationName && locationName.value) || 'kontrollstedet')).trim();
+      if (place.indexOf(' - ') !== -1) place = place.split(' - ')[0].trim() || place;
+      var topic = [controlType && controlType.value, species && species.value || fisheryType && fisheryType.value, gearType && gearType.value].filter(function (x) { return String(x || '').trim(); }).join(' / ') || 'fiskerikontroll';
       var lines = [];
-      lines.push('AVHØRSMOMENTER - FORELØPIG ARBEIDSUTKAST');
+      lines.push('KREATIV-basert avhørsdisposisjon');
       lines.push('');
-      lines.push('A. Før forklaring / notoritet');
-      lines.push('- Avklar identitet, rolle, kontaktinformasjon og tilknytning til fartøy, person, redskap og fangst.');
-      lines.push('- Opplys kort hva saken gjelder, hvilke kontrollobservasjoner som danner grunnlag for spørsmålene, og at forklaringen skal gjengis så nøyaktig som mulig.');
-      lines.push('- Gi mulighet til fri forklaring før konkrete spørsmål stilles.');
+      lines.push('1. Forberedelser');
+      lines.push('- Avklar bevistema for ' + topic.toLowerCase() + ' ved ' + place + '.');
+      lines.push('- Gjør klar aktuelle bilder, kart, beslag, målinger og dokumenter som kan forevises ved behov.');
+      lines.push('- Avklar hypoteser og hvilke objektive opplysninger som både taler for og mot mulig lovbrudd.');
       lines.push('');
-      lines.push('B. Rettssikkerhetsmomenter ved mistenkt/siktet');
-      lines.push('- Avklar rolle/status før spørsmål om mulig straffbart forhold.');
-      lines.push('- Noter at vedkommende er gjort kjent med at forklaring er frivillig når vedkommende avhøres som mistenkt/siktet.');
-      lines.push('- Noter om vedkommende ønsker forsvarer eller rådgivning før videre forklaring.');
-      lines.push('- Noter om vedkommende forstår informasjonen og om vedkommende ønsker å forklare seg.');
+      lines.push('2. Kontaktetablering og formalia');
+      lines.push('- Start lydopptak og noter tid, sted/metode, avhører og hvem som avhøres.');
+      lines.push('- Gjør kjent hva saken gjelder og hvilket forhold personen avhøres om.');
+      lines.push('- Gjør kjent retten til ikke å forklare seg for Kystvakten/politiet.');
+      lines.push('- Gjør kjent retten til forsvarer på ethvert trinn, også under Kystvaktens avhør.');
+      lines.push('- Avklar behov for tolk og noter om rettighetene er forstått.');
+      lines.push('- Orienter om at en uforbeholden tilståelse kan få betydning ved straffeutmålingen.');
+      lines.push('- Orienter om at falsk anklage eller uriktig forklaring som kan medføre straffeforfølgelse av en annen person, er straffbart.');
       lines.push('');
-      lines.push('C. Personer som bør vurderes for forklaring');
-      if (persons.length) persons.forEach(function (row) { lines.push('- ' + row); });
-      else lines.push('- Ingen ekstra personer er registrert. Vurder eier, fører/skipper, vitne eller andre involverte.');
+      lines.push('3. Fri forklaring');
+      lines.push('- Be personen forklare med egne ord hva som skjedde, hvilken rolle vedkommende hadde, og hva vedkommende mener er relevant for saken.');
+      lines.push('- La forklaringen komme før detaljerte kontrollspørsmål og før eventuell bevispresentasjon.');
       lines.push('');
-      lines.push('D. Spørsmål knyttet til avvik/beslag');
+      lines.push('4. Sondering / tema for kontrollpunkt');
       if (!avvik.length) {
-        lines.push('- Ingen avvik er registrert. Vurder likevel om forklaring er nødvendig for å avklare faktum, rolle eller eierskap.');
+        lines.push('- Ingen avvik er registrert. Vurder likevel spørsmål om identitet, eierskap, ansvar for redskap/fangst og kontrollsted dersom forklaring er nødvendig.');
       } else {
         avvik.forEach(function (item, idx) { lines.push(describeFindingForInterview(item, idx + 1)); lines.push(''); });
       }
-      lines.push('E. Avslutning');
-      lines.push('- Gjennomgå hovedpunktene og noter om forklaringen godtas, korrigeres eller ikke ønskes signert.');
-      lines.push('- Noter om vedkommende ønsker å legge frem dokumentasjon, bilder, kontaktpersoner eller andre opplysninger.');
-      lines.push('- Noter eventuelle forbehold, nektelse eller opplysninger som må kontrolleres videre.');
+      lines.push('5. Avslutning');
+      lines.push('- Spør om det er etterforskingsskritt, dokumentasjon eller personer den avhørte mener Kystvakten bør følge opp.');
+      lines.push('- Gå gjennom sammendraget og noter om forklaringen godtas, korrigeres eller ikke ønskes signert.');
+      lines.push('- Avklar straffeskyld bare der dette er naturlig og etter at saken/faktum er gjennomgått.');
+      lines.push('- Avklar samtykke til fortsatt beslag og eventuell inndragning der dette er aktuelt.');
+      lines.push('');
+      lines.push('6. Evaluering');
+      lines.push('- Noter kort om avhøret fulgte planen, om nye opplysninger må kontrolleres, og om det er behov for supplerende bevis eller avhør.');
+      lines.push('');
+      lines.push('Personer som bør vurderes for forklaring:');
+      if (persons.length) persons.forEach(function (row) { lines.push('- ' + row); });
+      else lines.push('- Ingen ekstra personer er registrert. Vurder eier, fører/skipper, eksternt vitne eller andre involverte.');
       return lines.join('\n');
     }
-
 
     var generateInterviewGuidanceBtn = document.getElementById('btn-generate-interview-guidance');
     if (generateInterviewGuidanceBtn) generateInterviewGuidanceBtn.addEventListener('click', function () {

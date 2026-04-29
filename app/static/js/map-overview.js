@@ -32,7 +32,7 @@
     var packagesList = document.getElementById('overview-offline-packages-list');
     var relevantAreasList = document.getElementById('overview-relevant-areas-list');
     var filterWrap = document.getElementById('overview-layer-filters');
-    var storageKey = 'kv-overview-layer-filter-1-6-0';
+    var storageKey = 'kv-overview-layer-filter-1-7-1';
     var defaultView = { lat: 64.8, lng: 14.5, zoom: 4 };
     var activeLayerStatuses = { 'fredningsområde': true, 'stengt område': true, 'maksimalmål område': true, 'regulert område': true, 'nullfiskeområde': true };
     var fisheryPortalService = el.dataset.portalMapserver || 'https://portal.fiskeridir.no/server/rest/services/fiskeridirWMS_fiskeri/MapServer';
@@ -52,7 +52,7 @@
       rasterChunkSize: 18,
       layerPanelTargetEl: document.getElementById('overview-map-layer-panel-host'),
       layerPanelTargetSelector: '#overview-map-layer-panel-host',
-      layerPanelKey: 'overview-map-1-6-0',
+      layerPanelKey: 'overview-map-1-7-1',
       rasterLayerIds: (allLayers || []).map(function (layer) { return Number(layer && layer.id); }).filter(function (value) { return isFinite(value); }),
       rasterServices: null,
       identifyLayerIds: (allLayers || []).map(function (layer) { return Number(layer && layer.id); }).filter(function (value) { return isFinite(value); }),
@@ -145,7 +145,7 @@
         urls = urls.concat(collectTileUrls(layer, map, 2));
       });
       urls = uniqueUrls(urls);
-      return prefetchUrlsToCache(urls, 'kv-kontroll-1-6-0-map-tiles').then(function (count) {
+      return prefetchUrlsToCache(urls, 'kv-kontroll-1-7-1-map-tiles').then(function (count) {
         return { count: count, urls: urls };
       });
     }

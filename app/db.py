@@ -592,7 +592,7 @@ def create_case(created_by: int, investigator_name: str, complainant_name: str |
                 witness_name,
                 'patruljeobservasjon',
                 None,
-                'Det er opprettet kontrollsak for stedlig fiskerikontroll. Når kontrollposisjon, art/fiskeri og redskap er valgt, kan patruljeformålet oppdateres automatisk med tid, sted og kontrolltema.',
+                'Kontrollsak er opprettet. Bruk Sett inn standardtekst når nærmeste sted, kontrolltype, art/fiskeri og redskap er valgt.',
                 local_now,
                 None,
                 '[]',

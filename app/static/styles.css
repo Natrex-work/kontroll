@@ -3320,7 +3320,7 @@ body {
 
 .margin-top-xs { margin-top: .45rem; }
 
-/* 1.6.0: collapse relevant map areas/layers in the case form. */
+/* 1.7.1: collapse relevant map areas/layers in the case form. */
 .map-relevant-panel > summary.map-relevant-head {
   cursor: pointer;
   list-style: none;
@@ -3353,7 +3353,7 @@ body {
 }
 
 
-/* 1.6.0: compact case map with focus mode for iPhone/iPad field use. */
+/* 1.7.1: compact case map with focus mode for iPhone/iPad field use. */
 .compact-map-head { align-items: center; gap: 0.75rem; }
 .map-compact-status { padding: 0.55rem 0.75rem; }
 .case-map-card .case-map { min-height: 460px; }
@@ -3385,7 +3385,7 @@ body.case-map-focus-mode { overflow: hidden; }
   }
 }
 
-/* 1.6.0: responsivt temakart og flere lenker per avvik. */
+/* 1.7.1: responsivt temakart og flere lenker per avvik. */
 .kv-temalag-panel-external,
 .kv-temalag-card,
 .kv-temalag-groups,
@@ -3461,7 +3461,7 @@ body.case-map-focus-mode { overflow: hidden; }
 }
 
 
-/* 1.6.0: Kart og Område - responsivt temakart og faner for flere lenker. */
+/* 1.7.1: Kart og Område - responsivt temakart og faner for flere lenker. */
 .map-layer-panel-host,
 #overview-map-layer-panel-host,
 .kv-temalag-panel-external,
@@ -3541,7 +3541,7 @@ body.case-map-focus-mode { overflow: hidden; }
 }
 
 
-/* 1.6.0: Temakart skal passe mobilbredden uten horisontal zoom. */
+/* 1.7.1: Temakart skal passe mobilbredden uten horisontal zoom. */
 .map-layer-panel-host,
 .kv-temalag-panel,
 .kv-temalag-card,
@@ -3629,7 +3629,7 @@ body.case-map-focus-mode { overflow: hidden; }
   }
 }
 
-/* 1.6.0: raskere, smalere feltvisning for iPhone/iPad. */
+/* 1.7.1: raskere, smalere feltvisning for iPhone/iPad. */
 .case-map-card,
 .case-map-panel,
 .map-layer-panel-host,

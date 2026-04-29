@@ -453,7 +453,7 @@
     </div>
     <div class="signature-grid margin-top-s">
       <div class="signature-widget" data-signature-field="investigator_signature" data-signature-name-source="investigator_name"><div><strong>Etterforskers signatur</strong><div class="muted small signature-status">Ikke signert</div></div><button class="btn btn-secondary btn-small" type="button" data-signature-open>Signer</button></div>
-      <div class="signature-widget" data-signature-field="witness_signature" data-signature-name-source="witness_name"><div><strong>Vitnets signatur</strong><div class="muted small signature-status">Ikke signert</div></div><button class="btn btn-secondary btn-small" type="button" data-signature-open>Signer</button></div>
+      <div class="signature-widget" data-signature-field="witness_signature" data-signature-name-source="witness_name"><div><strong>Observatør/vitnes signatur</strong><div class="muted small signature-status">Ikke signert</div></div><button class="btn btn-secondary btn-small" type="button" data-signature-open>Signer</button></div>
       <div class="signature-widget" data-signature-field="suspect_signature" data-signature-name-source="suspect_name"><div><strong>Avhørtes / mistenktes signatur</strong><div class="muted small signature-status">Ikke signert</div></div><button class="btn btn-secondary btn-small" type="button" data-signature-open>Signer</button></div>
     </div>
     <div class="actions-row wrap margin-top-s">
@@ -478,7 +478,7 @@
     <label class="margin-top-m block"><span>Utfyllende merknader til beslag</span><textarea form="case-form" name="seizure_report_override" id="seizure_report_override" rows="4">{{ case.seizure_report_override or '' }}</textarea></label>
     <div class="signature-grid margin-top-s">
       <div class="signature-widget" data-signature-field="investigator_signature" data-signature-name-source="investigator_name"><div><strong>Etterforskers signatur</strong><div class="muted small signature-status">Ikke signert</div></div><button class="btn btn-secondary btn-small" type="button" data-signature-open>Signer</button></div>
-      <div class="signature-widget" data-signature-field="witness_signature" data-signature-name-source="witness_name"><div><strong>Vitnets signatur</strong><div class="muted small signature-status">Ikke signert</div></div><button class="btn btn-secondary btn-small" type="button" data-signature-open>Signer</button></div>
+      <div class="signature-widget" data-signature-field="witness_signature" data-signature-name-source="witness_name"><div><strong>Observatør/vitnes signatur</strong><div class="muted small signature-status">Ikke signert</div></div><button class="btn btn-secondary btn-small" type="button" data-signature-open>Signer</button></div>
     </div>
     <div class="step-actions"><button type="button" class="btn btn-secondary" data-prev-step>Tilbake</button><button type="button" class="btn btn-primary" data-next-step>Videre</button></div>
   </section>
@@ -496,7 +496,7 @@
     </div>
     <div class="signature-grid margin-top-s">
       <div class="signature-widget" data-signature-field="complainant_signature" data-signature-name-source="complainant_name"><div><strong>Anmelders signatur</strong><div class="muted small signature-status">Ikke signert</div></div><button class="btn btn-secondary btn-small" type="button" data-signature-open>Signer</button></div>
-      <div class="signature-widget" data-signature-field="witness_signature" data-signature-name-source="witness_name"><div><strong>Vitnets signatur</strong><div class="muted small signature-status">Ikke signert</div></div><button class="btn btn-secondary btn-small" type="button" data-signature-open>Signer</button></div>
+      <div class="signature-widget" data-signature-field="witness_signature" data-signature-name-source="witness_name"><div><strong>Observatør/vitnes signatur</strong><div class="muted small signature-status">Ikke signert</div></div><button class="btn btn-secondary btn-small" type="button" data-signature-open>Signer</button></div>
       <div class="signature-widget" data-signature-field="investigator_signature" data-signature-name-source="investigator_name"><div><strong>Etterforskers signatur</strong><div class="muted small signature-status">Ikke signert</div></div><button class="btn btn-secondary btn-small" type="button" data-signature-open>Signer</button></div>
     </div>
     <div class="actions-row wrap margin-top-s">
@@ -577,5 +577,5 @@
   }
 })();
 </script>
-<script src="/static/js/case-app.js?v=1.6.0"></script>
+<script src="/static/js/case-app.js?v=1.7.1"></script>
 {% endblock %}

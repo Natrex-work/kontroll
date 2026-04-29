@@ -81,7 +81,7 @@ def _offline_case_shell(user: dict[str, object], local_id: str = '') -> dict[str
         'witness_name': str(user.get('last_witness_name') or ''),
         'case_basis': 'patruljeobservasjon',
         'basis_source_name': '',
-        'basis_details': 'Det er opprettet lokal kontrollsak for stedlig fiskerikontroll. Når kontrollposisjon, art/fiskeri og redskap er valgt, kan patruljeformålet oppdateres automatisk med tid, sted og kontrolltema.',
+        'basis_details': 'Lokal kontrollsak er opprettet. Bruk Sett inn standardtekst når nærmeste sted, kontrolltype, art/fiskeri og redskap er valgt.',
         'control_type': '',
         'fishery_type': '',
         'species': '',
