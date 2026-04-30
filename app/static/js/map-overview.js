@@ -32,7 +32,7 @@
     var packagesList = document.getElementById('overview-offline-packages-list');
     var relevantAreasList = document.getElementById('overview-relevant-areas-list');
     var filterWrap = document.getElementById('overview-layer-filters');
-    var storageKey = 'kv-overview-layer-filter-1-8-0';
+    var storageKey = 'kv-overview-layer-filter-1-8-4';
     var defaultView = { lat: 64.8, lng: 14.5, zoom: 4 };
     var activeLayerStatuses = { 'fredningsområde': true, 'stengt område': true, 'maksimalmål område': true, 'regulert område': true, 'nullfiskeområde': true };
     var fisheryPortalService = el.dataset.portalMapserver || 'https://portal.fiskeridir.no/server/rest/services/fiskeridirWMS_fiskeri/MapServer';
@@ -52,7 +52,7 @@
       rasterChunkSize: 18,
       layerPanelTargetEl: document.getElementById('overview-map-layer-panel-host'),
       layerPanelTargetSelector: '#overview-map-layer-panel-host',
-      layerPanelKey: 'overview-map-1-8-0',
+      layerPanelKey: 'overview-map-1-8-4',
       rasterLayerIds: (allLayers || []).map(function (layer) { return Number(layer && layer.id); }).filter(function (value) { return isFinite(value); }),
       rasterServices: null,
       identifyLayerIds: (allLayers || []).map(function (layer) { return Number(layer && layer.id); }).filter(function (value) { return isFinite(value); }),
@@ -145,7 +145,7 @@
         urls = urls.concat(collectTileUrls(layer, map, 2));
       });
       urls = uniqueUrls(urls);
-      return prefetchUrlsToCache(urls, 'kv-kontroll-1-8-0-map-tiles').then(function (count) {
+      return prefetchUrlsToCache(urls, 'kv-kontroll-1-8-4-map-tiles').then(function (count) {
         return { count: count, urls: urls };
       });
     }
@@ -285,7 +285,7 @@
       state.latestZoneResult = null;
       redrawMap();
       renderRelevantAreas(null);
-      if (statusEl) statusEl.innerHTML = 'Kartet viser lovregulerte verne-/forbudsområder. Åpne temakartet for å velge lag.';
+      if (statusEl) statusEl.innerHTML = 'Punktkontrollen viser lovregulerte områder. Kartportalen over er hovedkartet.';
     }
 
     function applyPosition(position) {
@@ -444,7 +444,7 @@
       return fetch(url, { credentials: 'same-origin' })
         .then(function (response) { return response.json(); })
         .then(function (payload) {
-          var tilePromise = options.packageRow ? Promise.resolve({ count: Number(options.packageRow.tile_count || 0), urls: Array.isArray(options.packageRow.tile_urls) ? options.packageRow.tile_urls : [] }) : prefetchVisibleMapTiles();
+          var tilePromise = options.skipTiles ? Promise.resolve({ count: 0, urls: [] }) : (options.packageRow ? Promise.resolve({ count: Number(options.packageRow.tile_count || 0), urls: Array.isArray(options.packageRow.tile_urls) ? options.packageRow.tile_urls : [] }) : prefetchVisibleMapTiles());
           return tilePromise.then(function (tileInfo) {
             if (window.KVLocalMap && typeof window.KVLocalMap.saveOfflinePackage === 'function') {
               return window.KVLocalMap.saveOfflinePackage(layerIds, bbox, payload, {
@@ -513,7 +513,7 @@
 
     if (btnLocate) btnLocate.addEventListener('click', locateUser);
     if (btnNational) btnNational.addEventListener('click', function () { setNationalView(); });
-    if (btnDownloadOffline) btnDownloadOffline.addEventListener('click', function () { downloadCurrentMapToDevice(); });
+    if (btnDownloadOffline) btnDownloadOffline.addEventListener('click', function () { downloadCurrentMapToDevice({ skipTiles: true }); });
     if (btnRefreshPackages) btnRefreshPackages.addEventListener('click', function () {
       if (statusEl) statusEl.innerHTML = 'Oppdaterer lagrede offline-kartpakker ...';
       maintainOfflinePackages(true).then(function () { return autoRefreshStalePackages(); }).then(function () {

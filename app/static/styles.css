@@ -3320,7 +3320,7 @@ body {
 
 .margin-top-xs { margin-top: .45rem; }
 
-/* 1.8.0: collapse relevant map areas/layers in the case form. */
+/* 1.8.4: collapse relevant map areas/layers in the case form. */
 .map-relevant-panel > summary.map-relevant-head {
   cursor: pointer;
   list-style: none;
@@ -3353,7 +3353,7 @@ body {
 }
 
 
-/* 1.8.0: compact case map with focus mode for iPhone/iPad field use. */
+/* 1.8.4: compact case map with focus mode for iPhone/iPad field use. */
 .compact-map-head { align-items: center; gap: 0.75rem; }
 .map-compact-status { padding: 0.55rem 0.75rem; }
 .case-map-card .case-map { min-height: 460px; }
@@ -3385,7 +3385,7 @@ body.case-map-focus-mode { overflow: hidden; }
   }
 }
 
-/* 1.8.0: responsivt temakart og flere lenker per avvik. */
+/* 1.8.4: responsivt temakart og flere lenker per avvik. */
 .kv-temalag-panel-external,
 .kv-temalag-card,
 .kv-temalag-groups,
@@ -3461,7 +3461,7 @@ body.case-map-focus-mode { overflow: hidden; }
 }
 
 
-/* 1.8.0: Kart og Område - responsivt temakart og faner for flere lenker. */
+/* 1.8.4: Kart og Område - responsivt temakart og faner for flere lenker. */
 .map-layer-panel-host,
 #overview-map-layer-panel-host,
 .kv-temalag-panel-external,
@@ -3541,7 +3541,7 @@ body.case-map-focus-mode { overflow: hidden; }
 }
 
 
-/* 1.8.0: Temakart skal passe mobilbredden uten horisontal zoom. */
+/* 1.8.4: Temakart skal passe mobilbredden uten horisontal zoom. */
 .map-layer-panel-host,
 .kv-temalag-panel,
 .kv-temalag-card,
@@ -3629,7 +3629,7 @@ body.case-map-focus-mode { overflow: hidden; }
   }
 }
 
-/* 1.8.0: raskere, smalere feltvisning for iPhone/iPad. */
+/* 1.8.4: raskere, smalere feltvisning for iPhone/iPad. */
 .case-map-card,
 .case-map-panel,
 .map-layer-panel-host,
@@ -3735,7 +3735,7 @@ body.case-map-focus-mode { overflow: hidden; }
   }
 }
 
-/* 1.8.0: mobile-friendly control point deviations and link navigation */
+/* 1.8.4: mobile-friendly control point deviations and link navigation */
 .deviation-group-tabs {
   display: grid;
   gap: 0.55rem;
@@ -3892,5 +3892,77 @@ body.case-map-focus-mode { overflow: hidden; }
     width: 100%;
     min-width: 0;
     white-space: normal;
+  }
+}
+
+
+/* 1.8.4: synlig og klikkbar avvik/beslag-handling på iPhone */
+.finding-body-actions {
+  margin-top: -0.15rem;
+  margin-bottom: 0.15rem;
+}
+.finding-body-actions .deviation-add-body {
+  min-height: 2.75rem;
+  font-weight: 800;
+}
+@media (max-width: 760px) {
+  .finding-head-actions .deviation-add-top {
+    display: none;
+  }
+  .finding-body-actions,
+  .finding-body-actions .deviation-add-body {
+    width: 100%;
+  }
+  .finding-body-actions .deviation-add-body {
+    justify-content: center;
+  }
+}
+
+/* 1.8.4: Fiskeridirektoratets kartportal som primær Kart og Område-visning. */
+.portal-map-card {
+  overflow: hidden;
+}
+.portal-map-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.portal-map-frame-wrap {
+  width: 100%;
+  min-height: 68vh;
+  margin-top: 0.75rem;
+  border: 1px solid rgba(22, 63, 113, 0.16);
+  border-radius: 18px;
+  overflow: hidden;
+  background: #eef5fb;
+}
+.portal-map-frame {
+  display: block;
+  width: 100%;
+  height: 68vh;
+  min-height: 520px;
+  border: 0;
+}
+.portal-inline-card .btn {
+  width: auto;
+}
+.leaflet-map.compact-map {
+  min-height: 360px;
+}
+@media (max-width: 720px) {
+  .portal-map-frame-wrap,
+  .portal-map-frame {
+    min-height: 72vh;
+    height: 72vh;
+    border-radius: 14px;
+  }
+  .portal-map-head {
+    align-items: stretch;
+  }
+  .portal-map-head .btn,
+  .portal-inline-card .btn {
+    width: 100%;
   }
 }

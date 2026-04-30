@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
 from .. import live_sources
+from .. import area
 from ..dependencies import require_any_permission, require_permission
 from ..security import enforce_csrf
 from ..pdf_export import build_text_drafts
@@ -170,6 +171,46 @@ def api_zones_check(request: Request, lat: float = Query(..., ge=-90, le=90), ln
     require_any_permission(request, ['kart', 'kv_kontroll'], detail='Brukeren har ikke tilgang til kart- og omradekontroll.')
     return JSONResponse(check_zone_status(lat, lng, species=species, gear_type=gear_type, control_type=control_type), headers={'Cache-Control': 'no-store, max-age=0'})
 
+
+
+
+@router.get('/api/geo/reverse')
+def api_geo_reverse(request: Request, lat: float = Query(..., ge=-90, le=90), lng: float = Query(..., ge=-180, le=180)):
+    require_any_permission(request, ['kart', 'kv_kontroll'], detail='Brukeren har ikke tilgang til stedsoppslag.')
+    local_place = area.nearest_place(lat, lng) or {}
+    payload: dict = {
+        'found': False,
+        'nearest_place': str(local_place.get('name') or '').strip(),
+        'distance_to_place_km': local_place.get('distance_km'),
+        'location_name': str(local_place.get('name') or '').strip(),
+        'source': 'Lokal reserve'
+    }
+    try:
+        reverse = live_sources.reverse_geocode_live(lat, lng)
+        municipality = str(reverse.get('municipality') or '').strip()
+        locality = str(reverse.get('locality') or reverse.get('name') or payload.get('nearest_place') or '').strip()
+        parts = []
+        for value in [locality, municipality]:
+            value = str(value or '').strip()
+            if value and value not in parts:
+                parts.append(value)
+        label = ', '.join(parts) or str(reverse.get('location_label') or '').strip() or payload.get('location_name') or ''
+        payload.update({
+            'found': bool(reverse.get('found') or label),
+            'nearest_place': locality or payload.get('nearest_place') or '',
+            'locality': locality,
+            'municipality': municipality,
+            'county': reverse.get('county') or '',
+            'road': reverse.get('road') or '',
+            'postcode': reverse.get('postcode') or '',
+            'location_name': label,
+            'location_label': label,
+            'reverse_geocode': reverse,
+            'source': reverse.get('source') or 'OpenStreetMap Nominatim'
+        })
+    except Exception as exc:
+        payload['reverse_geocode'] = {'found': False, 'error': str(exc)}
+    return JSONResponse(payload, headers={'Cache-Control': 'no-store, max-age=0'})
 
 @router.get('/api/map/catalog')
 def api_map_catalog(request: Request, fishery: str = '', control_type: str = '', gear_type: str = '', fresh: bool = False):

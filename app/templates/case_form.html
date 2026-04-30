@@ -55,6 +55,7 @@
      data-case-id="{{ offline_local_id or case.id }}"
      data-rules-url="/api/rules"
      data-zones-url="/api/zones/check"
+     data-geo-reverse-url="/api/geo/reverse"
      data-registry-url="/api/registry/lookup"
      data-summary-url="/api/summary/suggest"
      data-autosave-url="{% if not offline_new %}/api/cases/{{ case.id }}/autosave{% endif %}"
@@ -171,6 +172,11 @@
         </div>
         <div class="subcard">
           <h3>Kart og område</h3>
+          <div class="callout margin-top-s portal-inline-card">
+            <strong>Fiskeridirektoratets kartportal</strong>
+            <div class="small muted">Brukes som hovedkart for full kartoversikt. Kontroll ved posisjon under viser bare relevante reguleringsområder ut fra valgt kontrolltype, art/fiskeri og redskap.</div>
+            <a class="btn btn-secondary btn-small margin-top-s" href="{{ portal_map_url }}" target="_blank" rel="noopener">Åpne kartportal</a>
+          </div>
           <div class="grid-two compact-grid-form margin-top-s">
             <label><span>Nærmeste sted</span><input name="location_name" id="location_name" value="{{ case.location_name or '' }}" /><span class="small coordinate-summary" id="position-coordinate-summary">DMS vises her når posisjon er satt.</span></label>
             <div class="position-action-group">
@@ -179,7 +185,7 @@
                 <button type="button" class="btn btn-secondary" id="btn-use-location">Bruk min posisjon</button>
                 <button type="button" class="btn btn-secondary" id="btn-set-manual-position">Sett manuelt i kart</button>
                 <button type="button" class="btn btn-secondary" id="btn-check-zone">Oppdater verneområder</button>
-                <button type="button" class="btn btn-secondary" id="btn-download-map-offline">Last ned offline-kart</button>
+                <button type="button" class="btn btn-secondary" id="btn-download-map-offline">Lagre reguleringer lokalt</button>
               </div>
             </div>
             <details class="coordinate-disclosure span-2">
@@ -198,10 +204,10 @@
       </div>
       <div class="subcard margin-top-m case-map-card" id="case-map-card">
         <div class="subcard-head compact-map-head">
-          <h3>Verneområdekart</h3>
+          <h3>Kontroll ved posisjon</h3>
           <button type="button" class="btn btn-secondary btn-small" id="btn-toggle-case-map-fullscreen">Åpne kart</button>
         </div>
-        <div class="callout margin-top-s map-compact-status" id="map-selection-status">Relevante verneområder vises i kartet.</div>
+        <div class="callout margin-top-s map-compact-status" id="map-selection-status">Kun relevante reguleringsområder vises i kartet.</div>
         <button type="button" class="hidden" id="toggle-zone-hit-overlay" aria-hidden="true" tabindex="-1"><span id="toggle-zone-hit-overlay-text"></span></button>
         <details class="map-relevant-panel margin-top-s" id="case-relevant-areas">
           <summary class="map-relevant-head">
@@ -210,16 +216,16 @@
           </summary>
           <div class="map-relevant-list" id="case-relevant-areas-list"><div class="muted small">Velg kontrolltype og redskap.</div></div>
         </details>
-        <div class="callout margin-top-s" id="map-offline-status">Kartdata lagres lokalt ved behov.</div>
+        <div class="callout margin-top-s" id="map-offline-status">Relevante reguleringsområder lagres lokalt for rask feltvisning.</div>
         <div class="offline-packages-panel margin-top-s">
           <div class="offline-packages-head">
             <div>
-              <strong>Offline-kartpakker</strong>
-              <div class="muted small">Lagret på enheten.</div>
+              <strong>Offline-reguleringer</strong>
+              <div class="muted small">Lagret på enheten for valgt område.</div>
             </div>
             <button type="button" class="btn btn-secondary btn-small" id="btn-refresh-offline-packages">Oppdater lagrede pakker</button>
           </div>
-          <div class="callout margin-top-s" id="offline-packages-summary">Ingen offline-kartpakker er lagret på denne enheten ennå.</div>
+          <div class="callout margin-top-s" id="offline-packages-summary">Ingen offline-reguleringer er lagret på denne enheten ennå.</div>
           <div class="offline-packages-list" id="offline-packages-list"></div>
         </div>
         <div id="case-position-map" class="leaflet-map case-map" data-portal-catalog='{{ portal_layers|tojson }}' data-portal-mapserver="{{ portal_mapserver_url }}" data-portal-vern-mapserver="{{ portal_vern_mapserver_url }}"></div>
@@ -577,5 +583,5 @@
   }
 })();
 </script>
-<script src="/static/js/case-app.js?v=1.8.0"></script>
+<script src="/static/js/case-app.js?v=1.8.4"></script>
 {% endblock %}

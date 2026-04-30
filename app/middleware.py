@@ -42,6 +42,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
                 "connect-src 'self' https://cdn.jsdelivr.net https://gis.fiskeridir.no https://portal.fiskeridir.no",
                 "media-src 'self' blob:",
                 "worker-src 'self' blob:",
+                "frame-src 'self' https://portal.fiskeridir.no",
                 "upgrade-insecure-requests",
             ]
         )
