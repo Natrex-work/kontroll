@@ -3966,3 +3966,51 @@ body.case-map-focus-mode { overflow: hidden; }
     width: 100%;
   }
 }
+
+/* 1.8.5 Kontrollpunkter: lenker og beslag på mobil */
+.control-link-toolbar { margin-bottom: 12px; }
+.control-link-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  border: 1px solid var(--border, #d8dee8);
+  border-radius: 14px;
+  padding: 10px;
+  background: var(--card-muted, #f8fafc);
+}
+.control-link-tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+}
+.control-link-tab {
+  border: 1px solid var(--border, #cfd8e3);
+  background: #fff;
+  border-radius: 999px;
+  padding: 7px 12px;
+  white-space: nowrap;
+  font-weight: 700;
+}
+.control-link-tab.is-active {
+  background: var(--brand, #0f766e);
+  border-color: var(--brand, #0f766e);
+  color: #fff;
+}
+.deviation-report-draft {
+  min-height: 72px;
+  resize: vertical;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 0.92rem;
+}
+@media (max-width: 680px) {
+  .control-link-card { align-items: stretch; }
+  .control-link-card > .check-chip,
+  .control-link-card > .btn { width: 100%; justify-content: center; }
+  .control-link-tabs { width: 100%; }
+  .control-link-tab { flex: 0 0 auto; }
+  .deviation-report-draft { grid-column: 1 / -1; width: 100%; }
+}

@@ -642,12 +642,74 @@
     return 'Annet';
   }
 
+  var controlLinkModeEnabled = false;
+  var controlLinkPageCount = 1;
+  var controlLinkActiveIndex = 0;
+
+  function ensureControlLinkState() {
+    var maxGroup = 0;
+    (findingsState || []).forEach(function (finding) {
+      ensureDeviationState(finding).forEach(function (row) {
+        var group = Number(row.link_group_index || 0);
+        if (isFinite(group) && group > maxGroup) maxGroup = group;
+      });
+    });
+    controlLinkPageCount = Math.max(controlLinkPageCount || 1, maxGroup + 1, 1);
+    if (!isFinite(controlLinkActiveIndex) || controlLinkActiveIndex < 0) controlLinkActiveIndex = 0;
+    if (controlLinkActiveIndex >= controlLinkPageCount) controlLinkActiveIndex = controlLinkPageCount - 1;
+    return { enabled: Boolean(controlLinkModeEnabled), count: controlLinkPageCount, activeIndex: controlLinkActiveIndex };
+  }
+
+  function setActiveControlLinkIndex(index) {
+    ensureControlLinkState();
+    var idx = Number(index || 0);
+    if (!isFinite(idx) || idx < 0) idx = 0;
+    if (idx >= controlLinkPageCount) idx = controlLinkPageCount - 1;
+    controlLinkActiveIndex = idx;
+    (findingsState || []).forEach(function (finding) {
+      finding.active_deviation_link_index = controlLinkActiveIndex;
+    });
+  }
+
+  function renderControlLinkToolbar() {
+    if (!controlLinkToolbar) return;
+    var state = ensureControlLinkState();
+    var tabs = [];
+    for (var i = 0; i < state.count; i += 1) {
+      var active = i === state.activeIndex ? ' is-active' : '';
+      tabs.push('<button type="button" class="control-link-tab' + active + '" data-link-index="' + i + '" aria-pressed="' + (i === state.activeIndex ? 'true' : 'false') + '">Lenke ' + (i + 1) + '</button>');
+    }
+    controlLinkToolbar.innerHTML = [
+      '<div class="control-link-card">',
+      '<label class="check-chip"><input type="checkbox" id="control-link-mode" ' + (state.enabled ? 'checked' : '') + ' /> Lenke</label>',
+      '<div class="control-link-tabs" role="tablist" aria-label="Lenker">' + tabs.join('') + '</div>',
+      '<button type="button" class="btn btn-secondary btn-small" id="control-link-add">Legg til lenke</button>',
+      '</div>'
+    ].join('');
+  }
+
+  function deviationReportDraftText(item, row) {
+    row = row || {};
+    var parts = [];
+    var ref = String(row.seizure_ref || '').trim();
+    var kind = String(row.gear_kind || defaultDeviationGearKind()).trim();
+    var quantity = String(row.quantity || '1').trim();
+    var violation = String(row.violation || suggestedDeviationText(item)).trim();
+    var position = String(row.position || currentCoordText()).trim();
+    if (ref) parts.push('Beslagsnummer: ' + ref + '.');
+    parts.push('Gjenstand: ' + quantity + ' ' + kind.toLowerCase() + '.');
+    if (violation) parts.push('Grunnlag for beslag/avvik: ' + violation + '.');
+    if (position) parts.push('Posisjon: ' + position + '.');
+    parts.push('Bildebevis kan tas med kamera eller lastes opp og legges i illustrasjonsrapporten.');
+    return parts.join(' ');
+  }
+
   function defaultDeviationGearKind() {
     return normalizeDeviationGearKind((document.getElementById('gear_type') || {}).value || 'Teine');
   }
 
   function defaultDeviationRow(item) {
-    var activeGroup = Number(item && item.active_deviation_link_index || 0);
+    var activeGroup = Number(controlLinkModeEnabled ? controlLinkActiveIndex : (item && item.active_deviation_link_index || 0));
     if (!isFinite(activeGroup) || activeGroup < 0) activeGroup = 0;
     return { seizure_ref: '', linked_seizure_ref: '', gear_kind: defaultDeviationGearKind(), gear_ref: '', quantity: '1', position: currentCoordText(), violation: suggestedDeviationText(item), note: '', links: [defaultDeviationLink()], active_link_index: 0, link_group_index: activeGroup };
   }
@@ -1060,7 +1122,6 @@
       '<div class="finding-extra finding-deviations ' + (isAvvik ? '' : 'hidden') + '">',
       '<div class="subhead">Legg til redskap/beslag</div>',
       '<div class="small muted deviation-short-help">Bla mellom lenker øverst. Hvert avvik kan ha eget eller gjenbrukt beslagsnummer.</div>',
-      deviationGroupTabsHtml(item),
       '<div class="deviation-list">' + rows.map(function (row, dIndex) {
         var linkedCount = evidenceItemsForDeviation(item, row).length;
         var selectedClass = selectedInlineTargetMatches(item, row) ? ' deviation-row-selected' : '';
@@ -1070,7 +1131,6 @@
         return [
           '<div class="deviation-row' + selectedClass + '" data-dev-index="' + dIndex + '" data-link-group-index="' + rowGroup + '" data-seizure-ref="' + escapeHtml(String(row.seizure_ref || '')) + '"' + groupHidden + '>',
           '<div class="deviation-row-head"><strong>Lenke ' + (rowGroup + 1) + ' · Avvik ' + (dIndex + 1) + '</strong><span class="muted small">' + escapeHtml(row.seizure_ref || 'Beslag opprettes') + '</span></div>',
-          deviationLinksHtml(row, dIndex),
           '<div class="deviation-row-fields">',
           '<input class="deviation-seizure-ref" placeholder="Beslagsnr." title="Beslagsnummer" value="' + escapeHtml(row.seizure_ref || '') + '" readonly />',
           '<select class="deviation-existing-gear" title="Tidligere beslag/redskap i saken">' + deviationExistingGearOptionsHtml(row) + '</select>',
@@ -1079,7 +1139,8 @@
           '<input class="deviation-position" placeholder="Posisjon" value="' + escapeHtml(row.position || '') + '" />',
           '<button type="button" class="btn btn-secondary btn-small deviation-position-fill">Bruk posisjon</button>',
           '<input class="deviation-violation" placeholder="Korttekst avvik" value="' + escapeHtml(row.violation || '') + '" />',
-          '<input class="deviation-note" placeholder="Merknad" value="' + escapeHtml(row.note || '') + '" />',
+          '<input class="deviation-note" placeholder="Manuell merknad" value="' + escapeHtml(row.note || '') + '" />',
+          '<textarea class="deviation-report-draft span-2" rows="3" readonly title="Autogenerert tekst til beslagsrapport">' + escapeHtml(deviationReportDraftText(item, row)) + '</textarea>',
           '<button type="button" class="btn btn-secondary btn-small deviation-evidence-link ' + (isAvvik ? '' : 'hidden') + '">' + (linkedCount ? ('Bilde (' + linkedCount + ')') : 'Bilde') + '</button>',
           '<button type="button" class="btn btn-secondary btn-small deviation-camera ' + (isAvvik ? '' : 'hidden') + '">Kamera</button>',
           '<button type="button" class="btn btn-secondary btn-small deviation-file ' + (isAvvik ? '' : 'hidden') + '">Legg til bilde</button>',
@@ -1122,7 +1183,7 @@
       '<div><strong>' + escapeHtml(item.label || item.key || ('Punkt ' + (index + 1))) + '</strong>',
       '<div class="muted small">' + escapeHtml(findingSource(item)) + '</div></div>',
       '<div class="finding-head-actions">',
-      '<button type="button" class="btn btn-secondary btn-small deviation-add-top">' + (isAvvik ? 'Legg til redskap/beslag' : 'Avvik + beslag') + '</button>',
+      isAvvik ? '<button type="button" class="btn btn-secondary btn-small deviation-add-top">Legg til redskap/beslag</button>' : '',
       (item.help_text || item.law_text) ? '<button type="button" class="help-toggle" title="Vis hjemmel og paragraf">?</button>' : '',
       '</div>',
       '</div>',
@@ -1136,7 +1197,7 @@
       '<option value="ikke relevant" ' + (item.status === 'ikke relevant' ? 'selected' : '') + '>ikke relevant</option>',
       '</select></label>',
       '<label><span>Notat / begrunnelse</span><textarea class="finding-notes" rows="3" placeholder="Skriv kort hva som ble observert">' + escapeHtml(item.notes || '') + '</textarea></label>',
-      '<div class="finding-body-actions actions-row wrap"><button type="button" class="btn btn-primary btn-small deviation-add-body">' + (isAvvik ? 'Legg til redskap/beslag' : 'Avvik + beslag') + '</button></div>',
+      isAvvik ? '<div class="finding-body-actions actions-row wrap"><button type="button" class="btn btn-primary btn-small deviation-add-body">Legg til redskap/beslag</button></div>' : '',
       measurementSectionHtml(item, index),
       markerSectionHtml(item),
       deviationSectionHtml(item),
@@ -1641,7 +1702,7 @@
       if (/(breivikfjorden|borgundfjorden|henningsvaer|lofotfiske)/.test(restrictionText) && !/(torsk|skrei|kommersiell|yrkes)/.test([currentFisherySelection(), currentControlSelection(), restrictionText].join(' '))) return false;
       var status = String(layer.status || '').trim().toLowerCase();
       if (Object.prototype.hasOwnProperty.call(activeLayerStatuses, status) && !activeLayerStatuses[status]) return false;
-      // 1.8.4: Temakartet kan vise bredt uten valg, men under kontroll
+      // 1.8.5: Temakartet kan vise bredt uten valg, men under kontroll
       // skal kartet bare vise lovregulerte lag som passer valgt kontrolltype,
       // art/fiskeri og redskap.
       if (!hasMapSelection()) return true;
@@ -2270,6 +2331,7 @@
     var interviewNotConductedReason = document.getElementById('interview_not_conducted_reason');
     var interviewGuidanceText = document.getElementById('interview_guidance_text');
     var findingsList = document.getElementById('findings-list');
+    var controlLinkToolbar = document.getElementById('control-link-toolbar');
     var sourceList = document.getElementById('rule-source-list');
     var metaBox = document.getElementById('rule-bundle-meta');
     var zoneResult = document.getElementById('zone-result');
@@ -3866,6 +3928,8 @@
 
     function renderFindings() {
       findingsInput.value = JSON.stringify(findingsState);
+      ensureControlLinkState();
+      renderControlLinkToolbar();
       if (!findingsState.length) {
         findingsList.innerHTML = '<div class="callout">Ingen kontrollpunkter er valgt ennå. Velg kontrolltype, art/fiskeri og redskap for å hente relevante kontrollpunkter automatisk.</div>';
         renderSeizureReports({ mergeDefaults: true });
@@ -5133,8 +5197,8 @@
       return rows;
     }
 
-    var zoneResultStoragePrefix = 'kv-zone-result-1.8.4:';
-    var nearestPlaceStoragePrefix = 'kv-nearest-place-1.8.4:';
+    var zoneResultStoragePrefix = 'kv-zone-result-1.8.5:';
+    var nearestPlaceStoragePrefix = 'kv-nearest-place-1.8.5:';
     var nearestPlaceController = null;
     var nearestPlaceSequence = 0;
     var nearestPlaceTimer = null;
@@ -5434,7 +5498,7 @@
       scheduleAutosave('Manuell posisjon aktivert');
     }
 
-    var devicePositionStorageKey = 'kv-device-position-1.8.4';
+    var devicePositionStorageKey = 'kv-device-position-1.8.5';
     function readCachedDevicePosition() {
       if (!window.localStorage) return null;
       try {
@@ -6559,6 +6623,38 @@ function renderHummerStatus(result) {
       field.addEventListener('change', updateExternalSearchLinks);
     });
 
+    if (controlLinkToolbar) {
+      controlLinkToolbar.addEventListener('change', function (event) {
+        if (event.target && event.target.id === 'control-link-mode') {
+          controlLinkModeEnabled = Boolean(event.target.checked);
+          setActiveControlLinkIndex(controlLinkActiveIndex);
+          findingsInput.value = JSON.stringify(findingsState);
+          renderFindings();
+          scheduleAutosave(controlLinkModeEnabled ? 'Lenke aktivert' : 'Lenke deaktivert');
+        }
+      });
+      controlLinkToolbar.addEventListener('click', function (event) {
+        var tab = event.target.closest('.control-link-tab');
+        if (tab) {
+          event.preventDefault();
+          setActiveControlLinkIndex(Number(tab.dataset.linkIndex || 0));
+          findingsInput.value = JSON.stringify(findingsState);
+          renderFindings();
+          scheduleAutosave('Lenke valgt');
+          return;
+        }
+        if (event.target && event.target.id === 'control-link-add') {
+          event.preventDefault();
+          controlLinkModeEnabled = true;
+          controlLinkPageCount = Math.max(1, controlLinkPageCount || 1) + 1;
+          setActiveControlLinkIndex(controlLinkPageCount - 1);
+          findingsInput.value = JSON.stringify(findingsState);
+          renderFindings();
+          scheduleAutosave('Ny lenke lagt til');
+        }
+      });
+    }
+
     findingsList.addEventListener('change', function (event) {
       var card = event.target.closest('.finding-card');
       if (!card) return;
@@ -6567,8 +6663,10 @@ function renderHummerStatus(result) {
       if (event.target.classList.contains('finding-status')) {
         findingsState[idx].status = event.target.value;
         if (event.target.value === 'avvik') {
+          findingsState[idx].active_deviation_link_index = controlLinkModeEnabled ? controlLinkActiveIndex : Number(findingsState[idx].active_deviation_link_index || 0);
           var autoRows = ensureDeviationState(findingsState[idx]);
           if (!autoRows.length) autoRows.push(defaultDeviationRow(findingsState[idx]));
+          autoRows.forEach(function (row) { if (row && (!isFinite(Number(row.link_group_index)) || Number(row.link_group_index) < 0)) row.link_group_index = findingsState[idx].active_deviation_link_index || 0; });
           normalizeDeviationLinkGroups(findingsState[idx]);
           syncDeviationDefaults(findingsState[idx]);
           selectedInlineEvidenceTarget = { finding_key: findingsState[idx].key || '', seizure_ref: (autoRows[0] && autoRows[0].seizure_ref) || '' };
@@ -6865,7 +6963,7 @@ function renderHummerStatus(result) {
         findingsState[idx].status = 'avvik';
         var addState = normalizeDeviationLinkGroups(item);
         var addRows = ensureDeviationState(item);
-        var activeLinkGroup = Number(item.active_deviation_link_index || addState.activeIndex || 0);
+        var activeLinkGroup = Number(controlLinkModeEnabled ? controlLinkActiveIndex : (item.active_deviation_link_index || addState.activeIndex || 0));
         if (!isFinite(activeLinkGroup) || activeLinkGroup < 0) activeLinkGroup = 0;
         var newRow = defaultDeviationRow(item);
         newRow.link_group_index = activeLinkGroup;
