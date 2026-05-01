@@ -92,9 +92,9 @@ def _env_int(name: str, default: int, *, minimum: int, maximum: int) -> int:
     return max(minimum, min(maximum, value))
 
 
-OCR_MAX_SIDE = _env_int('KV_OCR_MAX_SIDE', 2800, minimum=1100, maximum=3600)
-OCR_MIN_SIDE = _env_int('KV_OCR_MIN_SIDE', 1600, minimum=700, maximum=2600)
-OCR_VARIANT_LIMIT = _env_int('KV_OCR_VARIANT_LIMIT', 20, minimum=3, maximum=28)
+OCR_MAX_SIDE = _env_int('KV_OCR_MAX_SIDE', 3200, minimum=1100, maximum=4200)
+OCR_MIN_SIDE = _env_int('KV_OCR_MIN_SIDE', 1800, minimum=700, maximum=3200)
+OCR_VARIANT_LIMIT = _env_int('KV_OCR_VARIANT_LIMIT', 24, minimum=3, maximum=34)
 OCR_ATTEMPT_TIMEOUT_MAX = _env_int('KV_OCR_ATTEMPT_TIMEOUT', 12, minimum=3, maximum=18)
 OCR_ENABLE_DESKEW = os.getenv('KV_OCR_ENABLE_DESKEW', '1').lower() in {'1', 'true', 'yes', 'on'}
 
@@ -417,6 +417,8 @@ def _prepare_variants(image: Image.Image, *, label_mode: bool = False) -> list[t
     threshold = enhanced.point(lambda px: 255 if px > (148 if label_mode else 156) else 0)
     sparse = ImageEnhance.Contrast(enhanced).enhance(1.9 if label_mode else 1.7)
     medium = ImageEnhance.Contrast(gray).enhance(1.35 if label_mode else 1.25)
+    sharp = ImageEnhance.Sharpness(ImageEnhance.Contrast(enhanced).enhance(2.25 if label_mode else 1.9)).enhance(3.0 if label_mode else 2.2)
+    inverted = ImageOps.invert(enhanced.convert('L'))
     upscaled = enhanced
     longest = max(enhanced.size or (0, 0))
     target = 1800 if label_mode else 1500
@@ -441,6 +443,8 @@ def _prepare_variants(image: Image.Image, *, label_mode: bool = False) -> list[t
         (prefix + 'rotert høyre', rotated_right, f'--oem 1 --psm {base_psm} preserve_interword_spaces=1'),
         (prefix + 'rotert 180', rotated_180, f'--oem 1 --psm {base_psm} preserve_interword_spaces=1'),
         (prefix + 'høy kontrast', threshold, f'--oem 1 --psm {alt_psm} preserve_interword_spaces=1'),
+        (prefix + 'ekstra skarp', sharp, f'--oem 1 --psm {base_psm} preserve_interword_spaces=1'),
+        (prefix + 'invertert tekst', inverted, f'--oem 1 --psm {alt_psm} preserve_interword_spaces=1'),
         (prefix + 'sparsom tekst', sparse, f'--oem 1 --psm {alt_psm} preserve_interword_spaces=1'),
         (prefix + 'enkel linje', medium, f'--oem 1 --psm {line_psm} preserve_interword_spaces=1'),
     ])
@@ -471,8 +475,8 @@ def _preferred_variants(image: Image.Image, label_crops: list[Image.Image]) -> l
     variants.extend(deskewed[:6])
     full_variants = _prepare_variants(image, label_mode=False)
     variants.extend(full_variants[:5 if not deskewed else 4])
-    for crop in label_crops[:3]:
-        variants.extend(_prepare_variants(crop, label_mode=True)[:5])
+    for crop in label_crops[:4]:
+        variants.extend(_prepare_variants(crop, label_mode=True)[:6])
     variants.extend(full_variants[5:8])
     if len(label_crops) > 3:
         variants.extend(_prepare_variants(label_crops[3], label_mode=True)[:3])
@@ -484,7 +488,7 @@ def _preferred_variants(image: Image.Image, label_crops: list[Image.Image]) -> l
             continue
         seen.add(key)
         deduped.append((label, variant, config))
-    return deduped[:22]
+    return deduped[:30]
 
 
 def _field_value_score(field: str, value: str) -> int:
@@ -575,7 +579,7 @@ def extract_text_from_image(content: bytes, *, filename: str = '', timeout_secon
     label_crops = _candidate_label_crops(image)
     timed_out = False
     try:
-        variant_limit = OCR_VARIANT_LIMIT if max_wall_seconds <= 32 else min(28, OCR_VARIANT_LIMIT + 6)
+        variant_limit = OCR_VARIANT_LIMIT if max_wall_seconds <= 32 else min(34, OCR_VARIANT_LIMIT + 8)
         variants = _preferred_variants(image, label_crops)[:variant_limit]
         for label, variant, config in variants:
             remaining = deadline - time.monotonic()
@@ -632,11 +636,20 @@ def extract_text_from_image(content: bytes, *, filename: str = '', timeout_secon
         if timed_out:
             raise ValueError('OCR brukte for lang tid uten a finne tydelig tekst. Prov et skarpere og tettere bilde.')
         raise ValueError('Ingen tydelig tekst ble funnet i bildet.')
+    confidence = max(0, min(100, int(round(best_score / 2.4))))
+    uncertain_fields = []
+    for field in ['name', 'address', 'post_place', 'phone', 'vessel_reg', 'gear_marker_id', 'radio_call_sign', 'hummer_participant_no']:
+        value = str(best_hints.get(field) or '').strip()
+        if value and _field_value_score(field, value) < FIELD_BONUS.get(field, 0) + 8:
+            uncertain_fields.append(field)
     return {
         'text': normalized_text,
         'raw_text': best_text,
         'hints': best_hints,
         'strategy': str(best.get('strategy') or 'forbedret bilde'),
+        'confidence': confidence,
+        'needs_manual_review': confidence < 78 or bool(uncertain_fields),
+        'uncertain_fields': uncertain_fields,
         'attempts': [{
             'strategy': str(item.get('strategy') or ''),
             'score': int(item.get('_score') or 0),

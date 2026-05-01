@@ -792,6 +792,17 @@ def get_rule_bundle(
                     items.append(item)
                     break
 
+    if not items:
+        items.append(_item(
+            'generell_kontrollpunktliste',
+            'Generell kontroll av valgt fiskeri/redskap',
+            HOSTING_LAW,
+            'Generell kontroll',
+            'Kontroller at valgt fiske/fangst, redskap, merking og posisjon er i samsvar med gjeldende lov, forskrift og eventuelle J-meldinger for området.',
+            'Kontroller redskap, merking, antall, posisjon og eventuelle områdereguleringer. Velg art/fiskeri og redskap for mer presise kontrollpunkter.',
+            'Bruk dette som midlertidig kontrollpunkt dersom art/fiskeri eller redskap ikke er ferdig valgt.',
+        ))
+
     items = [_date_note(control_date, _clone(item), latitude=lat) for item in _unique(items)]
 
     description = 'Appen viser bare kontrollpunkter som er relevante for valgt kontrolltype, art, redskap, dato, registrert områdestatus og tilgjengelig posisjon.'
