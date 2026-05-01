@@ -462,7 +462,10 @@ def _clean_ocr_text(text: str) -> str:
             continue
         line = re.sub(r'^[^A-Za-zÆØÅæøå0-9]+', '', line)
         line = re.sub(r'[^A-Za-zÆØÅæøå0-9.,:+\- ]+$', '', line)
+        # Normalize Norwegian phone prefixes: "TLF: 47 12345678" → "TLF. 12345678"
         line = re.sub(r'\bTLF\s*[:.-]?\s*47\b', 'TLF.', line, flags=re.I)
+        # Strip standalone +47/0047 prefix before 8-digit number: "+47 12345678" → "12345678"
+        line = re.sub(r'(?<!\w)(?:\+47|0047)\s*(\d{8})(?!\d)', r'\1', line)
         if not line:
             continue
         lines.append(line)
@@ -636,7 +639,15 @@ def extract_text_from_image(content: bytes, *, filename: str = '', timeout_secon
         if timed_out:
             raise ValueError('OCR brukte for lang tid uten a finne tydelig tekst. Prov et skarpere og tettere bilde.')
         raise ValueError('Ingen tydelig tekst ble funnet i bildet.')
-    confidence = max(0, min(100, int(round(best_score / 2.4))))
+    # Confidence: map score to 0-100.
+    # ~60 = minimal readable text, ~260 = strong multi-field result.
+    _CONF_LOW = 60
+    _CONF_HIGH = 260
+    if best_score <= _CONF_LOW:
+        confidence = max(0, int(round((best_score / max(_CONF_LOW, 1)) * 45)))
+    else:
+        confidence = 45 + int(round(((best_score - _CONF_LOW) / (_CONF_HIGH - _CONF_LOW)) * 55))
+    confidence = max(0, min(100, confidence))
     uncertain_fields = []
     for field in ['name', 'address', 'post_place', 'phone', 'vessel_reg', 'gear_marker_id', 'radio_call_sign', 'hummer_participant_no']:
         value = str(best_hints.get(field) or '').strip()

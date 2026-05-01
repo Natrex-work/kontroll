@@ -1882,6 +1882,12 @@ body {
 .ocr-preview-item strong {
   font-size: 0.95rem;
 }
+.ocr-uncertain {
+  outline: 2px solid #e6a817;
+  outline-offset: 2px;
+  background-color: #fffbee;
+  transition: outline 0.2s, background-color 0.2s;
+}
 @media (max-width: 960px) {
   .sea-hero,
   .hero-home {

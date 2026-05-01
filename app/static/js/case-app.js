@@ -345,6 +345,33 @@
   }
 
 
+  var _uncertainFieldTimeout = null;
+  function markUncertainFields(uncertainFields) {
+    var fieldMap = {
+      name: ['suspect_name', 'suspect_name_commercial', 'lookup_name'],
+      address: ['suspect_address'],
+      post_place: ['suspect_post_place'],
+      phone: ['suspect_phone', 'lookup_identifier'],
+      birthdate: ['suspect_birthdate'],
+      vessel_reg: ['vessel_reg', 'lookup_identifier'],
+      radio_call_sign: ['radio_call_sign'],
+      hummer_participant_no: ['hummer_participant_no', 'lookup_identifier'],
+      gear_marker_id: ['gear_marker_id'],
+    };
+    document.querySelectorAll('.ocr-uncertain').forEach(function (el) { el.classList.remove('ocr-uncertain'); });
+    clearTimeout(_uncertainFieldTimeout);
+    if (!Array.isArray(uncertainFields) || !uncertainFields.length) return;
+    uncertainFields.forEach(function (field) {
+      (fieldMap[field] || []).forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.classList.add('ocr-uncertain');
+      });
+    });
+    _uncertainFieldTimeout = setTimeout(function () {
+      document.querySelectorAll('.ocr-uncertain').forEach(function (el) { el.classList.remove('ocr-uncertain'); });
+    }, 30000);
+  }
+
   function sourceChip(item) {
     var label = '<strong>' + escapeHtml(item.name || 'Kilde') + '</strong><span>' + escapeHtml(item.ref || '') + '</span>';
     if (item.url) return '<a class="source-chip" href="' + escapeHtml(item.url) + '" target="_blank" rel="noopener">' + label + '</a>';
@@ -4201,7 +4228,20 @@
       appendQueryValue(params, 'gear_type', gearType.value);
       appendQueryValue(params, 'area_status', areaStatus.value || '');
       appendQueryValue(params, 'area_name', areaName.value || '');
-      appendQueryValue(params, 'area_notes', zoneResult ? (zoneResult.textContent || '') : '');
+      var areaNotesText = '';
+      if (latestZoneResult) {
+        var noteParts = [];
+        if (latestZoneResult.notes) noteParts.push(String(latestZoneResult.notes));
+        if (Array.isArray(latestZoneResult.hits)) {
+          latestZoneResult.hits.forEach(function (hit) {
+            if (hit && hit.name) noteParts.push(String(hit.name));
+            if (hit && hit.notes) noteParts.push(String(hit.notes));
+            if (hit && hit.description) noteParts.push(String(hit.description));
+          });
+        }
+        areaNotesText = noteParts.filter(Boolean).join(' ');
+      }
+      appendQueryValue(params, 'area_notes', areaNotesText);
       appendQueryValue(params, 'control_date', startTime.value || '');
       appendOptionalNumberQuery(params, 'lat', latitude.value || '');
       appendOptionalNumberQuery(params, 'lng', longitude.value || '');
@@ -4737,11 +4777,22 @@
       if (registryResult) {
         var confidence = Number(result && result.confidence);
         var confidenceText = isFinite(confidence) ? (' · sikkerhet ' + Math.max(0, Math.min(100, Math.round(confidence))) + '%') : '';
-        var reviewText = result && result.needs_manual_review ? '<div class="callout area-warning margin-top-s"><strong>Kontroller manuelt</strong><div>OCR er usikker. Se gjennom merkeskilt, navn/adresse og nummer før du går videre.</div></div>' : '';
+        var uncertainLabels = {
+          name: 'navn', address: 'adresse', post_place: 'poststed', phone: 'telefon',
+          vessel_reg: 'fiskerimerke', radio_call_sign: 'radiokallesignal',
+          hummer_participant_no: 'hummerdeltakernr', gear_marker_id: 'merke-ID', birthdate: 'fødselsdato'
+        };
+        var uncertainNames = Array.isArray(result && result.uncertain_fields)
+          ? result.uncertain_fields.map(function (f) { return uncertainLabels[f] || f; }).join(', ')
+          : '';
+        var reviewText = result && result.needs_manual_review
+          ? '<div class="callout area-warning margin-top-s"><strong>Kontroller manuelt</strong><div>OCR er usikker' + (uncertainNames ? ' – særlig: ' + escapeHtml(uncertainNames) : '') + '. Feltene markert med gul ramme bør sjekkes.</div></div>'
+          : '';
         registryResult.innerHTML = '<strong>OCR fullført</strong><div class="small muted">' + escapeHtml(result.source === 'server' ? 'Server-OCR brukt' : 'Lokal OCR brukt') + ' · ' + escapeHtml(result.strategy || '') + confidenceText + '. Skjemaet er fylt fra bildet. Registeroppslag kjøres ikke automatisk.</div><div class="small muted">' + escapeHtml(shortOcrPreview(lookupPayloadText)) + '</div>' + reviewText;
       }
       var detailText = (result.strategy || 'Tekst lest fra bilde') + (result && result.needs_manual_review ? ' · kontroller manuelt' : '');
       renderAutofillPreview({ source: result.source === 'server' ? 'Server-OCR' : 'Lokal OCR', detail: detailText });
+      markUncertainFields(result && result.uncertain_fields ? result.uncertain_fields : []);
       loadGearSummary();
       scheduleAutosave('OCR-felt fylt fra bilde');
       return result;
@@ -5095,7 +5146,7 @@
       mapState.portalVernService = vernPortalService;
       mapState.rasterServicesAuto = true;
       mapState.rasterChunkSize = 32;
-      mapState.rasterOpacity = 0.9;
+      mapState.rasterOpacity = zoneLayerIds.length > 0 ? 0.75 : 0.88;
       mapState.rasterServices = null;
       createPortalMap(caseMap, displayLayers, mapState).then(function () {
         if (options.recenterTo) {
