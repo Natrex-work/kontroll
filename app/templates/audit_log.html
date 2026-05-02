@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+{% block title %}Revisjonsspor · {{ brand_org_name }}{% endblock %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>Revisjonsspor</h1>
+    <p class="muted">Viser siste hendelser i løsningen, som innlogging, brukerendringer, lagring av saker og PDF-eksport.</p>
+  </div>
+  <div class="actions-row wrap">
+    <a class="btn btn-secondary" href="/admin/users">Tilbake til brukere</a>
+  </div>
+</section>
+
+<section class="card">
+  <div class="card-header"><h2>Hendelser</h2></div>
+  {% if not audit_rows %}
+    <p class="muted">Ingen hendelser logget ennå.</p>
+  {% else %}
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Tid</th>
+          <th>Aktør</th>
+          <th>Handling</th>
+          <th>Entitet</th>
+          <th>Detaljer</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in audit_rows %}
+        <tr>
+          <td>{{ row.created_at }}</td>
+          <td>
+            {{ row.actor_name or '-' }}
+            <div class="muted small">{{ row.actor_email or '-' }}</div>
+          </td>
+          <td>{{ row.action }}</td>
+          <td>{{ row.entity_type }}{% if row.entity_id %} / {{ row.entity_id }}{% endif %}</td>
+          <td><code class="small">{{ row.details_json }}</code></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

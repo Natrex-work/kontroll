@@ -1,0 +1,39 @@
+services:
+  - name: minfiskerikontroll
+    type: web
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /healthz
+    autoDeployTrigger: commit
+    disk:
+      name: minfiskerikontroll-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: KV_APP_NAME
+        value: Kontroll
+      - key: KV_BRAND_ORG_NAME
+        value: Minfiskerikontroll
+      - key: KV_APP_VERSION
+        value: 1.8.10
+      - key: KV_APP_VERSION_LABEL
+        value: 1.8.10
+      - key: KV_STORAGE_ROOT
+        value: /var/data/fiskerikontroll
+      - key: KV_DATA_DIR
+        value: /var/data/fiskerikontroll/data
+      - key: KV_DB_PATH
+        value: /var/data/fiskerikontroll/kv_kontroll.db
+      - key: KV_UPLOAD_DIR
+        value: /var/data/fiskerikontroll/uploads
+      - key: KV_GENERATED_DIR
+        value: /var/data/fiskerikontroll/generated
+      - key: KV_ZONE_CHECK_MAX_LIVE_LAYERS
+        value: '6'
+      - key: KV_ZONE_POINT_QUERY_TIMEOUT
+        value: '1.8'
+      - key: KV_ZONE_CHECK_TOTAL_TIMEOUT
+        value: '3.0'
+      - key: KV_ZONE_STATUS_CACHE_SECONDS
+        value: '300'
