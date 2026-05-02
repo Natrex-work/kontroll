@@ -145,7 +145,7 @@
         urls = urls.concat(collectTileUrls(layer, map, 2));
       });
       urls = uniqueUrls(urls);
-      return prefetchUrlsToCache(urls, 'kv-kontroll-1-8-6-map-tiles').then(function (count) {
+      return prefetchUrlsToCache(urls, 'kv-kontroll-1-8-7-map-tiles').then(function (count) {
         return { count: count, urls: urls };
       });
     }

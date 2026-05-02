@@ -84,6 +84,104 @@ FIELD_BONUS = {
 }
 
 
+MARKER_OCR_WHITELIST = 'ABCDEFGHIJKLMNOPQRSTUVWXYZÆØÅ0123456789- '
+_MARKER_DIGIT_CONFUSIONS = str.maketrans({
+    'O': '0', 'Q': '0', 'D': '0',
+    'I': '1', 'L': '1', '|': '1', '!': '1',
+    'Z': '2', 'S': '5', 'B': '8', 'G': '6',
+})
+_MARKER_LETTER_CONFUSIONS = str.maketrans({
+    '0': 'O', '1': 'I', '2': 'Z', '5': 'S', '8': 'B', '6': 'G',
+})
+
+
+def _clean_marker_letters(value: str) -> str:
+    raw = re.sub(r'[^A-ZÆØÅ0-9]', '', str(value or '').upper())
+    return raw.translate(_MARKER_LETTER_CONFUSIONS)
+
+
+def _clean_marker_digits(value: str) -> str:
+    raw = re.sub(r'[^A-Z0-9|!]', '', str(value or '').upper())
+    return raw.translate(_MARKER_DIGIT_CONFUSIONS)
+
+
+def _normalize_marker_candidate_from_ocr(value: str | None) -> str:
+    """Normalize OCR output from marker plates such as LOB-HUM-1323.
+
+    Tesseract often confuses O/0, I/1, S/5 and B/8 on small plastic labels.
+    This function only returns values that still satisfy the registry marker
+    pattern, so it should not turn arbitrary OCR noise into a marker ID.
+    """
+    raw = str(value or '').upper().replace('–', '-').replace('—', '-')
+    raw = re.sub(r'[^A-ZÆØÅ0-9\-|! ]+', ' ', raw)
+    compact = re.sub(r'[^A-ZÆØÅ0-9|!]+', '', raw)
+    candidates: list[str] = []
+    # Explicit LOB-HUM-like markers get special handling because this is common
+    # on hummer vak/blue marker plates and OCR often reads O as 0.
+    match = re.search(r'([L1I][O0Q]B)[- ]*([H][U0OV][MN])[- ]*([0-9OQDISBLZG|!]{3,4})', raw)
+    if not match:
+        match = re.search(r'([L1I][O0Q]B)([H][U0OV][MN])([0-9OQDISBLZG|!]{3,4})', compact)
+    if match:
+        candidates.append('LOB-HUM-' + _clean_marker_digits(match.group(3)))
+
+    loose_re = re.compile(r'([A-ZÆØÅ0-9]{2,5})[- ]+([A-ZÆØÅ0-9]{2,5})[- ]+([0-9OQDISBLZG|!]{3,4})')
+    for match in loose_re.finditer(raw):
+        candidates.append('-'.join([
+            _clean_marker_letters(match.group(1)),
+            _clean_marker_letters(match.group(2)),
+            _clean_marker_digits(match.group(3)),
+        ]))
+
+    compact_re = re.compile(r'([A-ZÆØÅ0-9]{2,5})([A-ZÆØÅ0-9]{2,5})([0-9OQDISBLZG|!]{3,4})')
+    for match in compact_re.finditer(compact):
+        candidates.append('-'.join([
+            _clean_marker_letters(match.group(1)),
+            _clean_marker_letters(match.group(2)),
+            _clean_marker_digits(match.group(3)),
+        ]))
+
+    normalized_direct = registry._normalize_gear_marker_id(raw)
+    if normalized_direct:
+        candidates.append(normalized_direct)
+
+    best = ''
+    best_score = -1
+    for candidate in candidates:
+        normalized = registry._normalize_gear_marker_id(candidate)
+        if not normalized:
+            continue
+        score = 20 + len(candidate)
+        if normalized.startswith('LOB-HUM-'):
+            score += 40
+        if score > best_score:
+            best = normalized
+            best_score = score
+    return best
+
+
+def _marker_candidate_from_attempts(attempts: list[dict[str, Any]], combined_text: str = '') -> str:
+    best = ''
+    best_score = -1
+    texts: list[tuple[int, str]] = []
+    if combined_text:
+        texts.append((120, combined_text))
+    for attempt in attempts:
+        text_value = str(attempt.get('text') or '')
+        score = int(attempt.get('_score') or 0)
+        label_bonus = 70 if str(attempt.get('strategy') or '').startswith('etikett') else 0
+        if text_value:
+            texts.append((score + label_bonus, text_value))
+    for score, text_value in texts:
+        marker = _normalize_marker_candidate_from_ocr(text_value)
+        if not marker:
+            continue
+        marker_score = score + 100 + (60 if marker.startswith('LOB-HUM-') else 0)
+        if marker_score > best_score:
+            best = marker
+            best_score = marker_score
+    return best
+
+
 def _env_int(name: str, default: int, *, minimum: int, maximum: int) -> int:
     try:
         value = int(os.getenv(name, str(default)) or default)
@@ -283,6 +381,12 @@ def _pad_label_crop(image: Image.Image, *, pct: float = 0.03) -> Image.Image:
     pad_x = max(8, int(round(w * pct)))
     canvas = Image.new('RGB', (w + pad_x * 2, h + pad_y * 2), '#ffffff')
     canvas.paste(image, (pad_x, pad_y))
+    # Keep label crops small enough for fast field OCR. Large fallback windows are
+    # still useful, but OpenCV/Tesseract preprocessing becomes too slow on iPhone
+    # photos if every crop is kept at full camera resolution.
+    max_side = 1600
+    if max(canvas.size) > max_side:
+        canvas.thumbnail((max_side, max_side), Image.Resampling.LANCZOS)
     return canvas
 
 
@@ -432,11 +536,18 @@ def _prepare_variants(image: Image.Image, *, label_mode: bool = False) -> list[t
     alt_psm = '11'
     line_psm = '6' if label_mode else '7'
     prefix = 'etikett ' if label_mode else ''
-    variants = [
-        (prefix + 'original farge', rgb, f'--oem 1 --psm {alt_psm} preserve_interword_spaces=1'),
-        (prefix + 'forbedret bilde', enhanced, f'--oem 1 --psm {base_psm} preserve_interword_spaces=1'),
-        (prefix + 'oppskalert dokument', upscaled, f'--oem 1 --psm {base_psm} preserve_interword_spaces=1'),
-    ]
+    if label_mode:
+        variants = [
+            (prefix + 'forbedret bilde', enhanced, f'--oem 1 --psm {base_psm} preserve_interword_spaces=1'),
+            (prefix + 'oppskalert dokument', upscaled, f'--oem 1 --psm {base_psm} preserve_interword_spaces=1'),
+            (prefix + 'original farge', rgb, f'--oem 1 --psm {base_psm} preserve_interword_spaces=1'),
+        ]
+    else:
+        variants = [
+            (prefix + 'original farge', rgb, f'--oem 1 --psm {alt_psm} preserve_interword_spaces=1'),
+            (prefix + 'forbedret bilde', enhanced, f'--oem 1 --psm {base_psm} preserve_interword_spaces=1'),
+            (prefix + 'oppskalert dokument', upscaled, f'--oem 1 --psm {base_psm} preserve_interword_spaces=1'),
+        ]
     variants.extend(_adaptive_ocr_variants(image, label_mode=label_mode))
     variants.extend([
         (prefix + 'rotert venstre', rotated_left, f'--oem 1 --psm {base_psm} preserve_interword_spaces=1'),
@@ -448,6 +559,15 @@ def _prepare_variants(image: Image.Image, *, label_mode: bool = False) -> list[t
         (prefix + 'sparsom tekst', sparse, f'--oem 1 --psm {alt_psm} preserve_interword_spaces=1'),
         (prefix + 'enkel linje', medium, f'--oem 1 --psm {line_psm} preserve_interword_spaces=1'),
     ])
+    if label_mode:
+        marker_cfg_7 = f'--oem 1 --psm 7 -c tessedit_char_whitelist={MARKER_OCR_WHITELIST} preserve_interword_spaces=1'
+        marker_cfg_8 = f'--oem 1 --psm 8 -c tessedit_char_whitelist={MARKER_OCR_WHITELIST} preserve_interword_spaces=1'
+        variants.extend([
+            (prefix + 'merkeplate whitelist linje', upscaled, marker_cfg_7),
+            (prefix + 'merkeplate whitelist skarp', sharp, marker_cfg_7),
+            (prefix + 'merkeplate whitelist terskel', threshold, marker_cfg_8),
+            (prefix + 'merkeplate whitelist invertert', inverted, marker_cfg_8),
+        ])
     return variants
 
 
@@ -462,10 +582,7 @@ def _clean_ocr_text(text: str) -> str:
             continue
         line = re.sub(r'^[^A-Za-zÆØÅæøå0-9]+', '', line)
         line = re.sub(r'[^A-Za-zÆØÅæøå0-9.,:+\- ]+$', '', line)
-        # Normalize Norwegian phone prefixes: "TLF: 47 12345678" → "TLF. 12345678"
         line = re.sub(r'\bTLF\s*[:.-]?\s*47\b', 'TLF.', line, flags=re.I)
-        # Strip standalone +47/0047 prefix before 8-digit number: "+47 12345678" → "12345678"
-        line = re.sub(r'(?<!\w)(?:\+47|0047)\s*(\d{8})(?!\d)', r'\1', line)
         if not line:
             continue
         lines.append(line)
@@ -474,15 +591,18 @@ def _clean_ocr_text(text: str) -> str:
 
 def _preferred_variants(image: Image.Image, label_crops: list[Image.Image]) -> list[tuple[str, Image.Image, str]]:
     variants: list[tuple[str, Image.Image, str]] = []
-    deskewed = _deskew_full_image_variants(image)
-    variants.extend(deskewed[:6])
-    full_variants = _prepare_variants(image, label_mode=False)
-    variants.extend(full_variants[:5 if not deskewed else 4])
+    # 1.8.7: marker plates/vak labels are usually a small part of the photo.
+    # Run cropped label attempts before full-image attempts so iPhone photos do
+    # not spend all available time on a large background image.
     for crop in label_crops[:4]:
-        variants.extend(_prepare_variants(crop, label_mode=True)[:6])
-    variants.extend(full_variants[5:8])
-    if len(label_crops) > 3:
-        variants.extend(_prepare_variants(label_crops[3], label_mode=True)[:3])
+        variants.extend(_prepare_variants(crop, label_mode=True)[:8])
+    deskewed = [] if label_crops else _deskew_full_image_variants(image)
+    variants.extend(deskewed[:4])
+    full_variants = _prepare_variants(image, label_mode=False)
+    variants.extend(full_variants[:4 if not label_crops else 2])
+    if len(label_crops) > 4:
+        variants.extend(_prepare_variants(label_crops[4], label_mode=True)[:4])
+    variants.extend(full_variants[5:7])
     deduped: list[tuple[str, Image.Image, str]] = []
     seen: set[tuple[str, tuple[int, int], str]] = set()
     for label, variant, config in variants:
@@ -549,8 +669,8 @@ def _merge_best_hints(attempts: list[dict[str, Any]]) -> dict[str, str]:
             if score > best_scores[field]:
                 best_scores[field] = score
                 merged[field] = value
-    if texts:
-        combined_text = '\n'.join(texts[:4])
+    combined_text = '\n'.join(texts[:8]) if texts else ''
+    if combined_text:
         combined_hints = registry.extract_tag_hints(combined_text)
         for field in merged:
             value = str(combined_hints.get(field) or '').strip()
@@ -560,6 +680,12 @@ def _merge_best_hints(attempts: list[dict[str, Any]]) -> dict[str, str]:
             if score > best_scores[field]:
                 best_scores[field] = score
                 merged[field] = value
+    marker_candidate = _marker_candidate_from_attempts(attempts, combined_text=combined_text)
+    if marker_candidate:
+        marker_score = _field_value_score('gear_marker_id', marker_candidate) + 180
+        if marker_score > best_scores.get('gear_marker_id', -1):
+            best_scores['gear_marker_id'] = marker_score
+            merged['gear_marker_id'] = marker_candidate
     return merged
 
 
@@ -582,14 +708,20 @@ def extract_text_from_image(content: bytes, *, filename: str = '', timeout_secon
     label_crops = _candidate_label_crops(image)
     timed_out = False
     try:
-        variant_limit = OCR_VARIANT_LIMIT if max_wall_seconds <= 32 else min(34, OCR_VARIANT_LIMIT + 8)
+        if max_wall_seconds <= 22:
+            variant_limit = min(14, OCR_VARIANT_LIMIT)
+        elif max_wall_seconds <= 32:
+            variant_limit = min(22, OCR_VARIANT_LIMIT)
+        else:
+            variant_limit = min(34, OCR_VARIANT_LIMIT + 8)
         variants = _preferred_variants(image, label_crops)[:variant_limit]
         for label, variant, config in variants:
             remaining = deadline - time.monotonic()
             if remaining < 3.0:
                 timed_out = True
                 break
-            attempt_timeout = max(3, min(OCR_ATTEMPT_TIMEOUT_MAX, int(remaining)))
+            per_attempt_cap = 6 if max_wall_seconds <= 22 else OCR_ATTEMPT_TIMEOUT_MAX
+            attempt_timeout = max(3, min(per_attempt_cap, int(remaining)))
             try:
                 text = tesseract.image_to_string(variant, lang='nor+eng', config=config, timeout=attempt_timeout)
             except tesseract_missing_cls:
@@ -639,15 +771,7 @@ def extract_text_from_image(content: bytes, *, filename: str = '', timeout_secon
         if timed_out:
             raise ValueError('OCR brukte for lang tid uten a finne tydelig tekst. Prov et skarpere og tettere bilde.')
         raise ValueError('Ingen tydelig tekst ble funnet i bildet.')
-    # Confidence: map score to 0-100.
-    # ~60 = minimal readable text, ~260 = strong multi-field result.
-    _CONF_LOW = 60
-    _CONF_HIGH = 260
-    if best_score <= _CONF_LOW:
-        confidence = max(0, int(round((best_score / max(_CONF_LOW, 1)) * 45)))
-    else:
-        confidence = 45 + int(round(((best_score - _CONF_LOW) / (_CONF_HIGH - _CONF_LOW)) * 55))
-    confidence = max(0, min(100, confidence))
+    confidence = max(0, min(100, int(round(best_score / 2.4))))
     uncertain_fields = []
     for field in ['name', 'address', 'post_place', 'phone', 'vessel_reg', 'gear_marker_id', 'radio_call_sign', 'hummer_participant_no']:
         value = str(best_hints.get(field) or '').strip()

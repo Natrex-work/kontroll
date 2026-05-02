@@ -1,4 +1,4 @@
-# Endringer 1.8.6 - kart, OCR og kontrollpunkter
+# Endringer 1.8.7 - kart, OCR og kontrollpunkter
 
 - Flyttet kontrollkartet slik at det ligger mellom Nærmeste sted og Teknisk posisjon.
 - Gjort Offline-reguleringer til en kollapsbar seksjon.

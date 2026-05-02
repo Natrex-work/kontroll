@@ -178,16 +178,7 @@
             <a class="btn btn-secondary btn-small margin-top-s" href="{{ portal_map_url }}" target="_blank" rel="noopener">Åpne kartportal</a>
           </div>
           <div class="grid-two compact-grid-form margin-top-s">
-            <label><span>Nærmeste sted</span><input name="location_name" id="location_name" value="{{ case.location_name or '' }}" /><span class="small coordinate-summary" id="position-coordinate-summary">DMS vises her når posisjon er satt.</span></label>
-            <div class="position-action-group">
-              <span>Handlinger</span>
-              <div class="position-actions margin-top-s">
-                <button type="button" class="btn btn-secondary" id="btn-use-location">Bruk min posisjon</button>
-                <button type="button" class="btn btn-secondary" id="btn-set-manual-position">Sett manuelt i kart</button>
-                <button type="button" class="btn btn-secondary" id="btn-check-zone">Oppdater verneområder</button>
-                <button type="button" class="btn btn-secondary" id="btn-download-map-offline">Lagre reguleringer lokalt</button>
-              </div>
-            </div>
+            <label class="span-2"><span>Nærmeste sted</span><input name="location_name" id="location_name" value="{{ case.location_name or '' }}" /><span class="small coordinate-summary" id="position-coordinate-summary">DMS vises her når posisjon er satt.</span></label>
             <div class="subcard span-2 case-map-card inline-case-map-card" id="case-map-card">
               <div class="subcard-head compact-map-head">
                 <h3>Kontroll ved posisjon</h3>
@@ -195,6 +186,7 @@
               </div>
               <div class="callout margin-top-s map-compact-status" id="map-selection-status">Aktuelle verneområder og reguleringer vises direkte i kartet.</div>
               <button type="button" class="hidden" id="toggle-zone-hit-overlay" aria-hidden="true" tabindex="-1"><span id="toggle-zone-hit-overlay-text"></span></button>
+              <div id="case-position-map" class="leaflet-map case-map" data-portal-catalog='{{ portal_layers|tojson }}' data-portal-mapserver="{{ portal_mapserver_url }}" data-portal-vern-mapserver="{{ portal_vern_mapserver_url }}"></div>
               <details class="map-relevant-panel margin-top-s" id="case-relevant-areas" open>
                 <summary class="map-relevant-head">
                   <strong>Temalag</strong>
@@ -202,7 +194,6 @@
                 </summary>
                 <div class="map-relevant-list" id="case-relevant-areas-list"><div class="muted small">Velg kontrolltype og redskap.</div></div>
               </details>
-              <div class="callout margin-top-s" id="map-offline-status">Relevante reguleringsområder lagres lokalt for rask feltvisning.</div>
               <details class="offline-packages-panel margin-top-s" id="offline-regulations-panel">
                 <summary class="offline-packages-head">
                   <div>
@@ -210,14 +201,23 @@
                     <div class="muted small">Lagret på enheten for valgt område.</div>
                   </div>
                 </summary>
+                <div class="callout margin-top-s" id="map-offline-status">Relevante reguleringsområder lagres lokalt for rask feltvisning.</div>
                 <div class="actions-row wrap margin-top-s">
                   <button type="button" class="btn btn-secondary btn-small" id="btn-refresh-offline-packages">Oppdater lagrede pakker</button>
                 </div>
                 <div class="callout margin-top-s" id="offline-packages-summary">Ingen offline-reguleringer er lagret på denne enheten ennå.</div>
                 <div class="offline-packages-list" id="offline-packages-list"></div>
               </details>
-              <div id="case-position-map" class="leaflet-map case-map" data-portal-catalog='{{ portal_layers|tojson }}' data-portal-mapserver="{{ portal_mapserver_url }}" data-portal-vern-mapserver="{{ portal_vern_mapserver_url }}"></div>
               <div class="map-layer-panel-host" id="case-map-layer-panel-host"></div>
+            </div>
+            <div class="position-action-group span-2">
+              <span>Handlinger</span>
+              <div class="position-actions margin-top-s">
+                <button type="button" class="btn btn-secondary" id="btn-use-location">Bruk min posisjon</button>
+                <button type="button" class="btn btn-secondary" id="btn-set-manual-position">Sett manuelt i kart</button>
+                <button type="button" class="btn btn-secondary" id="btn-check-zone">Oppdater verneområder</button>
+                <button type="button" class="btn btn-secondary" id="btn-download-map-offline">Lagre reguleringer lokalt</button>
+              </div>
             </div>
             <details class="coordinate-disclosure span-2">
               <summary>Teknisk posisjon</summary>
@@ -586,5 +586,5 @@
   }
 })();
 </script>
-<script src="/static/js/case-app.js?v=1.8.6"></script>
+<script src="/static/js/case-app.js?v=1.8.7"></script>
 {% endblock %}

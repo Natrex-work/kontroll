@@ -345,33 +345,6 @@
   }
 
 
-  var _uncertainFieldTimeout = null;
-  function markUncertainFields(uncertainFields) {
-    var fieldMap = {
-      name: ['suspect_name', 'suspect_name_commercial', 'lookup_name'],
-      address: ['suspect_address'],
-      post_place: ['suspect_post_place'],
-      phone: ['suspect_phone', 'lookup_identifier'],
-      birthdate: ['suspect_birthdate'],
-      vessel_reg: ['vessel_reg', 'lookup_identifier'],
-      radio_call_sign: ['radio_call_sign'],
-      hummer_participant_no: ['hummer_participant_no', 'lookup_identifier'],
-      gear_marker_id: ['gear_marker_id'],
-    };
-    document.querySelectorAll('.ocr-uncertain').forEach(function (el) { el.classList.remove('ocr-uncertain'); });
-    clearTimeout(_uncertainFieldTimeout);
-    if (!Array.isArray(uncertainFields) || !uncertainFields.length) return;
-    uncertainFields.forEach(function (field) {
-      (fieldMap[field] || []).forEach(function (id) {
-        var el = document.getElementById(id);
-        if (el) el.classList.add('ocr-uncertain');
-      });
-    });
-    _uncertainFieldTimeout = setTimeout(function () {
-      document.querySelectorAll('.ocr-uncertain').forEach(function (el) { el.classList.remove('ocr-uncertain'); });
-    }, 30000);
-  }
-
   function sourceChip(item) {
     var label = '<strong>' + escapeHtml(item.name || 'Kilde') + '</strong><span>' + escapeHtml(item.ref || '') + '</span>';
     if (item.url) return '<a class="source-chip" href="' + escapeHtml(item.url) + '" target="_blank" rel="noopener">' + label + '</a>';
@@ -1729,7 +1702,7 @@
       if (/(breivikfjorden|borgundfjorden|henningsvaer|lofotfiske)/.test(restrictionText) && !/(torsk|skrei|kommersiell|yrkes)/.test([currentFisherySelection(), currentControlSelection(), restrictionText].join(' '))) return false;
       var status = String(layer.status || '').trim().toLowerCase();
       if (Object.prototype.hasOwnProperty.call(activeLayerStatuses, status) && !activeLayerStatuses[status]) return false;
-      // 1.8.6: Temakartet kan vise bredt uten valg, men under kontroll
+      // 1.8.7: Temakartet kan vise bredt uten valg, men under kontroll
       // skal kartet bare vise lovregulerte lag som passer valgt kontrolltype,
       // art/fiskeri og redskap.
       if (!hasMapSelection()) return true;
@@ -2032,7 +2005,7 @@
         urls = urls.concat(collectTileUrls(layer, map, padding == null ? 2 : padding));
       });
       urls = uniqueUrls(urls);
-      return prefetchUrlsToCache(urls, 'kv-kontroll-1-8-6-map-tiles').then(function (count) {
+      return prefetchUrlsToCache(urls, 'kv-kontroll-1-8-7-map-tiles').then(function (count) {
         return { count: count, urls: urls };
       });
     }
@@ -2543,13 +2516,11 @@
       storedPositionMode = '';
     }
     if (storedPositionMode !== 'manual' && storedPositionMode !== 'auto') storedPositionMode = '';
-    var zoneOverlayStorageKey = 'kv-case-zone-overlay:' + root.dataset.caseId;
+    var zoneOverlayStorageKey = 'kv-case-zone-overlay-1.8.7:' + root.dataset.caseId;
     var zoneOverlayEnabled = true;
-    try {
-      var storedZoneOverlay = String(localStorage.getItem(zoneOverlayStorageKey) || '').trim();
-      if (storedZoneOverlay === '0') zoneOverlayEnabled = false;
-    } catch (e) {}
-    if (toggleZoneHitOverlay) toggleZoneHitOverlay.checked = zoneOverlayEnabled;
+    // Treffende verne-/reguleringsområder skal alltid tegnes i kartet.
+    // Tidligere lagret 'skjul'-valg fra eldre PWA-versjoner ignoreres.
+    if (toggleZoneHitOverlay) toggleZoneHitOverlay.checked = true;
     syncZoneHitOverlayToggleText();
     var hasInitialCoords = Boolean(latitude.value && longitude.value);
     var mapState = {
@@ -4210,17 +4181,88 @@
       params.set(key, String(parsed));
     }
 
+    function makeClientRuleItem(key, label, lawName, section, lawText, helpText) {
+      return {
+        key: key,
+        label: label,
+        status: 'ikke kontrollert',
+        notes: '',
+        source_name: lawName || 'Lokal kontrollpunktliste',
+        source_ref: section || 'Fallback',
+        law_name: lawName || 'Lokal kontrollpunktliste',
+        section: section || 'Fallback',
+        law_text: lawText || helpText || label,
+        summary_text: label,
+        help_text: helpText || lawText || label
+      };
+    }
+
+    function clientFallbackRuleBundle(reason) {
+      var controlVal = String(controlType && controlType.value || 'Fritidsfiske').trim() || 'Fritidsfiske';
+      var speciesVal = String((species && species.value) || (fisheryType && fisheryType.value) || '').trim();
+      var gearVal = String(gearType && gearType.value || '').trim();
+      var speciesNorm = speciesVal.toLowerCase();
+      var gearNorm = gearVal.toLowerCase();
+      var items = [];
+      function add(key, label, law, section, lawText, helpText) {
+        if (items.some(function (row) { return row.key === key; })) return;
+        items.push(makeClientRuleItem(key, label, law, section, lawText, helpText));
+      }
+      add('generell_posisjon_omrade', 'Posisjon og områderegulering', 'Kartgrunnlag / gjeldende regelverk', 'Områdesjekk', 'Kontroller om kontrollposisjonen ligger i fredningsområde, stengt felt, nullfiskeområde eller annen regulert sone.', 'Bruk verneområdekartet og posisjonssjekken. Registrer avvik dersom valgt art/redskap ikke er tillatt i området.');
+      add('generell_merking', 'Merking av redskap', 'Høstingsforskriften', 'Merkekrav', 'Kontroller at redskap/vak/blåse er merket slik regelverket krever for valgt fiskeri.', 'Sjekk navn/adresse, deltakernummer, fiskerimerke, kallesignal eller annen påkrevd identifikasjon.');
+      if (gearNorm.indexOf('teine') !== -1 || speciesNorm.indexOf('hummer') !== -1 || speciesNorm.indexOf('krabbe') !== -1) {
+        add('generell_teine_utforming', 'Utforming av teine/redskap', 'Høstingsforskriften', 'Redskapskrav', 'Kontroller fluktåpninger, rømmingshull/råtnetråd, antall redskap og at redskapet er egnet/lovlig for valgt art.', 'Registrer hvert beslag/redskap separat dersom flere teiner kontrolleres.');
+      }
+      if (speciesNorm.indexOf('hummer') !== -1) {
+        add('hummer_pamelding_merking_fallback', 'Hummer: påmelding, merking og deltakernummer', 'Forskrift om høsting av hummer', 'Påmelding og merking', 'Kontroller påmelding, deltakernummer, merking av vak/blåse og eventuell fartøysmerking.', 'Deltakernummer hører i hummerfeltet. Merke-ID/vak/blåse skal i merke-ID-feltet.');
+        add('hummer_flukt_ratentrad_fallback', 'Hummer: fluktåpning og rømmingshull', 'Forskrift om høsting av hummer', 'Fangstredskap', 'Kontroller at hummerteiner har påbudte fluktåpninger og rømmingshull med biologisk nedbrytbar tråd.', 'Ved avvik: legg til redskap/beslag og bilde av aktuell teine.');
+        add('hummer_periode_minstemal_fallback', 'Hummer: periode, minstemål og fredning', 'Forskrift om høsting av hummer', 'Fredningstid / minstemål', 'Kontroller dato, fangstperiode, minstemål/maksimalmål der dette gjelder, rognhummer og eventuelle fredningsområder.', 'Automatiske områdeavvik fra kart skal vurderes sammen med dette punktet.');
+      }
+      if (gearNorm.indexOf('garn') !== -1) {
+        add('garn_merking_utforming_fallback', 'Garn: merking, maskevidde og lovlig bruk', 'Høstingsforskriften', 'Garnredskap', 'Kontroller merking, maskevidde, nedsenking, posisjon og om garnfiske er tillatt for valgt art og område.', 'Ved avvik: dokumenter måling, posisjon og bilde.');
+      }
+      if (gearNorm.indexOf('ruse') !== -1) {
+        add('ruse_forbud_fallback', 'Ruse: forbudsperiode og merking', 'Høstingsforskriften', 'Ruse', 'Kontroller om ruse er tillatt i området og perioden, og om redskapet er korrekt merket.', 'Ved avvik: legg til redskap/beslag.');
+      }
+      if (!items.length) {
+        add('generell_kontrollpunktliste', 'Generell kontroll av valgt fiskeri/redskap', 'Gjeldende lov og forskrift', 'Generell kontroll', 'Kontroller valgt fiske/fangst, redskap, merking og posisjon mot gjeldende lov, forskrift og J-meldinger.', 'Velg kontrolltype, art/fiskeri og redskap for mer presise kontrollpunkter.');
+      }
+      return {
+        title: 'Kontrollpunkter' + (speciesVal || gearVal ? ' for ' + [controlVal, speciesVal, gearVal].filter(Boolean).join(' / ') : ''),
+        description: reason || 'Lokal kontrollpunktliste brukes slik at punktene vises også ved tregt eller tomt regeloppslag.',
+        items: items,
+        sources: [{ name: 'Lokal kontrollpunktliste', ref: '1.8.7 fallback', url: '' }]
+      };
+    }
+
+    function applyRuleBundle(bundle, options) {
+      options = options || {};
+      bundle = bundle || clientFallbackRuleBundle('Lokal kontrollpunktliste.');
+      if (!Array.isArray(bundle.items) || !bundle.items.length) {
+        bundle = clientFallbackRuleBundle('Regeloppslaget ga ingen punkter. Lokal kontrollpunktliste vises i stedet.');
+      }
+      metaBox.innerHTML = '<strong>' + escapeHtml(bundle.title || 'Kontrollpunkter') + '</strong><div class="small muted">' + escapeHtml(bundle.description || '') + '</div>';
+      var currentByKey = {};
+      findingsState.forEach(function (item) { if (item && item.key) currentByKey[item.key] = item; });
+      findingsState = (bundle.items || []).map(function (item) {
+        var current = resolveCurrentFinding(item, currentByKey) || {};
+        return Object.assign({}, item, current, { status: current.status || item.status || 'ikke kontrollert', notes: current.notes || item.notes || '' });
+      });
+      renderFindings();
+      sourcesState = bundle.sources || [];
+      if (sourcesInput) sourcesInput.value = JSON.stringify(sourcesState);
+      if (sourceList) sourceList.innerHTML = sourcesState.map(sourceChip).join('');
+    }
+
     function loadRules() {
       var speciesVal = species.value || fisheryType.value || '';
-      if (!controlType.value && !speciesVal && !gearType.value) {
-        metaBox.innerHTML = 'Velg kontrolltype, art/fiskeri eller redskap for å hente kontrollpunkter.';
-        findingsState = [];
-        renderFindings();
-        return;
-      }
-      if (!controlType.value && speciesVal) {
+      if (!controlType.value && (speciesVal || gearType.value)) {
         // Fritidsfiske er trygg standard for art/redskap dersom kontrolltype ikke er satt ennå.
         controlType.value = 'Fritidsfiske';
+      }
+      if (!controlType.value && !speciesVal && !gearType.value) {
+        applyRuleBundle(clientFallbackRuleBundle('Velg kontrolltype, art/fiskeri og redskap for mer presise kontrollpunkter.'));
+        return;
       }
       var params = new URLSearchParams();
       appendQueryValue(params, 'control_type', controlType.value || 'Fritidsfiske');
@@ -4228,20 +4270,7 @@
       appendQueryValue(params, 'gear_type', gearType.value);
       appendQueryValue(params, 'area_status', areaStatus.value || '');
       appendQueryValue(params, 'area_name', areaName.value || '');
-      var areaNotesText = '';
-      if (latestZoneResult) {
-        var noteParts = [];
-        if (latestZoneResult.notes) noteParts.push(String(latestZoneResult.notes));
-        if (Array.isArray(latestZoneResult.hits)) {
-          latestZoneResult.hits.forEach(function (hit) {
-            if (hit && hit.name) noteParts.push(String(hit.name));
-            if (hit && hit.notes) noteParts.push(String(hit.notes));
-            if (hit && hit.description) noteParts.push(String(hit.description));
-          });
-        }
-        areaNotesText = noteParts.filter(Boolean).join(' ');
-      }
-      appendQueryValue(params, 'area_notes', areaNotesText);
+      appendQueryValue(params, 'area_notes', zoneResult ? (zoneResult.textContent || '') : '');
       appendQueryValue(params, 'control_date', startTime.value || '');
       appendOptionalNumberQuery(params, 'lat', latitude.value || '');
       appendOptionalNumberQuery(params, 'lng', longitude.value || '');
@@ -4258,22 +4287,10 @@
           });
         })
         .then(function (bundle) {
-          metaBox.innerHTML = '<strong>' + escapeHtml(bundle.title || 'Kontrollpunkter') + '</strong><div class="small muted">' + escapeHtml(bundle.description || '') + '</div>';
-          var currentByKey = {};
-          findingsState.forEach(function (item) { currentByKey[item.key] = item; });
-          findingsState = (bundle.items || []).map(function (item) {
-            var current = resolveCurrentFinding(item, currentByKey) || {};
-            return Object.assign({}, item, current, { status: current.status || item.status || 'ikke kontrollert', notes: current.notes || item.notes || '' });
-          });
-          renderFindings();
-          sourcesState = bundle.sources || [];
-          sourcesInput.value = JSON.stringify(sourcesState);
-          sourceList.innerHTML = sourcesState.map(sourceChip).join('');
+          applyRuleBundle(bundle);
         })
         .catch(function (error) {
-          findingsState = [];
-          renderFindings();
-          metaBox.innerHTML = 'Kunne ikke hente lovpunkter akkurat nå.' + (error && error.message ? ' ' + escapeHtml(error.message) : '');
+          applyRuleBundle(clientFallbackRuleBundle('Kunne ikke hente lovpunkter akkurat nå. Lokal kontrollpunktliste vises i stedet.' + (error && error.message ? ' ' + error.message : '')));
         });
     }
 
@@ -4777,22 +4794,11 @@
       if (registryResult) {
         var confidence = Number(result && result.confidence);
         var confidenceText = isFinite(confidence) ? (' · sikkerhet ' + Math.max(0, Math.min(100, Math.round(confidence))) + '%') : '';
-        var uncertainLabels = {
-          name: 'navn', address: 'adresse', post_place: 'poststed', phone: 'telefon',
-          vessel_reg: 'fiskerimerke', radio_call_sign: 'radiokallesignal',
-          hummer_participant_no: 'hummerdeltakernr', gear_marker_id: 'merke-ID', birthdate: 'fødselsdato'
-        };
-        var uncertainNames = Array.isArray(result && result.uncertain_fields)
-          ? result.uncertain_fields.map(function (f) { return uncertainLabels[f] || f; }).join(', ')
-          : '';
-        var reviewText = result && result.needs_manual_review
-          ? '<div class="callout area-warning margin-top-s"><strong>Kontroller manuelt</strong><div>OCR er usikker' + (uncertainNames ? ' – særlig: ' + escapeHtml(uncertainNames) : '') + '. Feltene markert med gul ramme bør sjekkes.</div></div>'
-          : '';
+        var reviewText = result && result.needs_manual_review ? '<div class="callout area-warning margin-top-s"><strong>Kontroller manuelt</strong><div>OCR er usikker. Se gjennom merkeskilt, navn/adresse og nummer før du går videre.</div></div>' : '';
         registryResult.innerHTML = '<strong>OCR fullført</strong><div class="small muted">' + escapeHtml(result.source === 'server' ? 'Server-OCR brukt' : 'Lokal OCR brukt') + ' · ' + escapeHtml(result.strategy || '') + confidenceText + '. Skjemaet er fylt fra bildet. Registeroppslag kjøres ikke automatisk.</div><div class="small muted">' + escapeHtml(shortOcrPreview(lookupPayloadText)) + '</div>' + reviewText;
       }
       var detailText = (result.strategy || 'Tekst lest fra bilde') + (result && result.needs_manual_review ? ' · kontroller manuelt' : '');
       renderAutofillPreview({ source: result.source === 'server' ? 'Server-OCR' : 'Lokal OCR', detail: detailText });
-      markUncertainFields(result && result.uncertain_fields ? result.uncertain_fields : []);
       loadGearSummary();
       scheduleAutosave('OCR-felt fylt fra bilde');
       return result;
@@ -5126,7 +5132,7 @@
       var allLayerIds = displayLayers.map(function (layer) { return Number(layer && layer.id); }).filter(function (value) { return isFinite(value); });
       var fisheryPortalService = root.dataset.portalMapserver || (caseMap && caseMap.dataset ? (caseMap.dataset.portalMapserver || '') : '') || 'https://portal.fiskeridir.no/server/rest/services/fiskeridirWMS_fiskeri/MapServer';
       var vernPortalService = root.dataset.portalVernMapserver || (caseMap && caseMap.dataset ? (caseMap.dataset.portalVernMapserver || '') : '') || 'https://portal.fiskeridir.no/server/rest/services/Fiskeridir_vern/MapServer';
-      // 1.8.6: aktuelle verneområder/reguleringer skal vises direkte i kartet
+      // 1.8.7: aktuelle verneområder/reguleringer skal vises direkte i kartet
       // når posisjonssjekken har gitt treff. Uten treff beholdes rask rastervisning.
       mapState.fetchFeatureDetails = options.fetchFeatureDetails === true || mapState.requestFeatureDetails === true || zoneLayerIds.length > 0;
       mapState.featureDetailLayerIds = featureDetailIds;
@@ -5137,7 +5143,7 @@
       mapState.showLegend = false;
       mapState.showLayerPanel = !!mapLayerPanelHost;
       mapState.layerPanelDefaultOpen = false;
-      mapState.layerPanelKey = 'case-map-1-8-6';
+      mapState.layerPanelKey = 'case-map-1-8-7';
       mapState.layerPanelTargetSelector = mapLayerPanelHost ? '#case-map-layer-panel-host' : '';
       mapState.rasterLayerIds = allLayerIds;
       mapState.identifyLayerIds = allLayerIds;
@@ -5146,7 +5152,7 @@
       mapState.portalVernService = vernPortalService;
       mapState.rasterServicesAuto = true;
       mapState.rasterChunkSize = 32;
-      mapState.rasterOpacity = zoneLayerIds.length > 0 ? 0.75 : 0.88;
+      mapState.rasterOpacity = 0.9;
       mapState.rasterServices = null;
       createPortalMap(caseMap, displayLayers, mapState).then(function () {
         if (options.recenterTo) {
@@ -5258,8 +5264,8 @@
       return rows;
     }
 
-    var zoneResultStoragePrefix = 'kv-zone-result-1.8.6:';
-    var nearestPlaceStoragePrefix = 'kv-nearest-place-1.8.6:';
+    var zoneResultStoragePrefix = 'kv-zone-result-1.8.7:';
+    var nearestPlaceStoragePrefix = 'kv-nearest-place-1.8.7:';
     var nearestPlaceController = null;
     var nearestPlaceSequence = 0;
     var nearestPlaceTimer = null;
@@ -5559,7 +5565,7 @@
       scheduleAutosave('Manuell posisjon aktivert');
     }
 
-    var devicePositionStorageKey = 'kv-device-position-1.8.6';
+    var devicePositionStorageKey = 'kv-device-position-1.8.7';
     function readCachedDevicePosition() {
       if (!window.localStorage) return null;
       try {

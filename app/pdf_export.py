@@ -3643,7 +3643,7 @@ def build_case_pdf(case_row: Dict[str, Any], evidence_rows: Iterable[Dict[str, A
 def build_interview_only_pdf(case_row: Dict[str, Any], evidence_rows: Iterable[Dict[str, Any]], output_dir: Path) -> Path:  # type: ignore[override]
     return _build_interview_only_pdf_before_v93(_case_row_signature_labels_v94(case_row), evidence_rows, output_dir)
 
-# ---- 1.8.6: tekstmaler tilpasset straffesakshåndbok, IKV-eksempler og KREATIV avhørsstruktur ----
+# ---- 1.8.7: tekstmaler tilpasset straffesakshåndbok, IKV-eksempler og KREATIV avhørsstruktur ----
 _build_case_packet_before_1_7 = build_case_packet
 _build_text_drafts_before_1_7 = build_text_drafts
 _build_interview_guidance_before_1_7 = _build_interview_guidance_v91
@@ -4068,7 +4068,7 @@ def build_text_drafts(case_row: Dict[str, Any], findings: list[Dict[str, Any]]) 
         'basis_details': build_control_reason(case_row, findings),
         'notes': _build_own_report(case_row, findings),
         'complaint_preview': _build_short_complaint(case_row, findings, _safe_sources(case_row)),
-        'source_label': 'straffesaksmal 1.8.6',
+        'source_label': 'straffesaksmal 1.8.7',
     }
 
 

@@ -1882,12 +1882,6 @@ body {
 .ocr-preview-item strong {
   font-size: 0.95rem;
 }
-.ocr-uncertain {
-  outline: 2px solid #e6a817;
-  outline-offset: 2px;
-  background-color: #fffbee;
-  transition: outline 0.2s, background-color 0.2s;
-}
 @media (max-width: 960px) {
   .sea-hero,
   .hero-home {
@@ -3326,7 +3320,7 @@ body {
 
 .margin-top-xs { margin-top: .45rem; }
 
-/* 1.8.6: collapse relevant map areas/layers in the case form. */
+/* 1.8.7: collapse relevant map areas/layers in the case form. */
 .map-relevant-panel > summary.map-relevant-head {
   cursor: pointer;
   list-style: none;
@@ -3359,7 +3353,7 @@ body {
 }
 
 
-/* 1.8.6: compact case map with focus mode for iPhone/iPad field use. */
+/* 1.8.7: compact case map with focus mode for iPhone/iPad field use. */
 .compact-map-head { align-items: center; gap: 0.75rem; }
 .map-compact-status { padding: 0.55rem 0.75rem; }
 .case-map-card .case-map { min-height: 460px; }
@@ -3391,7 +3385,7 @@ body.case-map-focus-mode { overflow: hidden; }
   }
 }
 
-/* 1.8.6: responsivt temakart og flere lenker per avvik. */
+/* 1.8.7: responsivt temakart og flere lenker per avvik. */
 .kv-temalag-panel-external,
 .kv-temalag-card,
 .kv-temalag-groups,
@@ -3467,7 +3461,7 @@ body.case-map-focus-mode { overflow: hidden; }
 }
 
 
-/* 1.8.6: Kart og Område - responsivt temakart og faner for flere lenker. */
+/* 1.8.7: Kart og Område - responsivt temakart og faner for flere lenker. */
 .map-layer-panel-host,
 #overview-map-layer-panel-host,
 .kv-temalag-panel-external,
@@ -3547,7 +3541,7 @@ body.case-map-focus-mode { overflow: hidden; }
 }
 
 
-/* 1.8.6: Temakart skal passe mobilbredden uten horisontal zoom. */
+/* 1.8.7: Temakart skal passe mobilbredden uten horisontal zoom. */
 .map-layer-panel-host,
 .kv-temalag-panel,
 .kv-temalag-card,
@@ -3635,7 +3629,7 @@ body.case-map-focus-mode { overflow: hidden; }
   }
 }
 
-/* 1.8.6: raskere, smalere feltvisning for iPhone/iPad. */
+/* 1.8.7: raskere, smalere feltvisning for iPhone/iPad. */
 .case-map-card,
 .case-map-panel,
 .map-layer-panel-host,
@@ -3741,7 +3735,7 @@ body.case-map-focus-mode { overflow: hidden; }
   }
 }
 
-/* 1.8.6: mobile-friendly control point deviations and link navigation */
+/* 1.8.7: mobile-friendly control point deviations and link navigation */
 .deviation-group-tabs {
   display: grid;
   gap: 0.55rem;
@@ -3902,7 +3896,7 @@ body.case-map-focus-mode { overflow: hidden; }
 }
 
 
-/* 1.8.6: synlig og klikkbar avvik/beslag-handling på iPhone */
+/* 1.8.7: synlig og klikkbar avvik/beslag-handling på iPhone */
 .finding-body-actions {
   margin-top: -0.15rem;
   margin-bottom: 0.15rem;
@@ -3924,7 +3918,7 @@ body.case-map-focus-mode { overflow: hidden; }
   }
 }
 
-/* 1.8.6: Fiskeridirektoratets kartportal som primær Kart og Område-visning. */
+/* 1.8.7: Fiskeridirektoratets kartportal som primær Kart og Område-visning. */
 .portal-map-card {
   overflow: hidden;
 }
@@ -3973,7 +3967,7 @@ body.case-map-focus-mode { overflow: hidden; }
   }
 }
 
-/* 1.8.6 Kontrollpunkter: lenker og beslag på mobil */
+/* 1.8.7 Kontrollpunkter: lenker og beslag på mobil */
 .control-link-toolbar { margin-bottom: 12px; }
 .control-link-card {
   display: flex;
@@ -4021,7 +4015,7 @@ body.case-map-focus-mode { overflow: hidden; }
   .deviation-report-draft { grid-column: 1 / -1; width: 100%; }
 }
 
-/* 1.8.6: Kartet ligger mellom Nærmeste sted og Teknisk posisjon. */
+/* 1.8.7: Kartet ligger mellom Nærmeste sted og Teknisk posisjon. */
 .inline-case-map-card {
   margin-top: 0.75rem;
   width: 100%;
