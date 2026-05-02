@@ -1702,7 +1702,7 @@
       if (/(breivikfjorden|borgundfjorden|henningsvaer|lofotfiske)/.test(restrictionText) && !/(torsk|skrei|kommersiell|yrkes)/.test([currentFisherySelection(), currentControlSelection(), restrictionText].join(' '))) return false;
       var status = String(layer.status || '').trim().toLowerCase();
       if (Object.prototype.hasOwnProperty.call(activeLayerStatuses, status) && !activeLayerStatuses[status]) return false;
-      // 1.8.7: Temakartet kan vise bredt uten valg, men under kontroll
+      // 1.8.8: Temakartet kan vise bredt uten valg, men under kontroll
       // skal kartet bare vise lovregulerte lag som passer valgt kontrolltype,
       // art/fiskeri og redskap.
       if (!hasMapSelection()) return true;
@@ -2516,7 +2516,7 @@
       storedPositionMode = '';
     }
     if (storedPositionMode !== 'manual' && storedPositionMode !== 'auto') storedPositionMode = '';
-    var zoneOverlayStorageKey = 'kv-case-zone-overlay-1.8.7:' + root.dataset.caseId;
+    var zoneOverlayStorageKey = 'kv-case-zone-overlay-1.8.8:' + root.dataset.caseId;
     var zoneOverlayEnabled = true;
     // Treffende verne-/reguleringsområder skal alltid tegnes i kartet.
     // Tidligere lagret 'skjul'-valg fra eldre PWA-versjoner ignoreres.
@@ -3042,7 +3042,7 @@
         scheduleNearestPlaceResolve({}, 120);
         updateCaseMap();
         loadGearSummary();
-        if (options.loadRules !== false && controlType.value && (species.value || fisheryType.value)) loadRules();
+        if (options.loadRules !== false) loadRules();
         if (options.step && options.step >= 1 && options.step <= panes.length) showStep(options.step, { scroll: false });
       } finally {
         suspendAutosave = false;
@@ -3699,7 +3699,7 @@
       var isCommercial = String(controlType.value || '').toLowerCase().indexOf('kom') === 0;
       leisureFields.classList.toggle('hidden', isCommercial);
       commercialFields.classList.toggle('hidden', !isCommercial);
-      personModeHint.innerHTML = isCommercial ? 'Kommersiell kontroll: vis fartøysnavn, fiskerimerke og radiokallesignal.' : 'Fritidsfiske: vis navn, adresse, mobilnummer, fødselsdato og hummerdeltakernummer.';
+      if (personModeHint) personModeHint.innerHTML = isCommercial ? 'Kommersiell kontroll.' : 'Fritidsfiske.';
       if (isCommercial) {
         suspectNameCommercial.value = suspectName.value;
       }
@@ -4231,12 +4231,13 @@
         title: 'Kontrollpunkter' + (speciesVal || gearVal ? ' for ' + [controlVal, speciesVal, gearVal].filter(Boolean).join(' / ') : ''),
         description: reason || 'Lokal kontrollpunktliste brukes slik at punktene vises også ved tregt eller tomt regeloppslag.',
         items: items,
-        sources: [{ name: 'Lokal kontrollpunktliste', ref: '1.8.7 fallback', url: '' }]
+        sources: [{ name: 'Lokal kontrollpunktliste', ref: '1.8.8 fallback', url: '' }]
       };
     }
 
     function applyRuleBundle(bundle, options) {
       options = options || {};
+      if (!findingsInput || !findingsList || !metaBox) return;
       bundle = bundle || clientFallbackRuleBundle('Lokal kontrollpunktliste.');
       if (!Array.isArray(bundle.items) || !bundle.items.length) {
         bundle = clientFallbackRuleBundle('Regeloppslaget ga ingen punkter. Lokal kontrollpunktliste vises i stedet.');
@@ -4254,7 +4255,9 @@
       if (sourceList) sourceList.innerHTML = sourcesState.map(sourceChip).join('');
     }
 
-    function loadRules() {
+    function loadRules(options) {
+      options = options || {};
+      if (!controlType || !species || !fisheryType || !gearType || !metaBox || !findingsList) return;
       var speciesVal = species.value || fisheryType.value || '';
       if (!controlType.value && (speciesVal || gearType.value)) {
         // Fritidsfiske er trygg standard for art/redskap dersom kontrolltype ikke er satt ennå.
@@ -4274,8 +4277,12 @@
       appendQueryValue(params, 'control_date', startTime.value || '');
       appendOptionalNumberQuery(params, 'lat', latitude.value || '');
       appendOptionalNumberQuery(params, 'lng', longitude.value || '');
-      metaBox.innerHTML = 'Henter lovpunkter ...';
-      fetch(root.dataset.rulesUrl + '?' + params.toString())
+      // Vis kontrollpunkter umiddelbart, og bytt til serverens regelpakke når den kommer.
+      if (!findingsState.length || options.forceLocalFirst) {
+        applyRuleBundle(clientFallbackRuleBundle('Viser lokale kontrollpunkter mens regelverket hentes.'));
+      }
+      metaBox.innerHTML = '<strong>Henter kontrollpunkter ...</strong><div class="small muted">Lokale punkter vises hvis serveroppslaget bruker tid.</div>';
+      fetch(root.dataset.rulesUrl + '?' + params.toString(), { cache: 'no-store' })
         .then(function (r) {
           return r.json().catch(function () { return {}; }).then(function (payload) {
             if (!r.ok) {
@@ -5132,7 +5139,7 @@
       var allLayerIds = displayLayers.map(function (layer) { return Number(layer && layer.id); }).filter(function (value) { return isFinite(value); });
       var fisheryPortalService = root.dataset.portalMapserver || (caseMap && caseMap.dataset ? (caseMap.dataset.portalMapserver || '') : '') || 'https://portal.fiskeridir.no/server/rest/services/fiskeridirWMS_fiskeri/MapServer';
       var vernPortalService = root.dataset.portalVernMapserver || (caseMap && caseMap.dataset ? (caseMap.dataset.portalVernMapserver || '') : '') || 'https://portal.fiskeridir.no/server/rest/services/Fiskeridir_vern/MapServer';
-      // 1.8.7: aktuelle verneområder/reguleringer skal vises direkte i kartet
+      // 1.8.8: aktuelle verneområder/reguleringer skal vises direkte i kartet
       // når posisjonssjekken har gitt treff. Uten treff beholdes rask rastervisning.
       mapState.fetchFeatureDetails = options.fetchFeatureDetails === true || mapState.requestFeatureDetails === true || zoneLayerIds.length > 0;
       mapState.featureDetailLayerIds = featureDetailIds;
@@ -5264,8 +5271,8 @@
       return rows;
     }
 
-    var zoneResultStoragePrefix = 'kv-zone-result-1.8.7:';
-    var nearestPlaceStoragePrefix = 'kv-nearest-place-1.8.7:';
+    var zoneResultStoragePrefix = 'kv-zone-result-1.8.8:';
+    var nearestPlaceStoragePrefix = 'kv-nearest-place-1.8.8:';
     var nearestPlaceController = null;
     var nearestPlaceSequence = 0;
     var nearestPlaceTimer = null;
@@ -5420,7 +5427,7 @@
       if (!options.skipMapUpdate) updateCaseMap();
       if (!options.skipSupplementaryLoads) {
         loadGearSummary();
-        if (controlType.value && (species.value || fisheryType.value)) loadRules();
+        loadRules();
       }
       scheduleOfflineRegulationWarm(900);
       return result;
@@ -5565,7 +5572,7 @@
       scheduleAutosave('Manuell posisjon aktivert');
     }
 
-    var devicePositionStorageKey = 'kv-device-position-1.8.7';
+    var devicePositionStorageKey = 'kv-device-position-1.8.8';
     function readCachedDevicePosition() {
       if (!window.localStorage) return null;
       try {
@@ -7930,7 +7937,7 @@ function renderHummerStatus(result) {
     scheduleSummaryWarmup();
     loadLocalEvidenceFromDevice().then(function () { updateLocalMediaStatus(); });
     if (sourcesState.length) sourceList.innerHTML = sourcesState.map(sourceChip).join('');
-    if (controlType.value && (species.value || fisheryType.value)) loadRules();
+    loadRules();
     syncStepNavigation();
     var forcedInitialStep = Number(root.dataset.startStep || '0');
     var shouldForceInitialStep = root.dataset.forceStartStep === '1' && forcedInitialStep >= 1 && forcedInitialStep <= panes.length;
