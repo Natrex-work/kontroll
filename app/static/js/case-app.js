@@ -602,16 +602,19 @@
 
   function seizureBaseCaseNumber() {
     var raw = String((document.getElementById('case-app') || {}).dataset.caseNumber || '').trim().toUpperCase();
-    if (!raw) return 'BESLAG';
-    var direct = raw.match(/^([A-Z\u00c6\u00d8\u00c50-9]{2,10})\s*(\d{2})\s+(\d{1,4})$/i);
-    if (direct) return direct[1].toUpperCase() + direct[2] + '-' + String(direct[3]).padStart(3, '0');
-    var hyphenated = raw.match(/^([A-Z\u00c6\u00d8\u00c50-9]{2,10})(\d{2})[- ](\d{1,4})$/i);
-    if (hyphenated) return hyphenated[1].toUpperCase() + hyphenated[2] + '-' + String(hyphenated[3]).padStart(3, '0');
-    var parts = raw.split(/\s+/).filter(Boolean);
-    if (parts.length >= 3 && /^\d{2}$/.test(parts[1]) && /^\d{1,4}$/.test(parts[2])) {
-      return parts[0].toUpperCase() + parts[1] + '-' + String(parts[2]).padStart(3, '0');
+    if (!raw) return 'LBHN 26001';
+    function compact(prefix, year, number) {
+      return String(prefix || 'LBHN').toUpperCase() + ' ' + String(year || '').padStart(2, '0').slice(-2) + String(number || '1').padStart(3, '0');
     }
-    return raw.replace(/\s+/g, '-');
+    var direct = raw.match(/^([A-Z\u00c6\u00d8\u00c50-9]{2,10})\s*(\d{2})\s+(\d{1,4})$/i);
+    if (direct) return compact(direct[1], direct[2], direct[3]);
+    var hyphenated = raw.match(/^([A-Z\u00c6\u00d8\u00c50-9]{2,10})(\d{2})[- ](\d{1,4})$/i);
+    if (hyphenated) return compact(hyphenated[1], hyphenated[2], hyphenated[3]);
+    var spaced = raw.match(/^([A-Z\u00c6\u00d8\u00c50-9]{2,10})[- ]?(\d{2})(\d{3,4})$/i);
+    if (spaced) return compact(spaced[1], spaced[2], spaced[3]);
+    var parts = raw.split(/\s+/).filter(Boolean);
+    if (parts.length >= 3 && /^\d{2}$/.test(parts[1]) && /^\d{1,4}$/.test(parts[2])) return compact(parts[0], parts[1], parts[2]);
+    return raw.replace(/\s+/g, ' ');
   }
 
   function formatSeizureRef(sequence) {
@@ -1114,9 +1117,9 @@
     var isAvvik = String(item.status || '').toLowerCase() === 'avvik';
     return [
       '<div class="finding-extra finding-deviations ' + (isAvvik ? '' : 'hidden') + '">',
-      '<div class="subhead">Legg til redskap/beslag</div>',
-      '<div class="small muted deviation-short-help">Bla mellom lenker øverst. Hvert avvik kan ha eget eller gjenbrukt beslagsnummer.</div>',
-      '<div class="deviation-list">' + rows.map(function (row, dIndex) {
+      '<div class="subhead">Redskap/beslag</div>',
+      '<div class="small muted deviation-short-help">Trykk Legg til redskap/beslag for hver teine eller hvert redskap. Hver linje kan ha eget eller gjenbrukt beslagsnummer.</div>',
+      '<div class="deviation-list">' + (!rows.length && isAvvik ? '<div class="callout deviation-empty">Ingen beslag registrert ennå.</div>' : '') + rows.map(function (row, dIndex) {
         var linkedCount = evidenceItemsForDeviation(item, row).length;
         var selectedClass = selectedInlineTargetMatches(item, row) ? ' deviation-row-selected' : '';
         var linkedMode = Boolean(String(row.linked_seizure_ref || '').trim());
@@ -1276,7 +1279,7 @@
         if (!data.features.length) return;
         var geo = L.geoJSON(data, {
           style: function () {
-            return { color: layer.color || '#c1121f', weight: 2.5, fillColor: layer.color || '#c1121f', fillOpacity: 0.2 };
+            var color = layer.color || layerMapColor(layer); return { color: color, weight: 2.8, fillColor: color, fillOpacity: 0.22, dashArray: String(layer.status || '').toLowerCase().indexOf('regulert') !== -1 ? '8 5' : null };
           },
           onEachFeature: function (feature, lyr) {
             var props = feature && feature.properties ? feature.properties : {};
@@ -1311,7 +1314,7 @@
         legendControl.onAdd = function () {
           var div = L.DomUtil.create('div', 'leaflet-legend-control');
           div.innerHTML = '<div class="leaflet-legend-title">Kartlag</div>' + (layers || []).map(function (layer) {
-            return '<div class="leaflet-legend-row"><span class="leaflet-legend-swatch" style="background:' + escapeHtml(layer.color || '#c1121f') + '"></span><span>' + escapeHtml(layer.name || '') + '</span></div>';
+            return '<div class="leaflet-legend-row"><span class="leaflet-legend-swatch" style="background:' + escapeHtml(layer.color || layerMapColor(layer)) + '"></span><span>' + escapeHtml(layer.name || '') + '</span></div>';
           }).join('');
           return div;
         };
@@ -1694,7 +1697,7 @@
       if (/(breivikfjorden|borgundfjorden|henningsvaer|lofotfiske)/.test(restrictionText) && !/(torsk|skrei|kommersiell|yrkes)/.test([currentFisherySelection(), currentControlSelection(), restrictionText].join(' '))) return false;
       var status = String(layer.status || '').trim().toLowerCase();
       if (Object.prototype.hasOwnProperty.call(activeLayerStatuses, status) && !activeLayerStatuses[status]) return false;
-      // 1.8.12: Temakartet kan vise bredt uten valg, men under kontroll
+      // 1.8.13: Temakartet kan vise bredt uten valg, men under kontroll
       // skal kartet bare vise lovregulerte lag som passer valgt kontrolltype,
       // art/fiskeri og redskap.
       if (!hasMapSelection()) return true;
@@ -1831,6 +1834,23 @@
       if (key === 'regulert område') return 'regulert';
       if (key === 'fiskeriområde') return 'fiskeri';
       return 'annet';
+    }
+
+    function layerMapColor(layerOrStatus) {
+      var status = '';
+      var text = '';
+      if (layerOrStatus && typeof layerOrStatus === 'object') {
+        status = String(layerOrStatus.status || '').toLowerCase();
+        text = [layerOrStatus.name, layerOrStatus.description, layerOrStatus.selection_summary, layerOrStatus.panel_group].join(' ').toLowerCase();
+      } else {
+        status = String(layerOrStatus || '').toLowerCase();
+        text = status;
+      }
+      if (/stengt|nullfiske|totalforbud|fiskeforbud/.test(status + ' ' + text)) return '#b5171e';
+      if (/fredning|fredningsområde|fredningsomr|verneområde|verneomr|korall|bunnhabitat/.test(status + ' ' + text)) return '#f4a261';
+      if (/maksimalmål|maksimalmal/.test(status + ' ' + text)) return '#bc4749';
+      if (/regulering|regulert|j-melding|jmelding|forskrift|lov/.test(status + ' ' + text)) return '#355070';
+      return '#1f4f82';
     }
 
     function renderRelevantAreaPanel(zoneResult) {
@@ -2509,7 +2529,7 @@
       storedPositionMode = '';
     }
     if (storedPositionMode !== 'manual' && storedPositionMode !== 'auto') storedPositionMode = '';
-    var zoneOverlayStorageKey = 'kv-case-zone-overlay-1.8.12:' + root.dataset.caseId;
+    var zoneOverlayStorageKey = 'kv-case-zone-overlay-1.8.13:' + root.dataset.caseId;
     var zoneOverlayEnabled = true;
     // Treffende verne-/reguleringsområder skal alltid tegnes i kartet.
     // Tidligere lagret 'skjul'-valg fra eldre PWA-versjoner ignoreres.
@@ -2566,13 +2586,7 @@
     };
 
     function zoneHitColor(status) {
-      var key = String(status || '').trim().toLowerCase();
-      if (key === 'stengt område' || key === 'nullfiskeområde') return '#b5171e';
-      if (key === 'fredningsområde') return '#f4a261';
-      if (key === 'maksimalmål område') return '#bc4749';
-      if (key === 'regulert område') return '#355070';
-      if (key === 'fiskeriområde') return '#2a9d8f';
-      return '#1f4f82';
+      return layerMapColor(status);
     }
 
     function clearZoneHitOverlay() {
@@ -4224,7 +4238,7 @@
         title: 'Kontrollpunkter' + (speciesVal || gearVal ? ' for ' + [controlVal, speciesVal, gearVal].filter(Boolean).join(' / ') : ''),
         description: reason || 'Lokal kontrollpunktliste brukes slik at punktene vises også ved tregt eller tomt regeloppslag.',
         items: items,
-        sources: [{ name: 'Lokal kontrollpunktliste', ref: '1.8.12 fallback', url: '' }]
+        sources: [{ name: 'Lokal kontrollpunktliste', ref: '1.8.13 fallback', url: '' }]
       };
     }
 
@@ -5157,7 +5171,7 @@
       var allLayerIds = displayLayers.map(function (layer) { return Number(layer && layer.id); }).filter(function (value) { return isFinite(value); });
       var fisheryPortalService = root.dataset.portalMapserver || (caseMap && caseMap.dataset ? (caseMap.dataset.portalMapserver || '') : '') || 'https://portal.fiskeridir.no/server/rest/services/fiskeridirWMS_fiskeri/MapServer';
       var vernPortalService = root.dataset.portalVernMapserver || (caseMap && caseMap.dataset ? (caseMap.dataset.portalVernMapserver || '') : '') || 'https://portal.fiskeridir.no/server/rest/services/Fiskeridir_vern/MapServer';
-      // 1.8.12: aktuelle verneområder/reguleringer skal vises direkte i kartet
+      // 1.8.13: aktuelle verneområder/reguleringer skal vises direkte i kartet
       // når posisjonssjekken har gitt treff. Uten treff beholdes rask rastervisning.
       mapState.fetchFeatureDetails = options.fetchFeatureDetails === true || mapState.requestFeatureDetails === true || zoneLayerIds.length > 0;
       mapState.featureDetailLayerIds = featureDetailIds;
@@ -5289,8 +5303,8 @@
       return rows;
     }
 
-    var zoneResultStoragePrefix = 'kv-zone-result-1.8.12:';
-    var nearestPlaceStoragePrefix = 'kv-nearest-place-1.8.12:';
+    var zoneResultStoragePrefix = 'kv-zone-result-1.8.13:';
+    var nearestPlaceStoragePrefix = 'kv-nearest-place-1.8.13:';
     var nearestPlaceController = null;
     var nearestPlaceSequence = 0;
     var nearestPlaceTimer = null;
@@ -5590,7 +5604,7 @@
       scheduleAutosave('Manuell posisjon aktivert');
     }
 
-    var devicePositionStorageKey = 'kv-device-position-1.8.12';
+    var devicePositionStorageKey = 'kv-device-position-1.8.13';
     function readCachedDevicePosition() {
       if (!window.localStorage) return null;
       try {

@@ -4048,3 +4048,39 @@ body.case-map-focus-mode { overflow: hidden; }
     min-height: 62vh;
   }
 }
+
+
+.map-status-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+  font-size: 0.84rem;
+  color: var(--muted, #475569);
+}
+.map-status-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+.map-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  display: inline-block;
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.18);
+}
+.map-swatch.fredning { background: #f4a261; }
+.map-swatch.stengt { background: #b5171e; }
+.map-swatch.regulert { background: #355070; }
+.map-swatch.maksimal { background: #bc4749; }
+.deviation-empty {
+  grid-column: 1 / -1;
+  margin-bottom: 8px;
+}
+@media (max-width: 760px) {
+  .map-status-legend { font-size: 0.8rem; }
+  .map-status-legend span { flex: 1 1 140px; }
+}

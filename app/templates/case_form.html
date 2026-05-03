@@ -163,10 +163,10 @@
         <div class="grid-two compact-grid-form margin-top-s">
           <label><span>Kontrolltype</span><select name="control_type" id="control_type"><option value="">Velg</option>{% for option in control_types %}<option value="{{ option }}" {% if case.control_type == option %}selected{% endif %}>{{ option }}</option>{% endfor %}</select></label>
           <label><span>Fiskeri</span><select name="fishery_type" id="fishery_type"><option value="{{ case.fishery_type or '' }}">{{ case.fishery_type or 'Velg' }}</option></select></label>
+          <label><span>Redskap</span><select name="gear_type" id="gear_type"><option value="{{ case.gear_type or '' }}">{{ case.gear_type or 'Velg' }}</option></select><span class="small muted">Styrer lovgrunnlag, kartfilter og kontrollpunkter.</span></label>
         </div>
         <input type="hidden" name="species" id="species" value="{{ case.species or '' }}" /><datalist id="species_options"></datalist>
         <div class="hidden" aria-hidden="true">
-          <select name="gear_type" id="gear_type"><option value="{{ case.gear_type or '' }}">{{ case.gear_type or 'Velg' }}</option></select>
           <input name="start_time" id="start_time" type="datetime-local" value="{{ case.start_time or '' }}" />
           <input name="end_time" id="end_time" type="datetime-local" value="{{ case.end_time or '' }}" readonly />
         </div>
@@ -197,6 +197,12 @@
             <div class="callout margin-top-s map-compact-status" id="map-selection-status">Aktuelle verneområder og reguleringer vises direkte i kartet.</div>
             <button type="button" class="hidden" id="toggle-zone-hit-overlay" aria-hidden="true" tabindex="-1"><span id="toggle-zone-hit-overlay-text"></span></button>
             <div id="case-position-map" class="leaflet-map case-map" data-portal-catalog='{{ portal_layers|tojson }}' data-portal-mapserver="{{ portal_mapserver_url }}" data-portal-vern-mapserver="{{ portal_vern_mapserver_url }}"></div>
+            <div class="map-status-legend" aria-label="Forklaring til kartmarkeringer">
+              <span><i class="map-swatch fredning"></i> Fredning/verneområde</span>
+              <span><i class="map-swatch stengt"></i> Stengt/nullfiske</span>
+              <span><i class="map-swatch regulert"></i> Regulering/J-melding</span>
+              <span><i class="map-swatch maksimal"></i> Maksimalmål</span>
+            </div>
             <details class="map-relevant-panel margin-top-s" id="case-relevant-areas">
               <summary class="map-relevant-head">
                 <strong>Temalag</strong>
@@ -597,5 +603,5 @@
   }
 })();
 </script>
-<script src="/static/js/case-app.js?v=1.8.12"></script>
+<script src="/static/js/case-app.js?v=1.8.13"></script>
 {% endblock %}

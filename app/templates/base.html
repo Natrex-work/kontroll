@@ -13,7 +13,7 @@
   <link rel="manifest" href="/static/manifest.webmanifest" />
   <link rel="apple-touch-icon" href="/static/icon-192.png" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-  <link rel="stylesheet" href="/static/styles.css?v=1.8.12" />
+  <link rel="stylesheet" href="/static/styles.css?v=1.8.13" />
 </head>
 <body class="{% if current_user %}page-shell {% endif %}{% block body_class %}{% endblock %}">
   <div class="app-shell">
@@ -89,10 +89,10 @@
     window.MKCurrentUser = {% if current_user %}{{ {'id': current_user.id, 'email': current_user.email, 'name': current_user.full_name}|tojson }}{% else %}null{% endif %};
   </script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script src="/static/js/local-media.js?v=1.8.12"></script>
-  <script src="/static/js/local-cases.js?v=1.8.12"></script>
-  <script src="/static/js/local-map.js?v=1.8.12"></script>
-  <script src="/static/js/common.js?v=1.8.12"></script>
+  <script src="/static/js/local-media.js?v=1.8.13"></script>
+  <script src="/static/js/local-cases.js?v=1.8.13"></script>
+  <script src="/static/js/local-map.js?v=1.8.13"></script>
+  <script src="/static/js/common.js?v=1.8.13"></script>
   {% block page_scripts %}{% endblock %}
 </body>
 </html>
