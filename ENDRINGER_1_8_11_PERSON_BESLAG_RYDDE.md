@@ -1,4 +1,4 @@
-# Endringer 1.8.13 - Person/fartøy og beslag
+# Endringer 1.8.14 - Person/fartøy og beslag
 
 - Fjernet aktiv OCR-lesing fra Person/fartøy.
 - Beholdt Ta bilde / Legg ved bilde som vedlegg til illustrasjonsrapport.
@@ -6,4 +6,4 @@
 - Fjernet doble synlige Legg til redskap/beslag-knapper.
 - Ved status avvik vises én Legg til redskap/beslag-knapp i kontrollpunktet.
 - Klikk på Legg til redskap/beslag oppretter ny rad med beslagsnummer, type beslag, avvikstekst, merknad og bildeknapper.
-- Versjon/cache bumpet til 1.8.13.
+- Versjon/cache bumpet til 1.8.14.

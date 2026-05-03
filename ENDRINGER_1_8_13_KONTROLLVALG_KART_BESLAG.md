@@ -1,4 +1,4 @@
-# Endringer 1.8.13 - Kontrollvalg, kart og beslag
+# Endringer 1.8.14 - Kontrollvalg, kart og beslag
 
 - Redskapsvalg er lagt tilbake i steg 2 Kontrollvalg.
 - Valgt redskap styrer fortsatt regelverks-/kontrollpunktfilter via eksisterende `gear_type`.
@@ -7,4 +7,4 @@
 - `Legg til redskap/beslag` beholdes som eneste beslagfunksjon når status er `avvik`.
 - Beslagsnummerformat er justert mot eksempel `LBHN 26001-001`.
 - Avviks-/beslagslisten viser tom-status før første beslag og støtter flere linjer under samme avvik.
-- Versjon/cache er bumpet til 1.8.13.
+- Versjon/cache er bumpet til 1.8.14.

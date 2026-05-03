@@ -1,4 +1,4 @@
-# Endringer 1.8.13 - deltaker- og nummeroppslag
+# Endringer 1.8.14 - deltaker- og nummeroppslag
 
 ## Mål
 Forbedre manuelt søk på mobilnummer og hummerdeltakernummer uten at eksterne kilder overstyrer OCR automatisk.
@@ -9,7 +9,7 @@ Forbedre manuelt søk på mobilnummer og hummerdeltakernummer uten at eksterne k
 - Deltakersøk sender nå eksplisitt `lookup_mode=participant` og prioriterer direkte treff i hummerregister/lokal hurtigbuffer.
 - Registeroppslag skiller tydeligere mellom deltakeroppslag, mobiloppslag og generelt oppslag.
 - `controlLinkToolbar`-runtimefeilen fra 1.8.9 er inkludert i denne pakken.
-- Versjon/cache er bumpet til 1.8.13.
+- Versjon/cache er bumpet til 1.8.14.
 
 ## Ikke endret
 - OCR starter fortsatt ikke eksterne katalogoppslag automatisk.

@@ -1109,17 +1109,18 @@
 
 
   function deviationSectionHtml(item) {
+    var isAvvik = String(item.status || '').toLowerCase() === 'avvik';
+    if (!isAvvik) return '<div class="finding-extra finding-deviations hidden"></div>';
     var rows = ensureDeviationState(item);
     syncDeviationDefaults(item);
     var groupState = normalizeDeviationLinkGroups(item);
     rows = groupState.rows;
     var activeGroup = groupState.activeIndex;
-    var isAvvik = String(item.status || '').toLowerCase() === 'avvik';
     return [
-      '<div class="finding-extra finding-deviations ' + (isAvvik ? '' : 'hidden') + '">',
+      '<div class="finding-extra finding-deviations">',
       '<div class="subhead">Redskap/beslag</div>',
-      '<div class="small muted deviation-short-help">Trykk Legg til redskap/beslag for hver teine eller hvert redskap. Hver linje kan ha eget eller gjenbrukt beslagsnummer.</div>',
-      '<div class="deviation-list">' + (!rows.length && isAvvik ? '<div class="callout deviation-empty">Ingen beslag registrert ennå.</div>' : '') + rows.map(function (row, dIndex) {
+      '<div class="actions-row wrap deviation-action-row"><button type="button" class="btn btn-primary btn-small deviation-add" data-action="add-deviation">Legg til redskap/beslag</button></div>',
+      '<div class="deviation-list">' + (!rows.length ? '<div class="callout deviation-empty">Ingen beslag registrert ennå.</div>' : '') + rows.map(function (row, dIndex) {
         var linkedCount = evidenceItemsForDeviation(item, row).length;
         var selectedClass = selectedInlineTargetMatches(item, row) ? ' deviation-row-selected' : '';
         var linkedMode = Boolean(String(row.linked_seizure_ref || '').trim());
@@ -1127,26 +1128,25 @@
         var groupHidden = rowGroup === activeGroup ? '' : ' hidden';
         return [
           '<div class="deviation-row' + selectedClass + '" data-dev-index="' + dIndex + '" data-link-group-index="' + rowGroup + '" data-seizure-ref="' + escapeHtml(String(row.seizure_ref || '')) + '"' + groupHidden + '>',
-          '<div class="deviation-row-head"><strong>Lenke ' + (rowGroup + 1) + ' · Avvik ' + (dIndex + 1) + '</strong><span class="muted small">' + escapeHtml(row.seizure_ref || 'Beslag opprettes') + '</span></div>',
+          '<div class="deviation-row-head"><strong>Lenke ' + (rowGroup + 1) + ' · Beslag ' + (dIndex + 1) + '</strong><span class="muted small">' + escapeHtml(row.seizure_ref || 'Beslag opprettes') + '</span></div>',
           '<div class="deviation-row-fields">',
-          '<input class="deviation-seizure-ref" placeholder="Beslagsnr." title="Beslagsnummer" value="' + escapeHtml(row.seizure_ref || '') + '" readonly />',
-          '<select class="deviation-existing-gear" title="Tidligere beslag/redskap i saken">' + deviationExistingGearOptionsHtml(row) + '</select>',
-          '<select class="deviation-gear-kind" title="Type redskap" ' + (linkedMode ? 'disabled' : '') + '>' + deviationGearOptions().map(function (opt) { return '<option value="' + escapeHtml(opt) + '" ' + (String(row.gear_kind || '') === opt ? 'selected' : '') + '>' + escapeHtml(opt) + '</option>'; }).join('') + '</select>',
-          '<input class="deviation-quantity" type="number" min="1" placeholder="Antall" value="' + escapeHtml(row.quantity || '') + '" />',
-          '<input class="deviation-position" placeholder="Posisjon" value="' + escapeHtml(row.position || '') + '" />',
+          '<label><span>Beslagsnummer</span><input class="deviation-seizure-ref" placeholder="LBHN 26001-001" title="Beslagsnummer" value="' + escapeHtml(row.seizure_ref || '') + '" readonly /></label>',
+          '<label><span>Tidligere beslag</span><select class="deviation-existing-gear" title="Tidligere beslag/redskap i saken">' + deviationExistingGearOptionsHtml(row) + '</select></label>',
+          '<label><span>Type beslag</span><select class="deviation-gear-kind" title="Type beslag" ' + (linkedMode ? 'disabled' : '') + '>' + deviationGearOptions().map(function (opt) { return '<option value="' + escapeHtml(opt) + '" ' + (String(row.gear_kind || '') === opt ? 'selected' : '') + '>' + escapeHtml(opt) + '</option>'; }).join('') + '</select></label>',
+          '<label><span>Antall</span><input class="deviation-quantity" type="number" min="1" placeholder="1" value="' + escapeHtml(row.quantity || '') + '" /></label>',
+          '<label><span>Posisjon</span><input class="deviation-position" placeholder="Posisjon" value="' + escapeHtml(row.position || '') + '" /></label>',
           '<button type="button" class="btn btn-secondary btn-small deviation-position-fill">Bruk posisjon</button>',
-          '<input class="deviation-violation" placeholder="Korttekst avvik" value="' + escapeHtml(row.violation || '') + '" />',
-          '<input class="deviation-note" placeholder="Manuell merknad" value="' + escapeHtml(row.note || '') + '" />',
-          '<textarea class="deviation-report-draft span-2" rows="3" readonly title="Autogenerert tekst til beslagsrapport">' + escapeHtml(deviationReportDraftText(item, row)) + '</textarea>',
-          '<button type="button" class="btn btn-secondary btn-small deviation-evidence-link ' + (isAvvik ? '' : 'hidden') + '">' + (linkedCount ? ('Bilde (' + linkedCount + ')') : 'Bilde') + '</button>',
-          '<button type="button" class="btn btn-secondary btn-small deviation-camera ' + (isAvvik ? '' : 'hidden') + '">Kamera</button>',
-          '<button type="button" class="btn btn-secondary btn-small deviation-file ' + (isAvvik ? '' : 'hidden') + '">Legg til bilde</button>',
+          '<label><span>Avvik</span><input class="deviation-violation" placeholder="Kort lov-/forskriftsbrudd" value="' + escapeHtml(row.violation || '') + '" /></label>',
+          '<label><span>Merknad</span><input class="deviation-note" placeholder="Fritekst" value="' + escapeHtml(row.note || '') + '" /></label>',
+          '<label class="span-2"><span>Beslagsrapporttekst</span><textarea class="deviation-report-draft" rows="3" readonly title="Autogenerert tekst til beslagsrapport">' + escapeHtml(deviationReportDraftText(item, row)) + '</textarea></label>',
+          '<button type="button" class="btn btn-secondary btn-small deviation-evidence-link">' + (linkedCount ? ('Bilde (' + linkedCount + ')') : 'Bilde') + '</button>',
+          '<button type="button" class="btn btn-secondary btn-small deviation-camera">Kamera</button>',
+          '<button type="button" class="btn btn-secondary btn-small deviation-file">Legg til bilde</button>',
           '<button type="button" class="btn btn-danger btn-small deviation-remove">Fjern</button>',
           '</div>',
           '</div>'
         ].join('');
       }).join('') + '</div>',
-      '<div class="actions-row wrap"><button type="button" class="btn btn-secondary btn-small deviation-add">Legg til redskap/beslag</button></div>',
       '<div class="small muted structured-preview">' + escapeHtml(deviationSummaryText(item)) + '</div>',
       deviationInfoBoxHtml(item, rows),
       '</div>'
@@ -1697,7 +1697,7 @@
       if (/(breivikfjorden|borgundfjorden|henningsvaer|lofotfiske)/.test(restrictionText) && !/(torsk|skrei|kommersiell|yrkes)/.test([currentFisherySelection(), currentControlSelection(), restrictionText].join(' '))) return false;
       var status = String(layer.status || '').trim().toLowerCase();
       if (Object.prototype.hasOwnProperty.call(activeLayerStatuses, status) && !activeLayerStatuses[status]) return false;
-      // 1.8.13: Temakartet kan vise bredt uten valg, men under kontroll
+      // 1.8.14: Temakartet kan vise bredt uten valg, men under kontroll
       // skal kartet bare vise lovregulerte lag som passer valgt kontrolltype,
       // art/fiskeri og redskap.
       if (!hasMapSelection()) return true;
@@ -2529,7 +2529,7 @@
       storedPositionMode = '';
     }
     if (storedPositionMode !== 'manual' && storedPositionMode !== 'auto') storedPositionMode = '';
-    var zoneOverlayStorageKey = 'kv-case-zone-overlay-1.8.13:' + root.dataset.caseId;
+    var zoneOverlayStorageKey = 'kv-case-zone-overlay-1.8.14:' + root.dataset.caseId;
     var zoneOverlayEnabled = true;
     // Treffende verne-/reguleringsområder skal alltid tegnes i kartet.
     // Tidligere lagret 'skjul'-valg fra eldre PWA-versjoner ignoreres.
@@ -4238,7 +4238,7 @@
         title: 'Kontrollpunkter' + (speciesVal || gearVal ? ' for ' + [controlVal, speciesVal, gearVal].filter(Boolean).join(' / ') : ''),
         description: reason || 'Lokal kontrollpunktliste brukes slik at punktene vises også ved tregt eller tomt regeloppslag.',
         items: items,
-        sources: [{ name: 'Lokal kontrollpunktliste', ref: '1.8.13 fallback', url: '' }]
+        sources: [{ name: 'Lokal kontrollpunktliste', ref: '1.8.14 fallback', url: '' }]
       };
     }
 
@@ -5171,7 +5171,7 @@
       var allLayerIds = displayLayers.map(function (layer) { return Number(layer && layer.id); }).filter(function (value) { return isFinite(value); });
       var fisheryPortalService = root.dataset.portalMapserver || (caseMap && caseMap.dataset ? (caseMap.dataset.portalMapserver || '') : '') || 'https://portal.fiskeridir.no/server/rest/services/fiskeridirWMS_fiskeri/MapServer';
       var vernPortalService = root.dataset.portalVernMapserver || (caseMap && caseMap.dataset ? (caseMap.dataset.portalVernMapserver || '') : '') || 'https://portal.fiskeridir.no/server/rest/services/Fiskeridir_vern/MapServer';
-      // 1.8.13: aktuelle verneområder/reguleringer skal vises direkte i kartet
+      // 1.8.14: aktuelle verneområder/reguleringer skal vises direkte i kartet
       // når posisjonssjekken har gitt treff. Uten treff beholdes rask rastervisning.
       mapState.fetchFeatureDetails = options.fetchFeatureDetails === true || mapState.requestFeatureDetails === true || zoneLayerIds.length > 0;
       mapState.featureDetailLayerIds = featureDetailIds;
@@ -5303,8 +5303,8 @@
       return rows;
     }
 
-    var zoneResultStoragePrefix = 'kv-zone-result-1.8.13:';
-    var nearestPlaceStoragePrefix = 'kv-nearest-place-1.8.13:';
+    var zoneResultStoragePrefix = 'kv-zone-result-1.8.14:';
+    var nearestPlaceStoragePrefix = 'kv-nearest-place-1.8.14:';
     var nearestPlaceController = null;
     var nearestPlaceSequence = 0;
     var nearestPlaceTimer = null;
@@ -5604,7 +5604,7 @@
       scheduleAutosave('Manuell posisjon aktivert');
     }
 
-    var devicePositionStorageKey = 'kv-device-position-1.8.13';
+    var devicePositionStorageKey = 'kv-device-position-1.8.14';
     function readCachedDevicePosition() {
       if (!window.localStorage) return null;
       try {
@@ -6822,10 +6822,8 @@ function renderHummerStatus(result) {
         findingsState[idx].status = event.target.value;
         if (event.target.value === 'avvik') {
           findingsState[idx].active_deviation_link_index = controlLinkModeEnabled ? controlLinkActiveIndex : Number(findingsState[idx].active_deviation_link_index || 0);
-          var autoRows = ensureDeviationState(findingsState[idx]);
-          autoRows.forEach(function (row) { if (row && (!isFinite(Number(row.link_group_index)) || Number(row.link_group_index) < 0)) row.link_group_index = findingsState[idx].active_deviation_link_index || 0; });
+          ensureDeviationState(findingsState[idx]);
           normalizeDeviationLinkGroups(findingsState[idx]);
-          if (autoRows.length) syncDeviationDefaults(findingsState[idx]);
           inlineEvidenceFeedback = 'Avvik valgt. Trykk Legg til redskap/beslag for å registrere beslag.';
         } else {
           findingsState[idx].deviation_units = findingsState[idx].deviation_units || [];
@@ -7113,7 +7111,7 @@ function renderHummerStatus(result) {
         scheduleAutosave('Nytt avvik lagt til lenke');
         return;
       }
-      if (event.target.classList.contains('deviation-add') || event.target.classList.contains('deviation-add-top') || event.target.classList.contains('deviation-add-body')) {
+      if ((event.target.getAttribute && event.target.getAttribute('data-action') === 'add-deviation') || event.target.classList.contains('deviation-add') || event.target.classList.contains('deviation-add-top') || event.target.classList.contains('deviation-add-body')) {
         event.preventDefault();
         item.status = 'avvik';
         findingsState[idx].status = 'avvik';
@@ -7128,6 +7126,8 @@ function renderHummerStatus(result) {
         item.deviation_summary = deviationSummaryText(item);
         findingsInput.value = JSON.stringify(findingsState);
         setInlineEvidenceTarget(item, newRow, 'Redskap/beslag lagt til. Fyll korttekst, merknad og bilde ved behov.');
+        renderFindings();
+        flashActiveDeviationRow();
         scheduleAutosave('Ny avviksrad lagt til');
         return;
       }
