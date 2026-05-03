@@ -122,6 +122,7 @@ NON_LEGAL_COASTAL_DATA_TOKENS = (
     'lassettingsplass', 'låssettingsplass', 'skjellforekomst', 'havbeitelokalitet',
     'statistikkomrade', 'statistikkområde', 'hovedomraader', 'hovedområder', 'lokasjoner',
     'dybde', 'sjokart', 'sjøkart', 'bathy', 'bathym', 'sjo og dybde', 'sjø og dybde',
+    'tapte redskap', 'tapt redskap',
 )
 
 NON_RESTRICTIVE_OPEN_AREA_TOKENS = (
@@ -331,8 +332,8 @@ def layer_panel_group(name: Any, description: Any = '', status: Any = '') -> dic
         return {'panel_group': 'Tare', 'panel_group_key': 'tare', 'panel_group_order': 50}
     if any(token in blob for token in ('gytefelt', 'gyteomrade', 'gyteområde', 'oppvekst', 'beiteomrade', 'beiteområde', 'fiskeplass', 'rekefelt', 'lassettingsplass', 'låssettingsplass', 'skjellforekomst', 'havbeitelokalitet')) or normalize_text(status) in {'fiskeriomrade', 'fiskeriområde'}:
         return {'panel_group': 'Andre temalag', 'panel_group_key': 'andre_temalag', 'panel_group_order': 100}
-    if 'tapte redskap' in blob:
-        return {'panel_group': 'Tapte redskap', 'panel_group_key': 'tapte_redskap', 'panel_group_order': 70}
+    if 'tapte redskap' in blob or 'tapt redskap' in blob:
+        return {'panel_group': 'Andre temalag', 'panel_group_key': 'andre_temalag', 'panel_group_order': 100}
     if any(token in blob for token in ('hovedomraader', 'hovedområder', 'lokasjoner', 'statistikkomrade', 'statistikkområde')):
         return {'panel_group': 'Statistikkområder', 'panel_group_key': 'statistikkomrader', 'panel_group_order': 80}
     if any(token in blob for token in ('dybde', 'sjokart', 'sjøkart', 'bathy', 'bathym', 'sjo og dybde', 'sjø og dybde')):

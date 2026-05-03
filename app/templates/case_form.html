@@ -77,13 +77,14 @@
 
   <div class="stepper glass-stepper">
     <button class="step-btn active" type="button" data-step-target="1">1. Roller / grunnlag</button>
-    <button class="step-btn" type="button" data-step-target="2">2. Posisjon / kontrolltype</button>
-    <button class="step-btn" type="button" data-step-target="3">3. Person / fartøy</button>
+    <button class="step-btn" type="button" data-step-target="2">2. Kontrollvalg</button>
+    <button class="step-btn" type="button" data-step-target="3">3. Posisjon/Kart</button>
     <button class="step-btn" type="button" data-step-target="4">4. Kontrollpunkter</button>
-    <button class="step-btn" type="button" data-step-target="5">5. Illustrasjonsrapport</button>
-    <button class="step-btn" type="button" data-step-target="6">6. Avhør</button>
-    <button class="step-btn" type="button" data-step-target="7">7. Beslagsrapport</button>
-    <button class="step-btn" type="button" data-step-target="8">8. Oppsummering</button>
+    <button class="step-btn" type="button" data-step-target="5">5. Person / fartøy</button>
+    <button class="step-btn" type="button" data-step-target="6">6. Illustrasjonsrapport</button>
+    <button class="step-btn" type="button" data-step-target="7">7. Avhør</button>
+    <button class="step-btn" type="button" data-step-target="8">8. Beslagsrapport</button>
+    <button class="step-btn" type="button" data-step-target="9">9. Oppsummering</button>
   </div>
 
   <form id="case-form" method="post" action="{% if offline_new %}#{% else %}/cases/{{ case.id }}/save{% endif %}" class="stack gap-l">
@@ -154,83 +155,20 @@
     <section class="card card-panel step-pane" data-step="2">
       <div class="card-header panel-header">
         <div>
-          <h2>2. Posisjon / kontrolltype</h2>
+          <h2>2. Kontrollvalg</h2>
         </div>
       </div>
-      <div class="split-panel">
-        <div class="subcard">
-          <h3>Kontrolltype og fiskeri</h3>
-          <div class="grid-two compact-grid-form margin-top-s">
-            <label><span>Kontrolltype</span><select name="control_type" id="control_type"><option value="">Velg</option>{% for option in control_types %}<option value="{{ option }}" {% if case.control_type == option %}selected{% endif %}>{{ option }}</option>{% endfor %}</select></label>
-            <label><span>Art / fiskeri</span><select name="fishery_type" id="fishery_type"><option value="{{ case.fishery_type or '' }}">{{ case.fishery_type or 'Velg' }}</option></select></label>
-            <input type="hidden" name="species" id="species" value="{{ case.species or '' }}" /><datalist id="species_options"></datalist>
-            <label><span>Redskap</span><select name="gear_type" id="gear_type"><option value="{{ case.gear_type or '' }}">{{ case.gear_type or 'Velg' }}</option></select></label>
-            <label><span>Starttid</span><input name="start_time" id="start_time" type="datetime-local" value="{{ case.start_time or '' }}" /></label>
-            <label><span>Sluttid</span><input name="end_time" id="end_time" type="datetime-local" value="{{ case.end_time or '' }}" readonly /></label>
-          </div>
-          <div class="callout margin-top-s">Starttid settes automatisk ved opprettelse. Sluttid settes automatisk når rapporten avsluttes og PDF eksporteres.</div>
+      <div class="subcard">
+        <h3>Kontrollvalg</h3>
+        <div class="grid-two compact-grid-form margin-top-s">
+          <label><span>Kontrolltype</span><select name="control_type" id="control_type"><option value="">Velg</option>{% for option in control_types %}<option value="{{ option }}" {% if case.control_type == option %}selected{% endif %}>{{ option }}</option>{% endfor %}</select></label>
+          <label><span>Fiskeri</span><select name="fishery_type" id="fishery_type"><option value="{{ case.fishery_type or '' }}">{{ case.fishery_type or 'Velg' }}</option></select></label>
         </div>
-        <div class="subcard">
-          <h3>Kart og område</h3>
-          <div class="callout margin-top-s portal-inline-card">
-            <strong>Fiskeridirektoratets kartportal</strong>
-            <div class="small muted">Brukes som hovedkart for full kartoversikt. Kontroll ved posisjon under viser bare relevante reguleringsområder ut fra valgt kontrolltype, art/fiskeri og redskap.</div>
-            <a class="btn btn-secondary btn-small margin-top-s" href="{{ portal_map_url }}" target="_blank" rel="noopener">Åpne kartportal</a>
-          </div>
-          <div class="grid-two compact-grid-form margin-top-s">
-            <label class="span-2"><span>Nærmeste sted</span><input name="location_name" id="location_name" value="{{ case.location_name or '' }}" /><span class="small coordinate-summary" id="position-coordinate-summary">DMS vises her når posisjon er satt.</span></label>
-            <div class="subcard span-2 case-map-card inline-case-map-card" id="case-map-card">
-              <div class="subcard-head compact-map-head">
-                <h3>Kontroll ved posisjon</h3>
-                <button type="button" class="btn btn-secondary btn-small" id="btn-toggle-case-map-fullscreen">Åpne kart</button>
-              </div>
-              <div class="callout margin-top-s map-compact-status" id="map-selection-status">Aktuelle verneområder og reguleringer vises direkte i kartet.</div>
-              <button type="button" class="hidden" id="toggle-zone-hit-overlay" aria-hidden="true" tabindex="-1"><span id="toggle-zone-hit-overlay-text"></span></button>
-              <div id="case-position-map" class="leaflet-map case-map" data-portal-catalog='{{ portal_layers|tojson }}' data-portal-mapserver="{{ portal_mapserver_url }}" data-portal-vern-mapserver="{{ portal_vern_mapserver_url }}"></div>
-              <details class="map-relevant-panel margin-top-s" id="case-relevant-areas" open>
-                <summary class="map-relevant-head">
-                  <strong>Temalag</strong>
-                  <span class="muted small">Åpne/lukk</span>
-                </summary>
-                <div class="map-relevant-list" id="case-relevant-areas-list"><div class="muted small">Velg kontrolltype og redskap.</div></div>
-              </details>
-              <details class="offline-packages-panel margin-top-s" id="offline-regulations-panel">
-                <summary class="offline-packages-head">
-                  <div>
-                    <strong>Offline-reguleringer</strong>
-                    <div class="muted small">Lagret på enheten for valgt område.</div>
-                  </div>
-                </summary>
-                <div class="callout margin-top-s" id="map-offline-status">Relevante reguleringsområder lagres lokalt for rask feltvisning.</div>
-                <div class="actions-row wrap margin-top-s">
-                  <button type="button" class="btn btn-secondary btn-small" id="btn-refresh-offline-packages">Oppdater lagrede pakker</button>
-                </div>
-                <div class="callout margin-top-s" id="offline-packages-summary">Ingen offline-reguleringer er lagret på denne enheten ennå.</div>
-                <div class="offline-packages-list" id="offline-packages-list"></div>
-              </details>
-              <div class="map-layer-panel-host" id="case-map-layer-panel-host"></div>
-            </div>
-            <div class="position-action-group span-2">
-              <span>Handlinger</span>
-              <div class="position-actions margin-top-s">
-                <button type="button" class="btn btn-secondary" id="btn-use-location">Bruk min posisjon</button>
-                <button type="button" class="btn btn-secondary" id="btn-set-manual-position">Sett manuelt i kart</button>
-                <button type="button" class="btn btn-secondary" id="btn-check-zone">Oppdater verneområder</button>
-                <button type="button" class="btn btn-secondary" id="btn-download-map-offline">Lagre reguleringer lokalt</button>
-              </div>
-            </div>
-            <details class="coordinate-disclosure span-2">
-              <summary>Teknisk posisjon</summary>
-              <div class="grid-two margin-top-s">
-                <label><span>WGS84 nord/sør</span><input name="latitude" id="latitude" value="{{ case.latitude or '' }}" /></label>
-                <label><span>WGS84 øst/vest</span><input name="longitude" id="longitude" value="{{ case.longitude or '' }}" /></label>
-              </div>
-            </details>
-            <input type="hidden" name="area_status" id="area_status" value="{{ case.area_status or '' }}" />
-            <input type="hidden" name="area_name" id="area_name" value="{{ case.area_name or '' }}" />
-            <label class="span-2"><span>Verneområder</span><select id="area_restriction_select"><option value="">Oppdater verneområder for å vise aktuelle områder</option></select></label>
-            <div class="callout span-2 area-restriction-detail" id="area-restriction-detail">Relevante verneområder vises etter posisjonssjekk.</div>
-          </div>
+        <input type="hidden" name="species" id="species" value="{{ case.species or '' }}" /><datalist id="species_options"></datalist>
+        <div class="hidden" aria-hidden="true">
+          <select name="gear_type" id="gear_type"><option value="{{ case.gear_type or '' }}">{{ case.gear_type or 'Velg' }}</option></select>
+          <input name="start_time" id="start_time" type="datetime-local" value="{{ case.start_time or '' }}" />
+          <input name="end_time" id="end_time" type="datetime-local" value="{{ case.end_time or '' }}" readonly />
         </div>
       </div>
       <div class="step-actions"><button type="button" class="btn btn-secondary" data-prev-step>Tilbake</button><button type="button" class="btn btn-primary" data-next-step>Videre</button></div>
@@ -239,7 +177,78 @@
     <section class="card card-panel step-pane" data-step="3">
       <div class="card-header panel-header">
         <div>
-          <h2>3. Person / fartøy</h2>
+          <h2>3. Posisjon/Kart</h2>
+        </div>
+      </div>
+      <div class="subcard">
+        <h3>Posisjon og kart</h3>
+        <div class="callout margin-top-s portal-inline-card">
+          <strong>Fiskeridirektoratets kartportal</strong>
+          <div class="small muted">Brukes som hovedkart for full kartoversikt. Kontroll ved posisjon under viser bare relevante reguleringsområder ut fra valgt kontrolltype, art/fiskeri og redskap.</div>
+          <a class="btn btn-secondary btn-small margin-top-s" href="{{ portal_map_url }}" target="_blank" rel="noopener">Åpne kartportal</a>
+        </div>
+        <div class="grid-two compact-grid-form margin-top-s">
+          <label class="span-2"><span>Nærmeste sted</span><input name="location_name" id="location_name" value="{{ case.location_name or '' }}" /><span class="small coordinate-summary" id="position-coordinate-summary">DMS vises her når posisjon er satt.</span></label>
+          <div class="subcard span-2 case-map-card inline-case-map-card" id="case-map-card">
+            <div class="subcard-head compact-map-head">
+              <h3>Kontroll ved posisjon</h3>
+              <button type="button" class="btn btn-secondary btn-small" id="btn-toggle-case-map-fullscreen">Åpne kart</button>
+            </div>
+            <div class="callout margin-top-s map-compact-status" id="map-selection-status">Aktuelle verneområder og reguleringer vises direkte i kartet.</div>
+            <button type="button" class="hidden" id="toggle-zone-hit-overlay" aria-hidden="true" tabindex="-1"><span id="toggle-zone-hit-overlay-text"></span></button>
+            <div id="case-position-map" class="leaflet-map case-map" data-portal-catalog='{{ portal_layers|tojson }}' data-portal-mapserver="{{ portal_mapserver_url }}" data-portal-vern-mapserver="{{ portal_vern_mapserver_url }}"></div>
+            <details class="map-relevant-panel margin-top-s" id="case-relevant-areas">
+              <summary class="map-relevant-head">
+                <strong>Temalag</strong>
+                <span class="muted small">Åpne/lukk</span>
+              </summary>
+              <div class="map-relevant-list" id="case-relevant-areas-list"><div class="muted small">Velg kontrolltype og redskap.</div></div>
+            </details>
+            <details class="offline-packages-panel margin-top-s" id="offline-regulations-panel">
+              <summary class="offline-packages-head">
+                <div>
+                  <strong>Offline-reguleringer</strong>
+                  <div class="muted small">Lagret på enheten for valgt område.</div>
+                </div>
+              </summary>
+              <div class="callout margin-top-s" id="map-offline-status">Relevante reguleringsområder lagres lokalt for rask feltvisning.</div>
+              <div class="actions-row wrap margin-top-s">
+                <button type="button" class="btn btn-secondary btn-small" id="btn-refresh-offline-packages">Oppdater lagrede pakker</button>
+              </div>
+              <div class="callout margin-top-s" id="offline-packages-summary">Ingen offline-reguleringer er lagret på denne enheten ennå.</div>
+              <div class="offline-packages-list" id="offline-packages-list"></div>
+            </details>
+            <div class="map-layer-panel-host" id="case-map-layer-panel-host"></div>
+          </div>
+          <div class="position-action-group span-2">
+            <span>Handlinger</span>
+            <div class="position-actions margin-top-s">
+              <button type="button" class="btn btn-secondary" id="btn-use-location">Bruk min posisjon</button>
+              <button type="button" class="btn btn-secondary" id="btn-set-manual-position">Sett manuelt i kart</button>
+              <button type="button" class="btn btn-secondary" id="btn-check-zone">Oppdater verneområder</button>
+              <button type="button" class="btn btn-secondary" id="btn-download-map-offline">Lagre reguleringer lokalt</button>
+            </div>
+          </div>
+          <details class="coordinate-disclosure span-2">
+            <summary>Teknisk posisjon</summary>
+            <div class="grid-two margin-top-s">
+              <label><span>WGS84 nord/sør</span><input name="latitude" id="latitude" value="{{ case.latitude or '' }}" /></label>
+              <label><span>WGS84 øst/vest</span><input name="longitude" id="longitude" value="{{ case.longitude or '' }}" /></label>
+            </div>
+          </details>
+          <input type="hidden" name="area_status" id="area_status" value="{{ case.area_status or '' }}" />
+          <input type="hidden" name="area_name" id="area_name" value="{{ case.area_name or '' }}" />
+          <label class="span-2"><span>Verneområder</span><select id="area_restriction_select"><option value="">Oppdater verneområder for å vise aktuelle områder</option></select></label>
+          <div class="callout span-2 area-restriction-detail" id="area-restriction-detail">Relevante verneområder vises etter posisjonssjekk.</div>
+        </div>
+      </div>
+      <div class="step-actions"><button type="button" class="btn btn-secondary" data-prev-step>Tilbake</button><button type="button" class="btn btn-primary" data-next-step>Videre</button></div>
+    </section>
+
+    <section class="card card-panel step-pane" data-step="5">
+      <div class="card-header panel-header">
+        <div>
+          <h2>5. Person / fartøy</h2>
           <div id="person-mode-hint" class="muted small hidden"></div>
         </div>
       </div>
@@ -341,10 +350,10 @@
     </section>
   </form>
 
-  <section class="card card-panel step-pane" data-step="5">
+  <section class="card card-panel step-pane" data-step="6">
     <div class="card-header panel-header">
       <div>
-        <h2>5. Illustrasjonsrapport</h2>
+        <h2>6. Illustrasjonsrapport</h2>
       </div>
     </div>
     <div id="selected-finding-card" class="callout">Velg avvik for bilde.</div>
@@ -390,8 +399,8 @@
     <div class="step-actions"><button type="button" class="btn btn-secondary" data-prev-step>Tilbake</button><button type="button" class="btn btn-primary" data-next-step>Videre</button></div>
   </section>
 
-  <section class="card card-panel step-pane" data-step="6">
-    <div class="card-header panel-header"><h2>6. Avhør</h2></div>
+  <section class="card card-panel step-pane" data-step="7">
+    <div class="card-header panel-header"><h2>7. Avhør</h2></div>
 
     <div class="callout margin-bottom-m" id="interview-not-conducted-panel">
       <label class="check-chip">
@@ -473,10 +482,10 @@
     <div class="step-actions"><button type="button" class="btn btn-secondary" data-prev-step>Tilbake</button><button type="button" class="btn btn-primary" data-next-step>Videre</button></div>
   </section>
 
-<section class="card card-panel step-pane" data-step="7" id="seizure-report-step">
+<section class="card card-panel step-pane" data-step="8" id="seizure-report-step">
     <div class="card-header panel-header">
       <div>
-        <h2>7. Beslagsrapport</h2>
+        <h2>8. Beslagsrapport</h2>
         <div class="muted small">Ved avvik på redskap, minstemål eller maksimalmål opprettes beslagsrader automatisk fra kontrollpunkter og bilder. Hver rad kan endres manuelt.</div>
       </div>
       <div class="actions-row wrap">
@@ -494,10 +503,10 @@
     <div class="step-actions"><button type="button" class="btn btn-secondary" data-prev-step>Tilbake</button><button type="button" class="btn btn-primary" data-next-step>Videre</button></div>
   </section>
 
-<section class="card card-panel step-pane" data-step="8">
+<section class="card card-panel step-pane" data-step="9">
     <div class="card-header panel-header">
       <div>
-        <h2>8. Oppsummering</h2>
+        <h2>9. Oppsummering</h2>
         <div class="muted small">Dokumentpakken følger samme dokumentrekkefølge som malene du har lastet opp.</div>
       </div>
     </div>
@@ -588,5 +597,5 @@
   }
 })();
 </script>
-<script src="/static/js/case-app.js?v=1.8.11"></script>
+<script src="/static/js/case-app.js?v=1.8.12"></script>
 {% endblock %}

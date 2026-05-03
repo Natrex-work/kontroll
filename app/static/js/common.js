@@ -6,7 +6,7 @@
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('/static/sw.js?v=1.8.11').catch(function () {});
+      navigator.serviceWorker.register('/static/sw.js?v=1.8.12').catch(function () {});
     });
   }
 
@@ -337,7 +337,7 @@
   }
 
 
-  var LAYER_PANEL_PREFS_VERSION = '1.8.11';
+  var LAYER_PANEL_PREFS_VERSION = '1.8.12';
 
   function layerPanelStorageKey(el, markerState) {
     return 'kv-temalag:' + LAYER_PANEL_PREFS_VERSION + ':' + String((markerState && markerState.layerPanelKey) || (el && el.id) || 'map');
@@ -380,7 +380,7 @@
     if (status.indexOf('fiskeriområde') !== -1 || status.indexOf('fiskeriomrade') !== -1 || blob.indexOf('gyte') !== -1 || blob.indexOf('oppvekst') !== -1 || blob.indexOf('fiskeplass') !== -1 || blob.indexOf('rekefelt') !== -1 || blob.indexOf('skjellforekomst') !== -1 || blob.indexOf('låssettings') !== -1 || blob.indexOf('lasettings') !== -1 || blob.indexOf('havbeitelokalitet') !== -1) {
       return { label: 'Andre temalag', key: 'andre_temalag', order: 100 };
     }
-    if (blob.indexOf('tapte redskap') !== -1) return { label: 'Tapte redskap', key: 'tapte_redskap', order: 70 };
+    if (blob.indexOf('tapte redskap') !== -1 || blob.indexOf('tapt redskap') !== -1) return { label: 'Andre temalag', key: 'andre_temalag', order: 100 };
     if (blob.indexOf('hovedomraader') !== -1 || blob.indexOf('hovedområder') !== -1 || blob.indexOf('lokasjoner') !== -1 || blob.indexOf('statistikkområde') !== -1 || blob.indexOf('statistikkomrade') !== -1) return { label: 'Statistikkområder', key: 'statistikkomrader', order: 80 };
     if (blob.indexOf('dybde') !== -1 || blob.indexOf('sjø') !== -1 || blob.indexOf('sjo') !== -1) return { label: 'Sjø- og dybdedata', key: 'sjo_dybdedata', order: 90 };
     return { label: 'Fiskerireguleringer', key: 'fiskerireguleringer', order: 20 };

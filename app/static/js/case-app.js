@@ -1096,15 +1096,8 @@
       parts.push('<label><span>Sluttposisjon lenke/garn</span><input class="marker-end" value="' + escapeHtml(pos.end || '') + '" /></label>');
       parts.push('<div class="actions-row wrap align-end"><button type="button" class="btn btn-secondary btn-small marker-end-fill">Sett slutt = nåværende</button></div>');
       parts.push('</div>');
-      parts.push('<div class="small muted">Hvis redskapet ikke er lenke, vises bare kontrollørposisjon. Start/sluttposisjon åpnes når lenke er krysset av.</div>');
     }
     if (showCounts) {
-      parts.push('<div class="grid-three compact-grid-form margin-top-s">');
-      parts.push('<label><span>Antall teiner/redskap kontrollert</span><input class="marker-total" type="number" min="0" value="' + escapeHtml(pos.total || '') + '" /></label>');
-      parts.push('<label><span>Antall godkjente</span><input class="marker-approved" type="number" min="0" value="' + escapeHtml(pos.approved || '') + '" /></label>');
-      parts.push('<label><span>Antall med avvik</span><input class="marker-deviations" type="number" min="0" value="' + escapeHtml(pos.deviations || '') + '" /></label>');
-      parts.push('</div>');
-      parts.push('<div class="small muted">Bruk avviksradene under til å registrere flere konkrete redskap med eget beslagnummer. Flere avvik kan kobles til samme beslag.</div>');
     }
     parts.push('<div class="small muted structured-preview">' + escapeHtml(markerSummaryText(item)) + '</div>');
     parts.push('</div>');
@@ -1668,13 +1661,13 @@
       if (!layer) return false;
       var blob = normalizeSelectionText([layer.name, layer.description, layer.status, layer.panel_group, layer.selection_summary, layer.selection_blob].join(' '));
       var status = normalizeSelectionText(layer.status || '');
-      var nonLawTokens = ['kystnaere fiskeridata', 'kystnaer fiskeridata', 'kystnaere', 'gytefelt', 'gyteomrade', 'oppvekst', 'oppvekstomrade', 'beiteomrade', 'fiskeplass', 'fiskeplasser', 'rekefelt', 'lassettingsplass', 'lasettingsplass', 'skjellforekomst', 'havbeitelokalitet', 'statistikkomrade', 'dybde', 'sjokart'];
+      var nonLawTokens = ['kystnaere fiskeridata', 'kystnaer fiskeridata', 'kystnaere', 'gytefelt', 'gyteomrade', 'oppvekst', 'oppvekstomrade', 'beiteomrade', 'fiskeplass', 'fiskeplasser', 'rekefelt', 'lassettingsplass', 'lasettingsplass', 'skjellforekomst', 'havbeitelokalitet', 'statistikkomrade', 'dybde', 'sjokart', 'tapte redskap', 'tapt redskap'];
       var lawTokens = ['forbud', 'fiskeforbud', 'fredning', 'fredningsomrade', 'stengt', 'stengte', 'nullfiske', 'maksimalmal', 'regulering', 'regulert', 'forskrift', 'lov', 'j melding', 'j-melding', 'jmelding', 'verneomrade', 'bunnhabitat', 'korall', 'begrensning', 'restriksjon'];
       var strongLawTokens = ['forbud', 'fiskeforbud', 'forbud mot', 'fredning', 'fredningsomrade', 'stengt', 'stengte', 'nullfiske', 'maksimalmal', 'begrensning', 'restriksjon', 'verneomrade', 'bunnhabitat', 'korall', 'tralforbud', 'krokbegrensning'];
       var openAreaTokens = ['apne omrader', 'apent omrade', 'open area', 'open areas', 'tobis apne', 'tobis aapne'];
       var hasLaw = ['stengt omrade', 'fredningsomrade', 'maksimalmal omrade', 'regulert omrade', 'nullfiskeomrade'].indexOf(status) !== -1 || lawTokens.some(function (token) { return blob.indexOf(token) !== -1; });
       if (status === 'fiskeriomrade') return false;
-      if (blob.indexOf('kystnaere fiskeridata') !== -1 || blob.indexOf('kystnaer fiskeridata') !== -1) return false;
+      if (blob.indexOf('kystnaere fiskeridata') !== -1 || blob.indexOf('kystnaer fiskeridata') !== -1 || blob.indexOf('tapte redskap') !== -1 || blob.indexOf('tapt redskap') !== -1) return false;
       if (openAreaTokens.some(function (token) { return blob.indexOf(token) !== -1; }) && !strongLawTokens.some(function (token) { return blob.indexOf(token) !== -1; })) return false;
       if (nonLawTokens.some(function (token) { return blob.indexOf(token) !== -1; }) && !hasLaw) return false;
       if (layer.is_restrictive_law_layer === false) return false;
@@ -1701,7 +1694,7 @@
       if (/(breivikfjorden|borgundfjorden|henningsvaer|lofotfiske)/.test(restrictionText) && !/(torsk|skrei|kommersiell|yrkes)/.test([currentFisherySelection(), currentControlSelection(), restrictionText].join(' '))) return false;
       var status = String(layer.status || '').trim().toLowerCase();
       if (Object.prototype.hasOwnProperty.call(activeLayerStatuses, status) && !activeLayerStatuses[status]) return false;
-      // 1.8.11: Temakartet kan vise bredt uten valg, men under kontroll
+      // 1.8.12: Temakartet kan vise bredt uten valg, men under kontroll
       // skal kartet bare vise lovregulerte lag som passer valgt kontrolltype,
       // art/fiskeri og redskap.
       if (!hasMapSelection()) return true;
@@ -2516,7 +2509,7 @@
       storedPositionMode = '';
     }
     if (storedPositionMode !== 'manual' && storedPositionMode !== 'auto') storedPositionMode = '';
-    var zoneOverlayStorageKey = 'kv-case-zone-overlay-1.8.11:' + root.dataset.caseId;
+    var zoneOverlayStorageKey = 'kv-case-zone-overlay-1.8.12:' + root.dataset.caseId;
     var zoneOverlayEnabled = true;
     // Treffende verne-/reguleringsområder skal alltid tegnes i kartet.
     // Tidligere lagret 'skjul'-valg fra eldre PWA-versjoner ignoreres.
@@ -3652,7 +3645,7 @@
       panes.forEach(function (pane) { pane.classList.toggle('active', Number(pane.dataset.step) === step); });
       stepButtons.forEach(function (btn) { btn.classList.toggle('active', Number(btn.dataset.stepTarget) === step); });
       syncStepNavigation();
-      if (step === 2) {
+      if (step === 3) {
         setTimeout(function () {
           updateCaseMap();
           if (autoLocationAttempted) startLocationWatch({ deviceOnly: mapState.manualPosition === true, recenter: mapState.manualPosition !== true });
@@ -4231,7 +4224,7 @@
         title: 'Kontrollpunkter' + (speciesVal || gearVal ? ' for ' + [controlVal, speciesVal, gearVal].filter(Boolean).join(' / ') : ''),
         description: reason || 'Lokal kontrollpunktliste brukes slik at punktene vises også ved tregt eller tomt regeloppslag.',
         items: items,
-        sources: [{ name: 'Lokal kontrollpunktliste', ref: '1.8.11 fallback', url: '' }]
+        sources: [{ name: 'Lokal kontrollpunktliste', ref: '1.8.12 fallback', url: '' }]
       };
     }
 
@@ -5164,7 +5157,7 @@
       var allLayerIds = displayLayers.map(function (layer) { return Number(layer && layer.id); }).filter(function (value) { return isFinite(value); });
       var fisheryPortalService = root.dataset.portalMapserver || (caseMap && caseMap.dataset ? (caseMap.dataset.portalMapserver || '') : '') || 'https://portal.fiskeridir.no/server/rest/services/fiskeridirWMS_fiskeri/MapServer';
       var vernPortalService = root.dataset.portalVernMapserver || (caseMap && caseMap.dataset ? (caseMap.dataset.portalVernMapserver || '') : '') || 'https://portal.fiskeridir.no/server/rest/services/Fiskeridir_vern/MapServer';
-      // 1.8.11: aktuelle verneområder/reguleringer skal vises direkte i kartet
+      // 1.8.12: aktuelle verneområder/reguleringer skal vises direkte i kartet
       // når posisjonssjekken har gitt treff. Uten treff beholdes rask rastervisning.
       mapState.fetchFeatureDetails = options.fetchFeatureDetails === true || mapState.requestFeatureDetails === true || zoneLayerIds.length > 0;
       mapState.featureDetailLayerIds = featureDetailIds;
@@ -5296,8 +5289,8 @@
       return rows;
     }
 
-    var zoneResultStoragePrefix = 'kv-zone-result-1.8.11:';
-    var nearestPlaceStoragePrefix = 'kv-nearest-place-1.8.11:';
+    var zoneResultStoragePrefix = 'kv-zone-result-1.8.12:';
+    var nearestPlaceStoragePrefix = 'kv-nearest-place-1.8.12:';
     var nearestPlaceController = null;
     var nearestPlaceSequence = 0;
     var nearestPlaceTimer = null;
@@ -5597,7 +5590,7 @@
       scheduleAutosave('Manuell posisjon aktivert');
     }
 
-    var devicePositionStorageKey = 'kv-device-position-1.8.11';
+    var devicePositionStorageKey = 'kv-device-position-1.8.12';
     function readCachedDevicePosition() {
       if (!window.localStorage) return null;
       try {
