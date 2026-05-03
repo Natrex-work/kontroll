@@ -246,12 +246,12 @@
       <div class="split-panel margin-top-m">
         <div class="subcard">
           <div class="subcard-head">
-            <h3>OCR og autofyll</h3>
-            <span class="muted small">Ta bilde eller legg til bildefil.</span>
+            <h3>Bilde og oppslag</h3>
+            <span class="muted small">Ta bilde eller legg ved bildefil til illustrasjonsrapporten. Bildet leses ikke automatisk.</span>
           </div>
           <div class="actions-row wrap margin-top-s person-autofill-actions">
-            <button class="btn btn-primary" type="button" id="btn-ocr-camera">Ta bilde med kamera</button>
-            <button class="btn btn-secondary" type="button" id="btn-ocr-file">Legg til bildefil</button>
+            <button class="btn btn-primary" type="button" id="btn-ocr-camera">Ta bilde til rapport</button>
+            <button class="btn btn-secondary" type="button" id="btn-ocr-file">Legg ved bilde</button>
             <button class="btn btn-secondary" type="button" id="btn-phone-lookup">Søk mobilnummer</button>
             <button class="btn btn-secondary" type="button" id="btn-participant-lookup">Søk deltakernummer</button>
             <button class="btn btn-secondary" type="button" id="btn-lookup-person">Oppslag</button>
@@ -265,12 +265,12 @@
             <label><span>Mobilnummer / fiskerimerke / radiokallesignal / deltakernummer</span><input id="lookup_identifier" value="{{ case.suspect_phone or case.vessel_reg or case.radio_call_sign or case.hummer_participant_no or '' }}" inputmode="text" autocomplete="off" /></label>
           </div>
           <details class="source-disclosure margin-top-s">
-            <summary>Vis OCR-tekst ved behov</summary>
-            <label class="margin-top-s"><span>OCR-tekst / merketøy</span><textarea name="lookup_text" id="lookup_text" rows="4" placeholder="Fylles automatisk når du tar bilde eller legger til fil. Du kan også lime inn eller rette teksten her.">{{ case.lookup_text or '' }}</textarea></label>
+            <summary>Vis merketøy/notat ved behov</summary>
+            <label class="margin-top-s"><span>Merketøy / notat</span><textarea name="lookup_text" id="lookup_text" rows="4" placeholder="Skriv inn merketøy eller notat manuelt ved behov.">{{ case.lookup_text or '' }}</textarea></label>
           </details>
           <div class="callout margin-top-s hidden" id="ocr-selected-file">Ingen bildefil valgt ennå.</div>
           <div class="callout margin-top-s hidden" id="local-media-status"><span id="local-media-status-text">Bilder og lyd lagres lokalt på enheten og synkes til saken i bakgrunnen når nettverket er klart.</span> <button class="btn btn-secondary btn-small" type="button" id="btn-sync-local-media">Synk nå</button></div>
-          <div class="callout margin-top-s" id="registry-result">OCR klar.</div>
+          <div class="callout margin-top-s" id="registry-result">Bilde/oppslag klar.</div>
           <div id="ocr-autofill-preview" class="ocr-preview hidden"></div>
           <div id="registry-candidates" class="registry-candidate-list hidden"></div>
         </div>
@@ -302,8 +302,8 @@
         <label><span>Radiokallesignal</span><input name="radio_call_sign" id="radio_call_sign" value="{{ case.radio_call_sign or '' }}" /></label>
       </div>
       <div class="grid-two compact-grid-form margin-top-s" id="marker-id-fields">
-        <label class="span-2"><span>Merke-ID / vak/blåse fra OCR</span><input name="gear_marker_id" id="gear_marker_id" value="{{ case.gear_marker_id or '' }}" inputmode="text" placeholder="F.eks. LOB-HUM-1323" /></label>
-        <div class="callout span-2 small">Merke-ID fra blåse/vak lagres separat og fyller ikke ut hummerdeltakernummer. Hummerdeltakernummer brukes kun når OCR/registertreff faktisk peker på deltakernummer.</div>
+        <label class="span-2"><span>Merke-ID / vak/blåse</span><input name="gear_marker_id" id="gear_marker_id" value="{{ case.gear_marker_id or '' }}" inputmode="text" placeholder="F.eks. LOB-HUM-1323" /></label>
+        <div class="callout span-2 small">Merke-ID fra blåse/vak lagres separat og fyller ikke ut hummerdeltakernummer. Hummerdeltakernummer brukes kun ved manuelt registertreff.</div>
       </div>
 
       <div class="subcard margin-top-m" id="persons-section">
@@ -555,7 +555,7 @@
       <div class="camera-modal-head">
         <div>
           <strong id="camera-capture-title">Kamera</strong>
-          <div class="muted small" id="camera-capture-description">Ta bilde direkte og bruk det videre i OCR eller som bildebevis.</div>
+          <div class="muted small" id="camera-capture-description">Ta bilde direkte og bruk det som bildebevis/vedlegg.</div>
         </div>
         <button class="btn btn-secondary btn-small" type="button" id="btn-camera-close">Lukk</button>
       </div>
@@ -588,5 +588,5 @@
   }
 })();
 </script>
-<script src="/static/js/case-app.js?v=1.8.10"></script>
+<script src="/static/js/case-app.js?v=1.8.11"></script>
 {% endblock %}

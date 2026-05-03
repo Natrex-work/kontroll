@@ -1184,7 +1184,6 @@
       '<div><strong>' + escapeHtml(item.label || item.key || ('Punkt ' + (index + 1))) + '</strong>',
       '<div class="muted small">' + escapeHtml(findingSource(item)) + '</div></div>',
       '<div class="finding-head-actions">',
-      isAvvik ? '<button type="button" class="btn btn-secondary btn-small deviation-add-top">Legg til redskap/beslag</button>' : '',
       (item.help_text || item.law_text) ? '<button type="button" class="help-toggle" title="Vis hjemmel og paragraf">?</button>' : '',
       '</div>',
       '</div>',
@@ -1198,7 +1197,6 @@
       '<option value="ikke relevant" ' + (item.status === 'ikke relevant' ? 'selected' : '') + '>ikke relevant</option>',
       '</select></label>',
       '<label><span>Notat / begrunnelse</span><textarea class="finding-notes" rows="3" placeholder="Skriv kort hva som ble observert">' + escapeHtml(item.notes || '') + '</textarea></label>',
-      isAvvik ? '<div class="finding-body-actions actions-row wrap"><button type="button" class="btn btn-primary btn-small deviation-add-body">Legg til redskap/beslag</button></div>' : '',
       measurementSectionHtml(item, index),
       markerSectionHtml(item),
       deviationSectionHtml(item),
@@ -1703,7 +1701,7 @@
       if (/(breivikfjorden|borgundfjorden|henningsvaer|lofotfiske)/.test(restrictionText) && !/(torsk|skrei|kommersiell|yrkes)/.test([currentFisherySelection(), currentControlSelection(), restrictionText].join(' '))) return false;
       var status = String(layer.status || '').trim().toLowerCase();
       if (Object.prototype.hasOwnProperty.call(activeLayerStatuses, status) && !activeLayerStatuses[status]) return false;
-      // 1.8.10: Temakartet kan vise bredt uten valg, men under kontroll
+      // 1.8.11: Temakartet kan vise bredt uten valg, men under kontroll
       // skal kartet bare vise lovregulerte lag som passer valgt kontrolltype,
       // art/fiskeri og redskap.
       if (!hasMapSelection()) return true;
@@ -2006,7 +2004,7 @@
         urls = urls.concat(collectTileUrls(layer, map, padding == null ? 2 : padding));
       });
       urls = uniqueUrls(urls);
-      return prefetchUrlsToCache(urls, 'kv-kontroll-1-8-10-map-tiles').then(function (count) {
+      return prefetchUrlsToCache(urls, 'kv-kontroll-1-8-11-map-tiles').then(function (count) {
         return { count: count, urls: urls };
       });
     }
@@ -2518,7 +2516,7 @@
       storedPositionMode = '';
     }
     if (storedPositionMode !== 'manual' && storedPositionMode !== 'auto') storedPositionMode = '';
-    var zoneOverlayStorageKey = 'kv-case-zone-overlay-1.8.10:' + root.dataset.caseId;
+    var zoneOverlayStorageKey = 'kv-case-zone-overlay-1.8.11:' + root.dataset.caseId;
     var zoneOverlayEnabled = true;
     // Treffende verne-/reguleringsområder skal alltid tegnes i kartet.
     // Tidligere lagret 'skjul'-valg fra eldre PWA-versjoner ignoreres.
@@ -4233,7 +4231,7 @@
         title: 'Kontrollpunkter' + (speciesVal || gearVal ? ' for ' + [controlVal, speciesVal, gearVal].filter(Boolean).join(' / ') : ''),
         description: reason || 'Lokal kontrollpunktliste brukes slik at punktene vises også ved tregt eller tomt regeloppslag.',
         items: items,
-        sources: [{ name: 'Lokal kontrollpunktliste', ref: '1.8.10 fallback', url: '' }]
+        sources: [{ name: 'Lokal kontrollpunktliste', ref: '1.8.11 fallback', url: '' }]
       };
     }
 
@@ -4443,7 +4441,7 @@
         return;
       }
       ocrSelectedFileBox.classList.remove('hidden');
-      ocrSelectedFileBox.innerHTML = '<strong>Valgt bildefil:</strong> ' + escapeHtml(file.name || 'kamerabilde.jpg') + '<div class="small muted">' + escapeHtml(label || 'Klar for OCR og automatisk søk.') + '</div>';
+      ocrSelectedFileBox.innerHTML = '<strong>Valgt bildefil:</strong> ' + escapeHtml(file.name || 'kamerabilde.jpg') + '<div class="small muted">' + escapeHtml(label || 'Klar for lagring som vedlegg.') + '</div>';
     }
 
     function normalizeOcrText(value) {
@@ -4992,6 +4990,31 @@
       });
     }
 
+
+    function attachPersonReportImage(file) {
+      if (!file) return;
+      if (registryResult) registryResult.innerHTML = 'Lagrer bilde til illustrasjonsrapport ...';
+      var baseCaption = 'Bilde fra Person/fartøy';
+      var namePart = lookupName && lookupName.value ? String(lookupName.value).trim() : '';
+      if (namePart) baseCaption += ' - ' + namePart;
+      queueLocalEvidenceUpload(file, {
+        caption: baseCaption,
+        finding_key: '',
+        law_text: '',
+        violation_reason: 'Vedlegg fra Person/fartøy',
+        seizure_ref: ''
+      }, {
+        sourceKind: 'person-vessel-image',
+        statusMessage: 'Bilde lagret lokalt. Synk venter.',
+        autosaveMessage: 'Bilde til illustrasjonsrapport lagret lokalt'
+      }).then(function (entry) {
+        if (registryResult) registryResult.innerHTML = '<strong>Bilde lagret</strong><div class="small muted">Bildet er lagt ved saken og tas med i illustrasjonsrapporten.</div>';
+        if (entry) scheduleAutosave('Bilde til illustrasjonsrapport lagret');
+      }).catch(function (err) {
+        if (registryResult) registryResult.innerHTML = 'Kunne ikke lagre bilde: ' + escapeHtml(err && err.message ? err.message : err);
+      });
+    }
+
     function normalizeCoordinateValue(value, decimals) {
       var num = Number(String(value || '').replace(',', '.'));
       if (!isFinite(num)) return String(value || '').trim();
@@ -5141,7 +5164,7 @@
       var allLayerIds = displayLayers.map(function (layer) { return Number(layer && layer.id); }).filter(function (value) { return isFinite(value); });
       var fisheryPortalService = root.dataset.portalMapserver || (caseMap && caseMap.dataset ? (caseMap.dataset.portalMapserver || '') : '') || 'https://portal.fiskeridir.no/server/rest/services/fiskeridirWMS_fiskeri/MapServer';
       var vernPortalService = root.dataset.portalVernMapserver || (caseMap && caseMap.dataset ? (caseMap.dataset.portalVernMapserver || '') : '') || 'https://portal.fiskeridir.no/server/rest/services/Fiskeridir_vern/MapServer';
-      // 1.8.10: aktuelle verneområder/reguleringer skal vises direkte i kartet
+      // 1.8.11: aktuelle verneområder/reguleringer skal vises direkte i kartet
       // når posisjonssjekken har gitt treff. Uten treff beholdes rask rastervisning.
       mapState.fetchFeatureDetails = options.fetchFeatureDetails === true || mapState.requestFeatureDetails === true || zoneLayerIds.length > 0;
       mapState.featureDetailLayerIds = featureDetailIds;
@@ -5152,7 +5175,7 @@
       mapState.showLegend = false;
       mapState.showLayerPanel = !!mapLayerPanelHost;
       mapState.layerPanelDefaultOpen = false;
-      mapState.layerPanelKey = 'case-map-1-8-10';
+      mapState.layerPanelKey = 'case-map-1-8-11';
       mapState.layerPanelTargetSelector = mapLayerPanelHost ? '#case-map-layer-panel-host' : '';
       mapState.rasterLayerIds = allLayerIds;
       mapState.identifyLayerIds = allLayerIds;
@@ -5273,8 +5296,8 @@
       return rows;
     }
 
-    var zoneResultStoragePrefix = 'kv-zone-result-1.8.10:';
-    var nearestPlaceStoragePrefix = 'kv-nearest-place-1.8.10:';
+    var zoneResultStoragePrefix = 'kv-zone-result-1.8.11:';
+    var nearestPlaceStoragePrefix = 'kv-nearest-place-1.8.11:';
     var nearestPlaceController = null;
     var nearestPlaceSequence = 0;
     var nearestPlaceTimer = null;
@@ -5574,7 +5597,7 @@
       scheduleAutosave('Manuell posisjon aktivert');
     }
 
-    var devicePositionStorageKey = 'kv-device-position-1.8.10';
+    var devicePositionStorageKey = 'kv-device-position-1.8.11';
     function readCachedDevicePosition() {
       if (!window.localStorage) return null;
       try {
@@ -6793,12 +6816,10 @@ function renderHummerStatus(result) {
         if (event.target.value === 'avvik') {
           findingsState[idx].active_deviation_link_index = controlLinkModeEnabled ? controlLinkActiveIndex : Number(findingsState[idx].active_deviation_link_index || 0);
           var autoRows = ensureDeviationState(findingsState[idx]);
-          if (!autoRows.length) autoRows.push(defaultDeviationRow(findingsState[idx]));
           autoRows.forEach(function (row) { if (row && (!isFinite(Number(row.link_group_index)) || Number(row.link_group_index) < 0)) row.link_group_index = findingsState[idx].active_deviation_link_index || 0; });
           normalizeDeviationLinkGroups(findingsState[idx]);
-          syncDeviationDefaults(findingsState[idx]);
-          selectedInlineEvidenceTarget = { finding_key: findingsState[idx].key || '', seizure_ref: (autoRows[0] && autoRows[0].seizure_ref) || '' };
-          inlineEvidenceFeedback = 'Avvik valgt. Legg til eller koble redskap/beslag.';
+          if (autoRows.length) syncDeviationDefaults(findingsState[idx]);
+          inlineEvidenceFeedback = 'Avvik valgt. Trykk Legg til redskap/beslag for å registrere beslag.';
         } else {
           findingsState[idx].deviation_units = findingsState[idx].deviation_units || [];
         }
@@ -7790,13 +7811,13 @@ function renderHummerStatus(result) {
     var btnOcrCamera = document.getElementById('btn-ocr-camera');
     if (btnOcrCamera) btnOcrCamera.addEventListener('click', function () {
       openCameraCapture({
-        title: 'Kamera for OCR-søk',
-        description: 'Ta bilde av merketøy, dokument eller annen tekst. Bildet leses og brukes direkte i norsk registersøk.',
+        title: 'Ta bilde til rapport',
+        description: 'Ta bilde av person/fartøy/merketøy. Bildet lagres som vedlegg til illustrasjonsrapporten uten OCR-lesing.',
         fallbackInput: ocrCameraInput,
-        filenamePrefix: 'ocr',
+        filenamePrefix: 'person-rapport',
         onFile: function (file) {
-          setSelectedOcrFile(file, 'Bilde tatt med kamera. OCR kjøres automatisk.');
-          runOcrFromFile(file);
+          setSelectedOcrFile(file, 'Bilde tatt. Lagres som vedlegg til illustrasjonsrapporten.');
+          attachPersonReportImage(file);
         }
       });
     });
@@ -7809,16 +7830,16 @@ function renderHummerStatus(result) {
     if (ocrCameraInput) ocrCameraInput.addEventListener('change', function () {
       var file = this.files && this.files[0] ? this.files[0] : null;
       if (!file) return;
-      setSelectedOcrFile(file, 'Bilde hentet fra enhetskamera. OCR kjøres automatisk.');
-      runOcrFromFile(file);
+      setSelectedOcrFile(file, 'Bilde valgt. Lagres som vedlegg til illustrasjonsrapporten.');
+      attachPersonReportImage(file);
       this.value = '';
     });
 
     if (ocrFileInput) ocrFileInput.addEventListener('change', function () {
       var file = this.files && this.files[0] ? this.files[0] : null;
       if (!file) return;
-      setSelectedOcrFile(file, 'Bildefil valgt. OCR kjøres automatisk.');
-      runOcrFromFile(file);
+      setSelectedOcrFile(file, 'Bildefil valgt. Lagres som vedlegg til illustrasjonsrapporten.');
+      attachPersonReportImage(file);
       this.value = '';
     });
 
