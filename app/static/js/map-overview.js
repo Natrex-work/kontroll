@@ -35,7 +35,7 @@
     var storageKey = 'kv-overview-layer-filter-1-8-6';
     var defaultView = { lat: 64.8, lng: 14.5, zoom: 4 };
     var activeLayerStatuses = { 'fredningsområde': true, 'stengt område': true, 'maksimalmål område': true, 'regulert område': true, 'nullfiskeområde': true };
-    var fisheryPortalService = el.dataset.portalMapserver || 'https://portal.fiskeridir.no/server/rest/services/fiskeridirWMS_fiskeri/MapServer';
+    var fisheryPortalService = el.dataset.portalMapserver || 'https://gis.fiskeridir.no/server/rest/services/Yggdrasil/Fiskerireguleringer/MapServer';
     var vernPortalService = el.dataset.portalVernMapserver || 'https://portal.fiskeridir.no/server/rest/services/Fiskeridir_vern/MapServer';
     var state = {
       view: defaultView,

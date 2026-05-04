@@ -141,20 +141,22 @@ STRONG_RESTRICTION_TOKENS = (
 # Håndplukkede lagprofiler for å vise bare relevante lag i kontrollkartet.
 # Dette gjør kartet raskere og stopper irrelevante lag som Lofotfiske/Henningsvær
 # fra å vises i fritidskontroller for hummer i Oslofjorden.
-COMMON_GENERAL_LAYERS = {75}
+COMMON_GENERAL_LAYERS = {0, 7, 11, 13}
 PROFILE_LAYER_GROUPS: dict[str, set[int]] = {
-    'fritids_generell': {3, 35, 75, 78, 82, 83, 85, 87, 91, 92, 94,208},
-    'fritids_hummer': {3, 35, 75, 76, 77, 78, 82, 83, 85, 87, 91, 92, 94,208},
-    'fritids_torsk': {3, 35, 75, 78, 82, 83, 85, 87, 91, 92, 94,208},
-    'fritids_flatosters': {3, 35, 73, 75, 78, 87, 91, 92,208},
-    'fritids_leppefisk': {3, 35, 75, 78, 84, 87, 91, 92,208},
-    'fritids_steinbit': {75, 78, 87, 91, 92,200, 208},
-    'fritids_laks': {3, 35, 75, 78, 87, 91, 92,208},
-    'fritids_sjoorret': {3, 35, 75, 78, 87, 91, 92,208},
-    'kommersiell_generell': {75, 78, 88, 89, 90, 91, 92, 139, 140, 32, 33, 74, 95, 96, 97, 25, 26},
-    'kommersiell_tral': {75, 78, 88, 89, 90, 91, 139, 140, 25, 26},
-    'kommersiell_torsk_hyse_sei': {75, 78, 88, 91, 95, 96, 97, 74, 82, 83, 85, 94},
-    'kommersiell_tare': {75, 89, 90, 91},
+    # Yggdrasil/Fiskerireguleringer MapServer IDs. Gruppene speiler Fritidsfiske-kartet,
+    # men holder art-/redskapsvalg snevrere i ny kontroll.
+    'fritids_generell': {0, 7, 11, 13, 31, 37, 38},
+    'fritids_hummer': {0, 7, 9, 10, 11, 13, 31, 37, 38},
+    'fritids_torsk': {0, 7, 8, 16, 18, 19, 11, 13, 24, 31, 32, 37, 38},
+    'fritids_flatosters': {0, 7, 15, 11, 13, 31, 37, 38},
+    'fritids_leppefisk': {0, 7, 17, 11, 13, 31, 37, 38},
+    'fritids_steinbit': {0, 7, 34, 11, 13, 31, 37, 38},
+    'fritids_laks': {0, 7, 11, 13, 31, 37, 38},
+    'fritids_sjoorret': {0, 7, 11, 13, 31, 37, 38},
+    'kommersiell_generell': {0, 7, 11, 13, 14, 1, 6, 24, 25, 26, 31, 32, 33},
+    'kommersiell_tral': {0, 7, 11, 13, 14, 25, 26, 31, 35, 36},
+    'kommersiell_torsk_hyse_sei': {0, 7, 8, 16, 18, 19, 1, 6, 11, 13, 14, 24, 32, 33},
+    'kommersiell_tare': {0, 7, 11, 13, 31},
 }
 
 

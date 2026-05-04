@@ -4084,3 +4084,45 @@ body.case-map-focus-mode { overflow: hidden; }
   .map-status-legend { font-size: 0.8rem; }
   .map-status-legend span { flex: 1 1 140px; }
 }
+
+/* 1.8.16: målefelt for minstemål/maksimumsmål */
+.finding-measurements .measurement-row {
+  grid-template-columns: minmax(128px, 0.9fr) minmax(150px, 1fr) minmax(120px, 0.8fr) minmax(120px, 0.8fr) minmax(120px, 0.8fr) minmax(150px, 1fr) auto;
+  align-items: end;
+}
+.measurement-field {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.measurement-field span {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+.measurement-field input,
+.measurement-field select {
+  width: 100%;
+}
+.measurement-length-field input {
+  font-weight: 800;
+}
+.measurement-row .measurement-evaluation {
+  grid-column: 1 / -1;
+}
+.measurement-evaluation.is-waiting {
+  border-color: rgba(180, 115, 0, 0.28);
+  background: rgba(255, 193, 7, 0.10);
+  color: #7a4b00;
+}
+.measurement-note-field {
+  grid-column: span 2;
+}
+@media (max-width: 900px) {
+  .finding-measurements .measurement-row {
+    grid-template-columns: 1fr;
+  }
+  .measurement-note-field {
+    grid-column: auto;
+  }
+}

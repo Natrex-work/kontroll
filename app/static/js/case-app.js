@@ -468,7 +468,7 @@
 
   function itemSupportsMeasurements(item) {
     var key = String(item && item.key || '').toLowerCase();
-    return Boolean(item && item.supports_measurements) || key === 'hummer_minstemal' || key === 'hummer_maksimalmal' || key.indexOf('minstemal_') === 0;
+    return Boolean(item && item.supports_measurements) || key === 'hummer_minstemal' || key === 'hummer_maksimalmal' || key === 'hummer_lengdekrav' || key.indexOf('minstemal_') === 0 || key.indexOf('maksimalmal_') === 0 || key.indexOf('lengdekrav') !== -1;
   }
 
   function itemSupportsMarkerPositions(item) {
@@ -493,6 +493,13 @@
     return isFinite(parsed) ? parsed : NaN;
   }
 
+  function sanitizeMeasurementLimitValue(value) {
+    var raw = String(value || '').trim().replace(',', '.');
+    if (!raw) return '';
+    var parsed = Number(raw);
+    return isFinite(parsed) ? String(raw).replace('.', ',') : '';
+  }
+
   function formatMeasurementNumber(value) {
     if (!isFinite(value)) return '';
     var rounded = Math.round(Number(value) * 10) / 10;
@@ -500,12 +507,46 @@
     return rounded.toFixed(1).replace('.', ',');
   }
 
-  function measurementMinLimit(item) {
-    return parseMeasurementLimitValue(item && (item.applied_min_size_cm || item.min_size_cm));
+  function measurementLimitRaw(item, row, kind) {
+    var rowKey = kind === 'max' ? 'applied_max_size_cm' : 'applied_min_size_cm';
+    var itemAppliedKey = kind === 'max' ? 'applied_max_size_cm' : 'applied_min_size_cm';
+    var itemDefaultKey = kind === 'max' ? 'max_size_cm' : 'min_size_cm';
+    var rowValue = row && row[rowKey] !== undefined && row[rowKey] !== null ? String(row[rowKey]).trim() : '';
+    if (rowValue) return rowValue;
+    var itemValue = item && item[itemAppliedKey] !== undefined && item[itemAppliedKey] !== null && String(item[itemAppliedKey]).trim() ? item[itemAppliedKey] : (item && item[itemDefaultKey]);
+    return String(itemValue || '').trim();
   }
 
-  function measurementMaxLimit(item) {
-    return parseMeasurementLimitValue(item && (item.applied_max_size_cm || item.max_size_cm));
+  function measurementMinLimit(item, row) {
+    return parseMeasurementLimitValue(measurementLimitRaw(item, row, 'min'));
+  }
+
+  function measurementMaxLimit(item, row) {
+    return parseMeasurementLimitValue(measurementLimitRaw(item, row, 'max'));
+  }
+
+  function measurementLimitDisplayValue(item, row, kind) {
+    var rowKey = kind === 'max' ? 'applied_max_size_cm' : 'applied_min_size_cm';
+    var rowValue = row && row[rowKey] !== undefined && row[rowKey] !== null ? String(row[rowKey]).trim() : '';
+    if (rowValue) return rowValue;
+    var raw = measurementLimitRaw(item, null, kind);
+    var parsed = parseMeasurementLimitValue(raw);
+    return isFinite(parsed) ? formatMeasurementNumber(parsed) : '';
+  }
+
+  function measurementLimitPlaceholder(item, kind) {
+    var raw = measurementLimitRaw(item, null, kind);
+    var label = kind === 'max' ? 'Maksimumsmål' : 'Minstemål';
+    if (!raw) return label + ' cm';
+    if (isFinite(parseMeasurementLimitValue(raw))) return label + ': ' + formatMeasurementNumber(parseMeasurementLimitValue(raw)) + ' cm';
+    return label + ': ' + String(raw).replace(/\s+/g, ' ') + ' cm';
+  }
+
+  function measurementNeedsManualLimit(item, row, kind) {
+    var raw = measurementLimitRaw(item, null, kind);
+    var rowRaw = measurementLimitRaw(null, row, kind);
+    if (isFinite(parseMeasurementLimitValue(rowRaw))) return false;
+    return Boolean(raw && !isFinite(parseMeasurementLimitValue(raw)) && /\d/.test(raw));
   }
 
   function formatMeasurementDeltaText(diffCm, relation, limitLabel, limitValue) {
@@ -516,11 +557,11 @@
 
   function evaluateMeasurementRow(item, row) {
     var rawLength = String(row && row.length_cm || '').trim().replace(',', '.');
-    if (!rawLength) return { status: '', text: 'Legg inn måling i cm for automatisk vurdering.', violation: '' };
+    if (!rawLength) return { status: '', text: 'Skriv lengdemålt verdi i cm. 0,1 cm = 1 mm.', violation: '' };
     var lengthValue = Number(rawLength);
     if (!isFinite(lengthValue)) return { status: 'invalid', text: 'Ugyldig måling. Oppgi lengde i cm.', violation: '' };
-    var minLimit = measurementMinLimit(item);
-    var maxLimit = measurementMaxLimit(item);
+    var minLimit = measurementMinLimit(item, row);
+    var maxLimit = measurementMaxLimit(item, row);
     if (isFinite(minLimit) && lengthValue < minLimit) {
       var underText = formatMeasurementDeltaText(minLimit - lengthValue, 'under', 'minstemålet', minLimit);
       return { status: 'under_min', text: underText, violation: 'Målt ' + formatMeasurementNumber(lengthValue) + ' cm – ' + underText + '.' };
@@ -532,6 +573,12 @@
       }
       var overText = formatMeasurementDeltaText(lengthValue - maxLimit, 'over', 'maksimalmålet', maxLimit);
       return { status: 'over_max', text: overText, violation: 'Målt ' + formatMeasurementNumber(lengthValue) + ' cm – ' + overText + '.' };
+    }
+    var needs = [];
+    if (!isFinite(minLimit) && measurementNeedsManualLimit(item, row, 'min')) needs.push('gjeldende minstemål');
+    if (!isFinite(maxLimit) && measurementNeedsManualLimit(item, row, 'max')) needs.push('gjeldende maksimumsmål');
+    if (needs.length) {
+      return { status: 'needs_limit', text: 'Målt til ' + formatMeasurementNumber(lengthValue) + ' cm. Oppgi ' + needs.join(' og ') + ' i cm for automatisk avviksvurdering.', violation: '' };
     }
     if (isFinite(minLimit) && isFinite(maxLimit)) {
       return { status: 'ok', text: 'Innenfor lovlig målintervall (' + formatMeasurementNumber(minLimit) + ' cm til under ' + formatMeasurementNumber(maxLimit) + ' cm).', violation: '' };
@@ -546,7 +593,7 @@
   }
 
   function defaultMeasurementRow() {
-    return { seizure_ref: '', reference: '', linked_seizure_ref: '', position: '', length_cm: '', note: '', delta_text: '', violation_text: '', measurement_state: '' };
+    return { seizure_ref: '', reference: '', linked_seizure_ref: '', position: '', length_cm: '', applied_min_size_cm: '', applied_max_size_cm: '', note: '', delta_text: '', violation_text: '', measurement_state: '' };
   }
 
   function syncMeasurementDefaults(item) {
@@ -558,6 +605,8 @@
       row.seizure_ref = ref;
       row.reference = ref;
       if (!row.position && currentCoordText()) row.position = currentCoordText();
+      row.applied_min_size_cm = sanitizeMeasurementLimitValue(row.applied_min_size_cm || '');
+      row.applied_max_size_cm = sanitizeMeasurementLimitValue(row.applied_max_size_cm || '');
       ensureDeviationLinks(row);
       var evaluation = evaluateMeasurementRow(item, row);
       row.delta_text = evaluation.text || '';
@@ -565,6 +614,34 @@
       row.measurement_state = evaluation.status || '';
     });
     item.measurement_summary = measurementSummaryText(item);
+  }
+
+  function measurementHasViolation(item) {
+    return ensureMeasurementState(item).some(function (row) {
+      return row && (row.measurement_state === 'under_min' || row.measurement_state === 'over_max');
+    });
+  }
+
+  function ensureAutomaticMeasurementRowForAvvik(item) {
+    if (!itemSupportsMeasurements(item)) return false;
+    var rows = ensureMeasurementState(item);
+    if (rows.length) return false;
+    rows.push(defaultMeasurementRow());
+    syncMeasurementDefaults(item);
+    return true;
+  }
+
+  function syncFindingStatusFromMeasurements(item) {
+    if (!itemSupportsMeasurements(item)) return false;
+    syncMeasurementDefaults(item);
+    if (!measurementHasViolation(item)) return false;
+    var previous = String(item.status || '').toLowerCase();
+    item.status = 'avvik';
+    item.active_deviation_link_index = controlLinkModeEnabled ? controlLinkActiveIndex : Number(item.active_deviation_link_index || 0);
+    ensureDeviationState(item);
+    normalizeDeviationLinkGroups(item);
+    inlineEvidenceFeedback = 'Lengdemåling genererte avvik. Trykk Legg til redskap/beslag for å registrere beslag eller knytt bildet til målingen.';
+    return previous !== 'avvik';
   }
 
   function ensureMarkerState(item) {
@@ -1048,27 +1125,30 @@
   function measurementSectionHtml(item, index) {
     if (!itemSupportsMeasurements(item)) return '';
     var rows = ensureMeasurementState(item);
+    if (String(item.status || '').toLowerCase() === 'avvik' && !rows.length) rows.push(defaultMeasurementRow());
     syncMeasurementDefaults(item);
-    var minLabel = item.applied_min_size_cm || item.min_size_cm ? ('Minstekrav: ' + escapeHtml(String(item.applied_min_size_cm || item.min_size_cm)) + ' cm') : '';
-    var maxLabel = item.applied_max_size_cm || item.max_size_cm ? (' / Maks: ' + escapeHtml(String(item.applied_max_size_cm || item.max_size_cm)) + ' cm') : '';
+    var minLabel = measurementLimitRaw(item, null, 'min') ? ('Minstemål: ' + escapeHtml(String(measurementLimitRaw(item, null, 'min'))) + ' cm') : '';
+    var maxLabel = measurementLimitRaw(item, null, 'max') ? (' / Maksimumsmål: ' + escapeHtml(String(measurementLimitRaw(item, null, 'max'))) + ' cm') : '';
     return [
       '<div class="finding-extra finding-measurements">',
-      '<div class="subhead">Lengdemålinger' + (minLabel || maxLabel ? ' <span class="muted small">' + minLabel + maxLabel + '</span>' : '') + '</div>',
-      '<div class="small muted">Målinger får eget målingsnummer eller kan knyttes til et tidligere registrert beslag/redskap. Posisjon knyttes til samme beslagnummer slik at bildebevis og illustrasjonsrapport sorteres riktig.</div>',
+      '<div class="subhead">Lengdemålt fangst' + (minLabel || maxLabel ? ' <span class="muted small">' + minLabel + maxLabel + '</span>' : '') + '</div>',
+      '<div class="small muted">Skriv lengdemålt verdi i cm. Desimal på 0,1 cm tilsvarer 1 mm. Feltet vurderer automatisk under minstemål og over/på maksimumsmål når gjeldende grense er kjent.</div>',
       '<div class="measurement-list">' + rows.map(function (row, mIndex) {
         var evaluationClass = 'measurement-evaluation';
         if (row.measurement_state === 'under_min' || row.measurement_state === 'over_max') evaluationClass += ' is-alert';
         else if (row.measurement_state === 'ok') evaluationClass += ' is-ok';
-        var linkedMode = Boolean(String(row.linked_seizure_ref || '').trim());
+        else if (row.measurement_state === 'needs_limit') evaluationClass += ' is-waiting';
         return [
-          '<div class="measurement-row" data-measure-index="' + mIndex + '">',
-          '<input class="measurement-reference" placeholder="Beslag / ref" value="' + escapeHtml(row.reference || '') + '" readonly />',
-          '<select class="measurement-existing-gear" title="Knytt måling til tidligere beslag/redskap">' + deviationExistingGearOptionsHtml(row).replace('Nytt redskap (automatisk beslag nr.)', 'Ny måling (automatisk målingsnr.)') + '</select>',
-          '<input class="measurement-length" type="number" step="0.1" placeholder="cm (0,1 = 1 mm)" value="' + escapeHtml(row.length_cm || '') + '" />',
-          '<input class="measurement-position" placeholder="Posisjon for måling/beslag" value="' + escapeHtml(row.position || '') + '" />',
+          '<div class="measurement-row" data-measure-index="' + mIndex + '" data-measure-state="' + escapeHtml(row.measurement_state || '') + '">',
+          '<label class="measurement-field measurement-ref-field"><span>Måling/beslag</span><input class="measurement-reference" placeholder="Måling / beslag" value="' + escapeHtml(row.reference || '') + '" readonly /></label>',
+          '<label class="measurement-field measurement-link-field"><span>Tidligere beslag</span><select class="measurement-existing-gear" title="Knytt måling til tidligere beslag/redskap">' + deviationExistingGearOptionsHtml(row).replace('Nytt redskap (automatisk beslag nr.)', 'Ny måling (automatisk målingsnr.)') + '</select></label>',
+          '<label class="measurement-field measurement-length-field"><span>Lengdemålt (cm)</span><input class="measurement-length" type="text" inputmode="decimal" placeholder="f.eks. 24,9" value="' + escapeHtml(row.length_cm || '') + '" /></label>',
+          '<label class="measurement-field"><span>Gjeldende minstemål</span><input class="measurement-min-limit" type="text" inputmode="decimal" placeholder="' + escapeHtml(measurementLimitPlaceholder(item, 'min')) + '" value="' + escapeHtml(measurementLimitDisplayValue(item, row, 'min')) + '" /></label>',
+          '<label class="measurement-field"><span>Gjeldende maksimumsmål</span><input class="measurement-max-limit" type="text" inputmode="decimal" placeholder="' + escapeHtml(measurementLimitPlaceholder(item, 'max')) + '" value="' + escapeHtml(measurementLimitDisplayValue(item, row, 'max')) + '" /></label>',
+          '<label class="measurement-field measurement-position-field"><span>Posisjon</span><input class="measurement-position" placeholder="Posisjon for måling/beslag" value="' + escapeHtml(row.position || '') + '" /></label>',
           '<button type="button" class="btn btn-secondary btn-small measurement-position-fill">Bruk posisjon</button>',
-          '<div class="' + evaluationClass + '">' + escapeHtml(row.delta_text || 'Legg inn måling i cm for automatisk vurdering.') + '</div>',
-          '<input class="measurement-note" placeholder="Kort merknad" value="' + escapeHtml(row.note || '') + '" />',
+          '<div class="' + evaluationClass + '">' + escapeHtml(row.delta_text || 'Skriv lengdemålt verdi i cm. 0,1 cm = 1 mm.') + '</div>',
+          '<label class="measurement-field measurement-note-field"><span>Merknad</span><input class="measurement-note" placeholder="Kort merknad" value="' + escapeHtml(row.note || '') + '" /></label>',
           '<button type="button" class="btn btn-danger btn-small measurement-remove">Fjern</button>',
           '</div>'
         ].join('');
@@ -1632,28 +1712,32 @@
       var fisherySel = currentFisherySelection();
       var controlSel = currentControlSelection();
       var gearSel = currentGearSelection();
+      // 1.8.16: Yggdrasil/Fiskerireguleringer MapServer IDs, tilpasset
+      // kontrolltype + art + redskap slik at ny kontroll viser de samme
+      // verne-/reguleringsområdene som Fritidsfiske-kartet, men uten tapt redskap.
+      var fritidGenerell = [0, 7, 11, 13, 31, 37, 38];
       if (controlSel === 'fritidsfiske') {
-        if (fisherySel === 'hummer') return [3, 35, 75, 76, 77, 78, 82, 83, 85, 87, 91, 92, 94, 208];
-        if (fisherySel === 'torsk') return [3, 35, 75, 78, 82, 83, 85, 87, 91, 92, 94, 208];
-        if (fisherySel === 'flatøsters') return [3, 35, 73, 75, 78, 87, 91, 92, 208];
-        if (fisherySel === 'leppefisk') return [3, 35, 75, 78, 84, 87, 91, 92, 208];
-        if (fisherySel === 'steinbit') return [75, 78, 87, 91, 92, 200, 208];
-        if (fisherySel === 'laks i sjø' || fisherySel === 'sjøørret') return [3, 35, 75, 78, 87, 91, 92, 208];
-        return [3, 35, 75, 78, 82, 83, 85, 87, 91, 92, 94, 208];
+        if (fisherySel === 'hummer') return [0, 7, 9, 10, 11, 13, 31, 37, 38];
+        if (fisherySel === 'torsk') return [0, 7, 8, 16, 18, 19, 11, 13, 24, 31, 32, 37, 38];
+        if (fisherySel === 'flatøsters') return [0, 7, 15, 11, 13, 31, 37, 38];
+        if (fisherySel === 'leppefisk') return [0, 7, 17, 11, 13, 31, 37, 38];
+        if (fisherySel === 'steinbit') return [0, 7, 34, 11, 13, 31, 37, 38];
+        if (fisherySel === 'laks i sjø' || fisherySel === 'sjøørret') return fritidGenerell.slice();
+        return fritidGenerell.slice();
       }
       if (controlSel === 'kommersiell') {
-        var base = [75, 78, 88, 89, 90, 91, 92, 139, 140, 32, 33, 74, 95, 96, 97, 25, 26];
-        if (gearSel === 'trål' || gearSel === 'pelagisk trål') base = [75, 78, 88, 89, 90, 91, 139, 140, 25, 26];
-        if (fisherySel === 'tare') base = [75, 89, 90, 91];
-        if (fisherySel === 'torsk' || fisherySel === 'hyse' || fisherySel === 'sei') base = base.concat([82, 83, 85, 94]);
+        var base = [0, 7, 11, 13, 14, 1, 6, 24, 25, 26, 31, 32, 33];
+        if (gearSel === 'trål' || gearSel === 'pelagisk trål') base = [0, 7, 11, 13, 14, 25, 26, 31, 35, 36];
+        if (fisherySel === 'tare') base = [0, 7, 11, 13, 31];
+        if (fisherySel === 'torsk' || fisherySel === 'hyse' || fisherySel === 'sei') base = [0, 7, 8, 16, 18, 19, 1, 6, 11, 13, 14, 24, 32, 33];
         return base.filter(function (value, idx, arr) { return arr.indexOf(value) === idx; });
       }
-      if (fisherySel === 'hummer') return [3, 35, 75, 76, 77, 78, 82, 83, 85, 87, 91, 92, 94, 208];
-      if (fisherySel === 'torsk') return [3, 35, 75, 78, 82, 83, 85, 87, 91, 92, 94, 208];
-      if (fisherySel === 'flatøsters') return [3, 35, 73, 75, 78, 87, 91, 92, 208];
-      if (fisherySel === 'leppefisk') return [3, 35, 75, 78, 84, 87, 91, 92, 208];
-      if (fisherySel === 'steinbit') return [75, 78, 87, 91, 92, 200, 208];
-      if (fisherySel === 'laks i sjø' || fisherySel === 'sjøørret') return [3, 35, 75, 78, 87, 91, 92, 208];
+      if (fisherySel === 'hummer') return [0, 7, 9, 10, 11, 13, 31, 37, 38];
+      if (fisherySel === 'torsk') return [0, 7, 8, 16, 18, 19, 11, 13, 24, 31, 32, 37, 38];
+      if (fisherySel === 'flatøsters') return [0, 7, 15, 11, 13, 31, 37, 38];
+      if (fisherySel === 'leppefisk') return [0, 7, 17, 11, 13, 31, 37, 38];
+      if (fisherySel === 'steinbit') return [0, 7, 34, 11, 13, 31, 37, 38];
+      if (fisherySel === 'laks i sjø' || fisherySel === 'sjøørret') return fritidGenerell.slice();
       return [];
     }
 
@@ -1684,7 +1768,7 @@
       if (!isFinite(id)) return false;
       var preferredIds = selectionProfileLayerIds();
       if (!hasMapSelection()) return false;
-      if (layer && layer.is_generic && isRestrictiveLawLayer(layer)) return true;
+      if (layer && layer.is_generic && isRestrictiveLawLayer(layer)) return preferredIds.length ? preferredIds.indexOf(id) !== -1 : true;
       if (!preferredIds.length) return layerSelectionScore(layer) > 0;
       if (preferredIds.indexOf(id) !== -1) return true;
       return layerSelectionScore(layer) > 0;
@@ -1698,7 +1782,7 @@
       if (/(breivikfjorden|borgundfjorden|henningsvaer|lofotfiske)/.test(restrictionText) && !/(torsk|skrei|kommersiell|yrkes)/.test([currentFisherySelection(), currentControlSelection(), restrictionText].join(' '))) return false;
       var status = String(layer.status || '').trim().toLowerCase();
       if (Object.prototype.hasOwnProperty.call(activeLayerStatuses, status) && !activeLayerStatuses[status]) return false;
-      // 1.8.15: Temakartet kan vise bredt uten valg, men under kontroll
+      // 1.8.16: Temakartet kan vise bredt uten valg, men under kontroll
       // skal kartet bare vise lovregulerte lag som passer valgt kontrolltype,
       // art/fiskeri og redskap.
       if (!hasMapSelection()) return true;
@@ -2530,7 +2614,7 @@
       storedPositionMode = '';
     }
     if (storedPositionMode !== 'manual' && storedPositionMode !== 'auto') storedPositionMode = '';
-    var zoneOverlayStorageKey = 'kv-case-zone-overlay-1.8.15:' + root.dataset.caseId;
+    var zoneOverlayStorageKey = 'kv-case-zone-overlay-1.8.16:' + root.dataset.caseId;
     var zoneOverlayEnabled = true;
     // Treffende verne-/reguleringsområder skal alltid tegnes i kartet.
     // Tidligere lagret 'skjul'-valg fra eldre PWA-versjoner ignoreres.
@@ -2765,7 +2849,7 @@
     var topPrevStep = document.getElementById('top-prev-step');
     var topNextStep = document.getElementById('top-next-step');
     var topStepLabel = document.getElementById('top-step-label');
-    var stepStorageKey = 'kv-case-step-1.8.15:' + root.dataset.caseId;
+    var stepStorageKey = 'kv-case-step-1.8.16:' + root.dataset.caseId;
     var PERSON_STEP = 3;
     var MAP_STEP = 4;
     var FINDINGS_STEP = 5;
@@ -4244,7 +4328,7 @@
         title: 'Kontrollpunkter' + (speciesVal || gearVal ? ' for ' + [controlVal, speciesVal, gearVal].filter(Boolean).join(' / ') : ''),
         description: reason || 'Lokal kontrollpunktliste brukes slik at punktene vises også ved tregt eller tomt regeloppslag.',
         items: items,
-        sources: [{ name: 'Lokal kontrollpunktliste', ref: '1.8.15 fallback', url: '' }]
+        sources: [{ name: 'Lokal kontrollpunktliste', ref: '1.8.16 fallback', url: '' }]
       };
     }
 
@@ -5173,22 +5257,22 @@
       var zoneLayerIds = zoneMatchedLayerIds(latestZoneResult);
       var displayLayers = mergeRelevantMapLayers(filteredMapCatalog(), zoneLayerIds);
       var defaultVisibleIds = defaultVisibleMapCatalog(zoneLayerIds).map(function (layer) { return Number(layer && layer.id); }).filter(function (value) { return isFinite(value); });
-      var featureDetailIds = visibleFeatureDetailLayerIds(8, zoneLayerIds);
+      var featureDetailIds = visibleFeatureDetailLayerIds(14, zoneLayerIds);
       var allLayerIds = displayLayers.map(function (layer) { return Number(layer && layer.id); }).filter(function (value) { return isFinite(value); });
-      var fisheryPortalService = root.dataset.portalMapserver || (caseMap && caseMap.dataset ? (caseMap.dataset.portalMapserver || '') : '') || 'https://portal.fiskeridir.no/server/rest/services/fiskeridirWMS_fiskeri/MapServer';
+      var fisheryPortalService = root.dataset.portalMapserver || (caseMap && caseMap.dataset ? (caseMap.dataset.portalMapserver || '') : '') || 'https://gis.fiskeridir.no/server/rest/services/Yggdrasil/Fiskerireguleringer/MapServer';
       var vernPortalService = root.dataset.portalVernMapserver || (caseMap && caseMap.dataset ? (caseMap.dataset.portalVernMapserver || '') : '') || 'https://portal.fiskeridir.no/server/rest/services/Fiskeridir_vern/MapServer';
-      // 1.8.15: aktuelle verneområder/reguleringer skal vises direkte i kartet
+      // 1.8.16: aktuelle verneområder/reguleringer skal vises direkte i kartet
       // når posisjonssjekken har gitt treff. Uten treff beholdes rask rastervisning.
-      mapState.fetchFeatureDetails = options.fetchFeatureDetails === true || mapState.requestFeatureDetails === true || zoneLayerIds.length > 0;
+      mapState.fetchFeatureDetails = options.fetchFeatureDetails === true || mapState.requestFeatureDetails === true || zoneLayerIds.length > 0 || featureDetailIds.length > 0;
       mapState.featureDetailLayerIds = featureDetailIds;
       mapState.defaultVisibleLayerIds = defaultVisibleIds;
       mapState.highlightLayerIds = zoneLayerIds.slice();
-      mapState.detailFetchThresholdZoom = zoneLayerIds.length > 0 ? 0 : 13;
+      mapState.detailFetchThresholdZoom = zoneLayerIds.length > 0 ? 0 : 9;
       mapState.enableAreaPopup = true;
       mapState.showLegend = false;
       mapState.showLayerPanel = !!mapLayerPanelHost;
       mapState.layerPanelDefaultOpen = false;
-      mapState.layerPanelKey = 'case-map-1-8-11';
+      mapState.layerPanelKey = 'case-map-1-8-16';
       mapState.layerPanelTargetSelector = mapLayerPanelHost ? '#case-map-layer-panel-host' : '';
       mapState.rasterLayerIds = allLayerIds;
       mapState.identifyLayerIds = allLayerIds;
@@ -5309,8 +5393,8 @@
       return rows;
     }
 
-    var zoneResultStoragePrefix = 'kv-zone-result-1.8.15:';
-    var nearestPlaceStoragePrefix = 'kv-nearest-place-1.8.15:';
+    var zoneResultStoragePrefix = 'kv-zone-result-1.8.16:';
+    var nearestPlaceStoragePrefix = 'kv-nearest-place-1.8.16:';
     var nearestPlaceController = null;
     var nearestPlaceSequence = 0;
     var nearestPlaceTimer = null;
@@ -5610,7 +5694,7 @@
       scheduleAutosave('Manuell posisjon aktivert');
     }
 
-    var devicePositionStorageKey = 'kv-device-position-1.8.15';
+    var devicePositionStorageKey = 'kv-device-position-1.8.16';
     function readCachedDevicePosition() {
       if (!window.localStorage) return null;
       try {
@@ -6830,7 +6914,13 @@ function renderHummerStatus(result) {
           findingsState[idx].active_deviation_link_index = controlLinkModeEnabled ? controlLinkActiveIndex : Number(findingsState[idx].active_deviation_link_index || 0);
           ensureDeviationState(findingsState[idx]);
           normalizeDeviationLinkGroups(findingsState[idx]);
-          inlineEvidenceFeedback = 'Avvik valgt. Trykk Legg til redskap/beslag for å registrere beslag.';
+          if (itemSupportsMeasurements(findingsState[idx])) {
+            ensureAutomaticMeasurementRowForAvvik(findingsState[idx]);
+            syncMeasurementDefaults(findingsState[idx]);
+            inlineEvidenceFeedback = 'Avvik valgt. Skriv lengdemålt verdi, og bruk Legg til redskap/beslag for beslag eller bildebevis.';
+          } else {
+            inlineEvidenceFeedback = 'Avvik valgt. Trykk Legg til redskap/beslag for å registrere beslag.';
+          }
         } else {
           findingsState[idx].deviation_units = findingsState[idx].deviation_units || [];
         }
@@ -6922,7 +7012,7 @@ function renderHummerStatus(result) {
         findingsInput.value = JSON.stringify(findingsState);
         scheduleAutosave('Kontrollpunktnotat oppdatert');
       }
-      if (event.target.classList.contains('measurement-reference') || event.target.classList.contains('measurement-length') || event.target.classList.contains('measurement-note') || event.target.classList.contains('measurement-position')) {
+      if (event.target.classList.contains('measurement-reference') || event.target.classList.contains('measurement-length') || event.target.classList.contains('measurement-min-limit') || event.target.classList.contains('measurement-max-limit') || event.target.classList.contains('measurement-note') || event.target.classList.contains('measurement-position')) {
         var rowEl = event.target.closest('.measurement-row');
         if (!rowEl) return;
         var mIdx = Number(rowEl.dataset.measureIndex);
@@ -6930,22 +7020,36 @@ function renderHummerStatus(result) {
         rows[mIdx] = rows[mIdx] || defaultMeasurementRow();
         rows[mIdx].reference = (rowEl.querySelector('.measurement-reference') || {}).value || rows[mIdx].reference || '';
         rows[mIdx].length_cm = (rowEl.querySelector('.measurement-length') || {}).value || '';
+        rows[mIdx].applied_min_size_cm = sanitizeMeasurementLimitValue((rowEl.querySelector('.measurement-min-limit') || {}).value || '');
+        rows[mIdx].applied_max_size_cm = sanitizeMeasurementLimitValue((rowEl.querySelector('.measurement-max-limit') || {}).value || '');
         rows[mIdx].position = (rowEl.querySelector('.measurement-position') || {}).value || '';
         rows[mIdx].note = (rowEl.querySelector('.measurement-note') || {}).value || '';
-        syncMeasurementDefaults(item);
+        var statusChangedFromMeasurement = syncFindingStatusFromMeasurements(item);
         var currentMeasurement = rows[mIdx] || {};
+        if (statusChangedFromMeasurement) {
+          findingsInput.value = JSON.stringify(findingsState);
+          renderFindings();
+          flashActiveDeviationRow();
+          scheduleAutosave('Lengdemåling genererte avvik');
+          return;
+        }
         var preview = card.querySelector('.finding-measurements .structured-preview');
         if (preview) preview.textContent = item.measurement_summary || measurementSummaryText(item);
         var refInput = rowEl.querySelector('.measurement-reference');
         if (refInput) refInput.value = currentMeasurement.reference || currentMeasurement.seizure_ref || '';
+        var minInput = rowEl.querySelector('.measurement-min-limit');
+        if (minInput) minInput.value = currentMeasurement.applied_min_size_cm || measurementLimitDisplayValue(item, currentMeasurement, 'min') || '';
+        var maxInput = rowEl.querySelector('.measurement-max-limit');
+        if (maxInput) maxInput.value = currentMeasurement.applied_max_size_cm || measurementLimitDisplayValue(item, currentMeasurement, 'max') || '';
         var posInput = rowEl.querySelector('.measurement-position');
         if (posInput) posInput.value = currentMeasurement.position || '';
         var evalBox = rowEl.querySelector('.measurement-evaluation');
         if (evalBox) {
-          evalBox.textContent = currentMeasurement.delta_text || 'Legg inn måling i cm for automatisk vurdering.';
-          evalBox.classList.remove('is-alert', 'is-ok');
+          evalBox.textContent = currentMeasurement.delta_text || 'Skriv lengdemålt verdi i cm. 0,1 cm = 1 mm.';
+          evalBox.classList.remove('is-alert', 'is-ok', 'is-waiting');
           if (currentMeasurement.measurement_state === 'under_min' || currentMeasurement.measurement_state === 'over_max') evalBox.classList.add('is-alert');
           else if (currentMeasurement.measurement_state === 'ok') evalBox.classList.add('is-ok');
+          else if (currentMeasurement.measurement_state === 'needs_limit') evalBox.classList.add('is-waiting');
         }
         findingsInput.value = JSON.stringify(findingsState);
         scheduleAutosave('Lengdemåling oppdatert');

@@ -36,11 +36,11 @@ REQUEST_TIMEOUT = float(os.getenv('KV_HTTP_TIMEOUT', '20'))
 PORTAL_REQUEST_TIMEOUT = float(os.getenv('KV_PORTAL_HTTP_TIMEOUT', '5'))
 FDIR_TAR_URL = os.getenv('KV_FDIR_TAR_URL', 'https://register.fiskeridir.no/fartoyreg/last/frtyweb.tar')
 JM_URL = os.getenv('KV_JM_URL', 'https://www.fiskeridir.no/yrkesfiske/j-meldinger')
-YGG_BASE = os.getenv('KV_YGG_BASE', os.getenv('KV_PORTAL_MAPSERVER', 'https://gis.fiskeridir.no/server/rest/services/Fiskeridir_vern/MapServer'))
+YGG_BASE = os.getenv('KV_YGG_BASE', os.getenv('KV_PORTAL_MAPSERVER', 'https://gis.fiskeridir.no/server/rest/services/Yggdrasil/Fiskerireguleringer/MapServer'))
 LOVDATA_TOPICS_PATH = DATA_DIR / 'lovdata_topics.json'
 FDIR_CACHE_JSON = CACHE_DIR / 'fdir_registry_cache.json'
 FDIR_CACHE_META = CACHE_DIR / 'fdir_registry_meta.json'
-UA = 'Minfiskerikontroll-1.8.15/1.8.15 (+field trial app)'
+UA = 'Minfiskerikontroll-1.8.16/1.8.16 (+field trial app)'
 HUMMER_REGISTER_URL = 'https://tableau.fiskeridir.no/t/Internet/views/Pmeldehummarfiskarargjeldander/Pmeldehummarfiskarar?:showVizHome=no'
 HUMMER_REGISTER_FALLBACK_URL = 'https://www.fiskeridir.no/statistikk-tall-og-analyse/data-og-statistikk-om-turist--og-fritidsfiske/registrerte-hummarfiskarar'
 HUMMER_CACHE_JSON = CACHE_DIR / 'hummer_registry_cache.json'
@@ -80,7 +80,7 @@ PORTAL_POINT_CACHE_TTL = max(20.0, float(os.getenv('KV_PORTAL_POINT_CACHE_TTL', 
 PORTAL_BUNDLE_CACHE_TTL = max(120.0, float(os.getenv('KV_PORTAL_BUNDLE_CACHE_TTL', '900') or '900'))
 _PORTAL_BUNDLE_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 _PORTAL_BUNDLE_CACHE_LOCK = threading.Lock()
-ZONE_CHECK_MAX_LIVE_LAYERS = max(3, min(18, int(os.getenv('KV_ZONE_CHECK_MAX_LIVE_LAYERS', '6') or '6')))
+ZONE_CHECK_MAX_LIVE_LAYERS = max(3, min(18, int(os.getenv('KV_ZONE_CHECK_MAX_LIVE_LAYERS', '14') or '14')))
 ZONE_POINT_QUERY_TIMEOUT = max(0.8, min(3.5, float(os.getenv('KV_ZONE_POINT_QUERY_TIMEOUT', '1.8') or '1.8')))
 ZONE_CHECK_WORKERS = max(2, min(8, int(os.getenv('KV_ZONE_CHECK_WORKERS', '6') or '6')))
 ZONE_CHECK_TOTAL_TIMEOUT = max(1.5, min(8.0, float(os.getenv('KV_ZONE_CHECK_TOTAL_TIMEOUT', '3.0') or '3.0')))
@@ -1002,8 +1002,8 @@ def lookup_hummer_participant_live(participant_no: str = '', name: str = '') -> 
 # v9 portal map integration
 # -------------------------
 
-MAP_PORTAL_URL = os.getenv('KV_PORTAL_MAP_URL', 'https://portal.fiskeridir.no/portal/apps/experiencebuilder/experience/?id=346b009e963945e09e1dd23f1a40c762#widget_174=active_datasource_id:dataSource_16,center:219178.6907005629%2C6498779.5776808085%2C25833,scale:617585.2866455576,viewpoint:%7B%22rotation%22%3A356.18800630200445%2C%22scale%22%3A617585.2866455576%2C%22targetGeometry%22%3A%7B%22spatialReference%22%3A%7B%22latestWkid%22%3A25833%2C%22wkid%22%3A25833%7D%2C%22x%22%3A219178.6907005629%2C%22y%22%3A6498779.5776808085%7D%7D,layer_visibility:%7B%22widget_174-dataSource_16%22%3A%7B%22widget_174-dataSource_16-198f5e53031-layer-86%22%3Atrue%2C%22widget_174-dataSource_16-198f5e9e5f4-layer-91%22%3Atrue%2C%22widget_174-dataSource_16-198f5f0a60e-layer-94%22%3Atrue%2C%22widget_174-dataSource_16-198f5f4a9f8-layer-96%22%3Atrue%2C%22widget_174-dataSource_16-198f5e53031-layer-86-Fiskerireguleringer_1058%22%3Atrue%2C%22widget_174-dataSource_16-198f5e9e5f4-layer-91-Korallrev_8882%22%3Atrue%2C%22widget_174-dataSource_16-198f5e53031-layer-86-Fiskerireguleringer_1058-0%22%3Atrue%2C%22widget_174-dataSource_16-198f5e53031-layer-86-Fiskerireguleringer_1058-33%22%3Atrue%2C%22widget_174-dataSource_16-198f5e53031-layer-86-Fiskerireguleringer_1058-6%22%3Atrue%2C%22widget_174-dataSource_16-198f5e53031-layer-86-Fiskerireguleringer_1058-7%22%3Atrue%2C%22widget_174-dataSource_16-198f5e53031-layer-86-Fiskerireguleringer_1058-9%22%3Atrue%2C%22widget_174-dataSource_16-198f5e53031-layer-86-Fiskerireguleringer_1058-11%22%3Atrue%2C%22widget_174-dataSource_16-198f5e53031-layer-86-Fiskerireguleringer_1058-15%22%3Atrue%2C%22widget_174-dataSource_16-198f5e53031-layer-86-Fiskerireguleringer_1058-16%22%3Atrue%2C%22widget_174-dataSource_16-198f5e53031-layer-86-Fiskerireguleringer_1058-8%22%3Atrue%2C%22widget_174-dataSource_16-198f5e53031-layer-86-Fiskerireguleringer_1058-37%22%3Atrue%2C%22widget_174-dataSource_16-198f5e53031-layer-86-Fiskerireguleringer_1058-18%22%3Atrue%2C%22widget_174-dataSource_16-198f5e53031-layer-86-Fiskerireguleringer_1058-19%22%3Atrue%7D%7D')
-YGG_BASE = os.getenv('KV_PORTAL_MAPSERVER', 'https://gis.fiskeridir.no/server/rest/services/Fiskeridir_vern/MapServer')
+MAP_PORTAL_URL = os.getenv('KV_PORTAL_MAP_URL', 'https://portal.fiskeridir.no/portal/apps/experiencebuilder/experience/?id=346b009e963945e09e1dd23f1a40c762')
+YGG_BASE = os.getenv('KV_PORTAL_MAPSERVER', 'https://gis.fiskeridir.no/server/rest/services/Yggdrasil/Fiskerireguleringer/MapServer')
 
 LAYER_FLATOSTERS = 0
 LAYER_HUMMER_FREDNING = 1
@@ -1545,10 +1545,10 @@ def lookup_directory_candidates(phone: str = '', name: str = '', address: str = 
 # v43 feltklar portal / kart-overstyringer
 # -------------------------
 
-MAP_PORTAL_URL = os.getenv('KV_PORTAL_MAP_URL', 'https://portal.fiskeridir.no/portal/apps/experiencebuilder/experience/?id=346b009e963945e09e1dd23f1a40c762#widget_174=active_datasource_id:dataSource_16,center:219178.6907005629%2C6498779.5776808085%2C25833,scale:617585.2866455576,viewpoint:%7B%22rotation%22%3A356.18800630200445%2C%22scale%22%3A617585.2866455576%2C%22targetGeometry%22%3A%7B%22spatialReference%22%3A%7B%22latestWkid%22%3A25833%2C%22wkid%22%3A25833%7D%2C%22x%22%3A219178.6907005629%2C%22y%22%3A6498779.5776808085%7D%7D,layer_visibility:%7B%22widget_174-dataSource_16%22%3A%7B%22widget_174-dataSource_16-198f5e53031-layer-86%22%3Atrue%2C%22widget_174-dataSource_16-198f5e9e5f4-layer-91%22%3Atrue%2C%22widget_174-dataSource_16-198f5f0a60e-layer-94%22%3Atrue%2C%22widget_174-dataSource_16-198f5f4a9f8-layer-96%22%3Atrue%2C%22widget_174-dataSource_16-198f5e53031-layer-86-Fiskerireguleringer_1058%22%3Atrue%2C%22widget_174-dataSource_16-198f5e9e5f4-layer-91-Korallrev_8882%22%3Atrue%2C%22widget_174-dataSource_16-198f5e53031-layer-86-Fiskerireguleringer_1058-0%22%3Atrue%2C%22widget_174-dataSource_16-198f5e53031-layer-86-Fiskerireguleringer_1058-33%22%3Atrue%2C%22widget_174-dataSource_16-198f5e53031-layer-86-Fiskerireguleringer_1058-6%22%3Atrue%2C%22widget_174-dataSource_16-198f5e53031-layer-86-Fiskerireguleringer_1058-7%22%3Atrue%2C%22widget_174-dataSource_16-198f5e53031-layer-86-Fiskerireguleringer_1058-9%22%3Atrue%2C%22widget_174-dataSource_16-198f5e53031-layer-86-Fiskerireguleringer_1058-11%22%3Atrue%2C%22widget_174-dataSource_16-198f5e53031-layer-86-Fiskerireguleringer_1058-15%22%3Atrue%2C%22widget_174-dataSource_16-198f5e53031-layer-86-Fiskerireguleringer_1058-16%22%3Atrue%2C%22widget_174-dataSource_16-198f5e53031-layer-86-Fiskerireguleringer_1058-8%22%3Atrue%2C%22widget_174-dataSource_16-198f5e53031-layer-86-Fiskerireguleringer_1058-37%22%3Atrue%2C%22widget_174-dataSource_16-198f5e53031-layer-86-Fiskerireguleringer_1058-18%22%3Atrue%2C%22widget_174-dataSource_16-198f5e53031-layer-86-Fiskerireguleringer_1058-19%22%3Atrue%7D%7D')
-YGG_BASE = os.getenv('KV_PORTAL_MAPSERVER', 'https://portal.fiskeridir.no/server/rest/services/fiskeridirWMS_fiskeri/MapServer')
+MAP_PORTAL_URL = os.getenv('KV_PORTAL_MAP_URL', 'https://portal.fiskeridir.no/portal/apps/experiencebuilder/experience/?id=346b009e963945e09e1dd23f1a40c762')
+YGG_BASE = os.getenv('KV_PORTAL_MAPSERVER', 'https://gis.fiskeridir.no/server/rest/services/Yggdrasil/Fiskerireguleringer/MapServer')
 VERN_BASE = os.getenv('KV_PORTAL_VERN_MAPSERVER', 'https://portal.fiskeridir.no/server/rest/services/Fiskeridir_vern/MapServer')
-PORTAL_LAYER_SCHEMA_VERSION = os.getenv('KV_PORTAL_LAYER_SCHEMA_VERSION', 'v84')
+PORTAL_LAYER_SCHEMA_VERSION = os.getenv('KV_PORTAL_LAYER_SCHEMA_VERSION', 'v86')
 PORTAL_LAYER_CACHE_JSON = CACHE_DIR / f'portal_layer_catalog_cache_{PORTAL_LAYER_SCHEMA_VERSION}.json'
 PORTAL_LAYER_CACHE_META = CACHE_DIR / f'portal_layer_catalog_meta_{PORTAL_LAYER_SCHEMA_VERSION}.json'
 PORTAL_LAYER_CACHE_DIR = CACHE_DIR / f'portal_layers_{PORTAL_LAYER_SCHEMA_VERSION}'
@@ -1556,46 +1556,59 @@ PORTAL_LAYER_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _fallback_portal_layer_defs() -> list[dict[str, Any]]:
-    return [
-        {'id': 75, 'name': 'Høstingsforskriften forbudsområder', 'status': 'stengt område', 'color': '#b5171e', 'description': 'Forbudsområder etter høstingsforskriften.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'local_zone_aliases': ['Høstingsforskriften forbudsområder']},
-        {'id': 76, 'name': 'Hummer - fredningsområder', 'status': 'fredningsområde', 'color': '#f4a261', 'description': 'Fredningsområder for hummer.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'legacy_ids': [1], 'local_zone_aliases': ['Hummer - fredningsområder']},
-        {'id': 77, 'name': 'Hummer - maksimalmål område', 'status': 'maksimalmål område', 'color': '#bc4749', 'description': 'Område med særskilt maksimalmål for hummer.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'legacy_ids': [23], 'local_zone_aliases': ['Hummer - maksimalmål område']},
-        {'id': 78, 'name': 'J-melding stengte fiskefelt', 'status': 'stengt område', 'color': '#c1121f', 'description': 'Gjeldende J-melding stengte fiskefelt.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'local_zone_aliases': ['J-melding stengte fiskefelt']},
-        {'id': 73, 'name': 'Forbud mot høsting av flatøsters Sørlandsleia', 'status': 'stengt område', 'color': '#e76f51', 'description': 'Forbudsområde for flatøsters.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'legacy_ids': [0], 'local_zone_aliases': ['Flatøsters - forbudsområde']},
-        {'id': 80, 'name': 'Korallrev - forbudsområde', 'status': 'stengt område', 'color': '#6d597a', 'description': 'Forbud mot fiske nær korallrev.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'legacy_ids': [6], 'local_zone_aliases': ['Korallrev - forbudsområde']},
-        {'id': 82, 'name': 'Kysttorsk - forbudsområde', 'status': 'stengt område', 'color': '#d62828', 'description': 'Forbudsområde for kysttorsk.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'legacy_ids': [3], 'local_zone_aliases': ['Kysttorsk - forbudsområde']},
-        {'id': 83, 'name': 'Kysttorsk - stengte gytefelt januar-april', 'status': 'stengt område', 'color': '#e63946', 'description': 'Stengte gytefelt for kysttorsk.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'legacy_ids': [2], 'local_zone_aliases': ['Kysttorsk - stengte områder', 'Kysttorsk - stengte gytefelt januar-april']},
-        {'id': 84, 'name': 'Leppefisk - forskningsområde', 'status': 'regulert område', 'color': '#3d5a80', 'description': 'Forsknings- og reguleringsområde for leppefisk.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'local_zone_aliases': ['Leppefisk - forskningsområde']},
-        {'id': 87, 'name': 'Nasjonale laksefjorder', 'status': 'regulert område', 'color': '#457b9d', 'description': 'Nasjonale laksefjorder med særregler.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'local_zone_aliases': ['Nasjonale laksefjorder']},
-        {'id': 3, 'name': 'Oslofjorden - nullfiskeområder', 'status': 'stengt område', 'color': '#1d3557', 'description': 'Nullfiskeområder i Oslofjorden.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'legacy_ids': [37], 'local_zone_aliases': ['Oslofjorden - nullfiskeområder']},
-        {'id': 35, 'name': 'Oslofjorden - fritidsfiskeregler', 'status': 'regulert område', 'color': '#457b9d', 'description': 'Særregler for fritidsfiske i Oslofjorden.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'local_zone_aliases': ['Oslofjorden - fritidsfiskeregler']},
-        {'id': 200, 'name': 'Saltstraumen - forbud steinbit', 'status': 'stengt område', 'color': '#577590', 'description': 'Forbud eller særregulering for steinbit i Saltstraumen.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'legacy_ids': [34], 'local_zone_aliases': ['Saltstraumen - forbud steinbit']},
-        {'id': 208, 'name': 'Raet nasjonalpark - sonevern', 'status': 'regulert område', 'color': '#2a9d8f', 'description': 'Sonevern og fiskeriregler i Raet nasjonalpark.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'local_zone_aliases': ['Raet nasjonalpark - sonevern']},
-        {'id': 88, 'name': 'Reguleringer stormasket trål inntil 12 nm', 'status': 'regulert område', 'color': '#4d908e', 'description': 'Reguleringsområder for stormasket trål.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'local_zone_aliases': ['Reguleringer stormasket trål inntil 12 nm']},
-        {'id': 89, 'name': 'Tare høstefelt', 'status': 'regulert område', 'color': '#7a9e7e', 'description': 'Tarehøstefelt.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'local_zone_aliases': ['Tare høstefelt']},
-        {'id': 90, 'name': 'Tare referanseområder', 'status': 'fredningsområde', 'color': '#84a98c', 'description': 'Referanseområder for tare med særskilt vern.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'local_zone_aliases': ['Tare referanseområder']},
-        {'id': 93, 'name': 'Tobis åpne områder', 'status': 'regulert område', 'color': '#8ecae6', 'description': 'Områder åpnet for tobisfiske.', 'geometry_type': 'esriGeometryPolygon', 'alertable': False, 'local_zone_aliases': ['Tobis åpne områder']},
-        {'id': 94, 'name': 'Torsk - gyteområder forbudsområder', 'status': 'stengt område', 'color': '#b56576', 'description': 'Forbudsområder knyttet til torskens gyteområder.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'local_zone_aliases': ['Torsk - gyteområder forbudsområder']},
-        {'id': 85, 'name': 'Torsk - oppvekstområder forbudsområder', 'status': 'stengt område', 'color': '#8d5a97', 'description': 'Forbudsområder knyttet til torskens oppvekstområder.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'local_zone_aliases': ['Torsk - oppvekstområder forbudsområder']},
-        {'id': 91, 'name': 'Verneområder bunnhabitat', 'status': 'fredningsområde', 'color': '#6a4c93', 'description': 'Verneområder for sårbare bunnhabitater.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'local_zone_aliases': ['Verneområder bunnhabitat']},
-        {'id': 92, 'name': 'Fiskeforbud Borgundfjorden', 'status': 'stengt område', 'color': '#9d0208', 'description': 'Lokalt fiskeforbud i Borgundfjorden.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'legacy_ids': [142], 'local_zone_aliases': ['Fiskeforbud Borgundfjorden']},
-        {'id': 32, 'name': 'Breivikfjorden lokalregulering', 'status': 'regulert område', 'color': '#355070', 'description': 'Lokale fiskerireguleringer i Breivikfjorden.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'legacy_ids': [186], 'local_zone_aliases': ['Breivikfjorden lokalregulering']},
-        {'id': 139, 'name': 'Trålforbud Jenn egga / Malangsgrunnen', 'status': 'stengt område', 'color': '#7b2cbf', 'description': 'Trålforbudsområde ved Jenn egga / Malangsgrunnen.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'legacy_ids': [197], 'local_zone_aliases': ['Trålforbud Jenn egga / Malangsgrunnen']},
-        {'id': 140, 'name': 'Trålforbud Storegga', 'status': 'stengt område', 'color': '#9d4edd', 'description': 'Trålforbudsområde ved Storegga.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'legacy_ids': [198], 'local_zone_aliases': ['Trålforbud Storegga']},
-        {'id': 25, 'name': 'Svalbard - fiskeforbud sårbare økosystemer', 'status': 'stengt område', 'color': '#560bad', 'description': 'Fiskeforbud for sårbare økosystemer ved Svalbard.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'local_zone_aliases': ['Svalbard - fiskeforbud sårbare økosystemer']},
-        {'id': 26, 'name': 'Svalbard - forbud mot fiske i fiskevernsonen', 'status': 'stengt område', 'color': '#480ca8', 'description': 'Forbudsområde i fiskevernsonen ved Svalbard.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'local_zone_aliases': ['Svalbard - forbud mot fiske i fiskevernsonen']},
-        {'id': 33, 'name': 'Forbud mot å fiske hyse i Finnmark', 'status': 'stengt område', 'color': '#9b2226', 'description': 'Forbudsområde for hysefiske i Finnmark.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'local_zone_aliases': ['Forbud mot å fiske hyse i Finnmark']},
-        {'id': 74, 'name': 'Henningsværboksen', 'status': 'regulert område', 'color': '#264653', 'description': 'Særregulert område i Henningsvær.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'local_zone_aliases': ['Henningsværboksen']},
-        {'id': 95, 'name': 'Lofotfiske 2025', 'status': 'regulert område', 'color': '#355070', 'description': 'Aktuelle reguleringer for Lofotfiske 2025.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'local_zone_aliases': ['Lofotfiske 2025']},
-        {'id': 96, 'name': 'Havdeling torsk/hyse/sei fartøy 21-27,9 m', 'status': 'regulert område', 'color': '#4d908e', 'description': 'Avgrensning for havdeling knyttet til torsk, hyse og sei.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'local_zone_aliases': ['Havdeling torsk/hyse/sei fartøy 21-27,9 m']},
-        {'id': 97, 'name': 'Havdeling torsk/hyse/sei fartøy over 28 m', 'status': 'regulert område', 'color': '#577590', 'description': 'Avgrensning for havdeling knyttet til større fartøy.', 'geometry_type': 'esriGeometryPolygon', 'alertable': True, 'local_zone_aliases': ['Havdeling torsk/hyse/sei fartøy over 28 m']},
-        {'id': 79, 'name': 'Kongekrabbe regulering', 'status': 'regulert område', 'color': '#0a9396', 'description': 'Regulering av fangst av kongekrabbe.', 'geometry_type': 'esriGeometryPolyline', 'alertable': False, 'local_zone_aliases': ['Kongekrabbe regulering']},
-        {'id': 81, 'name': 'Krokbegrensning line', 'status': 'regulert område', 'color': '#118ab2', 'description': 'Linjer som viser krokbegrensninger.', 'geometry_type': 'esriGeometryPolyline', 'alertable': False, 'local_zone_aliases': ['Krokbegrensning line']},
-        {'id': 71, 'name': 'Fjordlinjer - kysttorskregulering', 'status': 'regulert område', 'color': '#023047', 'description': 'Fjordlinjer brukt i kysttorskreguleringer.', 'geometry_type': 'esriGeometryPolyline', 'alertable': False, 'local_zone_aliases': ['Fjordlinjer - kysttorskregulering']},
-        {'id': 72, 'name': 'Fjordlinjer - seinot', 'status': 'regulert område', 'color': '#219ebc', 'description': 'Fjordlinjer for seinotregulering.', 'geometry_type': 'esriGeometryPolyline', 'alertable': False, 'local_zone_aliases': ['Fjordlinjer - seinot']},
-        {'id': 70, 'name': 'Fjordlinjer - kysttorskregulering punkter', 'status': 'regulert område', 'color': '#8ecae6', 'description': 'Punkter knyttet til fjordlinjer for kysttorsk.', 'geometry_type': 'esriGeometryPoint', 'alertable': False, 'local_zone_aliases': ['Fjordlinjer - kysttorskregulering punkter']},
-    ]
+    """Curated fallback for Yggdrasil/Fiskerireguleringer MapServer.
 
+    Layer IDs mirror the official Fiskeridirektoratet ExperienceBuilder/Fritidsfiske
+    map service, so offline catalog fallback still points at the same layers that the
+    browser map renders through ArcGIS export/query.
+    """
+    def row(layer_id: int, name: str, status: str, color: str, description: str,
+            geometry_type: str = 'esriGeometryPolygon', alertable: bool = True,
+            aliases: list[str] | None = None, legacy_ids: list[int] | None = None) -> dict[str, Any]:
+        return {
+            'id': layer_id,
+            'name': name,
+            'status': status,
+            'color': color,
+            'description': description,
+            'geometry_type': geometry_type,
+            'alertable': alertable,
+            'service_url': f'{YGG_BASE}/{layer_id}',
+            'local_zone_aliases': aliases or [name],
+            'legacy_ids': legacy_ids or [],
+        }
+
+    return [
+        row(0, 'J-melding stengte fiskefelt', 'stengt område', '#c1121f', 'Gjeldende J-melding stengte fiskefelt.'),
+        row(7, 'Høstingsforskriften - forbudsområder', 'stengt område', '#b5171e', 'Forbudsområder etter høstingsforskriften.'),
+        row(9, 'Hummer - fredningsområder', 'fredningsområde', '#f4a261', 'Fredningsområder for hummer.', legacy_ids=[1, 76]),
+        row(10, 'Hummer - maksimalmål område', 'maksimalmål område', '#bc4749', 'Område med særskilt maksimalmål for hummer.', legacy_ids=[23, 77]),
+        row(11, 'Korallrev - forbudsområde', 'stengt område', '#6d597a', 'Forbud mot fiske nær korallrev.', legacy_ids=[6, 80]),
+        row(13, 'Verneområder - bunnhabitat', 'fredningsområde', '#6a4c93', 'Verneområder for sårbare bunnhabitater.', legacy_ids=[91]),
+        row(15, 'Forbud mot høsting av flatøsters Sørlandsleia', 'stengt område', '#e76f51', 'Forbudsområde for flatøsters.', legacy_ids=[0, 73]),
+        row(16, 'Kysttorsk - stengte gytefelt jan-april', 'stengt område', '#e63946', 'Stengte gytefelt for kysttorsk januar-april.', legacy_ids=[2, 83]),
+        row(8, 'Kysttorsk - forbudsområde', 'stengt område', '#d62828', 'Forbudsområde for kysttorsk.', legacy_ids=[3, 82]),
+        row(37, 'Nullfiskeområder Oslofjorden', 'nullfiskeområde', '#1d3557', 'Nullfiskeområder i Oslofjorden.', legacy_ids=[35]),
+        row(38, 'Yttergrense Oslofjorden', 'regulert område', '#457b9d', 'Yttergrense for Oslofjordreguleringer.', 'esriGeometryPolyline', False),
+        row(18, 'Torsk gyteområder - forbudsområder', 'stengt område', '#b56576', 'Forbudsområder knyttet til torskens gyteområder.', legacy_ids=[94]),
+        row(19, 'Torsk oppvekstområder - forbudsområder', 'stengt område', '#8d5a97', 'Forbudsområder knyttet til torskens oppvekstområder.', legacy_ids=[85]),
+        row(17, 'Leppefisk - forskningsområde', 'regulert område', '#3d5a80', 'Forsknings- og reguleringsområde for leppefisk.', legacy_ids=[84]),
+        row(34, 'Saltstraumen - forbud steinbit', 'stengt område', '#577590', 'Forbud eller særregulering for steinbit i Saltstraumen.', legacy_ids=[200]),
+        row(31, 'Raet nasjonalpark sonevern', 'regulert område', '#2a9d8f', 'Sonevern og fiskeriregler i Raet nasjonalpark.', legacy_ids=[208]),
+        row(32, 'Breivikfjorden lokalregulering', 'regulert område', '#355070', 'Lokale fiskerireguleringer i Breivikfjorden.', legacy_ids=[186]),
+        row(33, 'Forbud mot å fiske hyse i Finnmark', 'stengt område', '#9b2226', 'Forbudsområde for hysefiske i Finnmark.', 'esriGeometryPolyline', False),
+        row(5, 'Krokbegrensning - line', 'regulert område', '#118ab2', 'Linjer som viser krokbegrensninger.', 'esriGeometryPolyline', False, legacy_ids=[81]),
+        row(14, 'Regulering av tråling innenfor 12 nm', 'regulert område', '#4d908e', 'Reguleringsområder for tråling innenfor 12 nautiske mil.', legacy_ids=[88]),
+        row(24, 'Fiskeforbud Borgundfjorden', 'stengt område', '#9d0208', 'Lokalt fiskeforbud i Borgundfjorden.', legacy_ids=[92, 142]),
+        row(6, 'Henningsværboksen', 'regulert område', '#264653', 'Særregulert område i Henningsvær.', legacy_ids=[74]),
+        row(1, 'Lofotfiske', 'regulert område', '#355070', 'Aktuelle reguleringer for Lofotfiske.', legacy_ids=[95]),
+        row(25, 'Fiskeforbud i sårbare økosystemer rundt Svalbard', 'stengt område', '#560bad', 'Fiskeforbud for sårbare økosystemer ved Svalbard.'),
+        row(26, 'Svalbard - forbud mot fiske i fiskevernsonen', 'stengt område', '#480ca8', 'Forbudsområde i fiskevernsonen ved Svalbard.'),
+        row(35, 'Trålforbud Jennegga/Malangsgrunnen okt-mars', 'stengt område', '#7b2cbf', 'Trålforbudsområde ved Jennegga/Malangsgrunnen.', legacy_ids=[139, 197]),
+        row(36, 'Trålforbud Storegga fartøy over 35m', 'stengt område', '#9d4edd', 'Trålforbudsområde ved Storegga.', legacy_ids=[140, 198]),
+        row(12, 'Kongekrabbe - regulering', 'regulert område', '#0a9396', 'Regulering av fangst av kongekrabbe.', 'esriGeometryPolyline', False, legacy_ids=[79]),
+        row(30, 'Kongekrabbe stenging', 'stengt område', '#005f73', 'Stengte områder for kongekrabbe.'),
+    ]
 
 def _layer_id_candidates(layer_id: int, layer_def: dict[str, Any]) -> set[int]:
     ids: set[int] = set()
@@ -1884,8 +1897,8 @@ def _portal_display_score(row: dict[str, Any], *, fishery: str = '', control_typ
     except Exception:
         layer_id = None
     if layer_id is not None and layer_id in {
-        75, 76, 77, 78, 73, 80, 82, 83, 3, 35, 200, 208,
-        94, 85, 91, 92, 32, 139, 140, 25, 26, 33,
+        0, 1, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+        24, 25, 26, 30, 31, 32, 33, 34, 35, 36, 37, 38,
     }:
         score += 120
     geometry_type = str(row.get('geometry_type') or '').lower()
@@ -1904,8 +1917,18 @@ def _sorted_portal_catalog_rows(rows: list[dict[str, Any]], *, fishery: str = ''
         enriched = map_relevance.decorate_catalog_row(row)
         if not map_relevance.is_restrictive_law_layer(enriched):
             continue
-        if (fishery or control_type or gear_type) and not map_relevance.matches_selection(enriched, fishery=fishery, control_type=control_type, gear_type=gear_type):
-            continue
+        if fishery or control_type or gear_type:
+            preferred_ids = map_relevance.selection_profile_layer_ids(fishery=fishery, control_type=control_type, gear_type=gear_type)
+            try:
+                layer_id = int(enriched.get('id')) if enriched.get('id') is not None else None
+            except Exception:
+                layer_id = None
+            has_specific_tags = bool(enriched.get('fishery_tags') or enriched.get('gear_tags') or enriched.get('control_tags'))
+            matches_selected_tags = map_relevance.matches_selection(enriched, fishery=fishery, control_type=control_type, gear_type=gear_type)
+            if preferred_ids and layer_id not in preferred_ids and not (has_specific_tags and matches_selected_tags):
+                continue
+            if not preferred_ids and not matches_selected_tags:
+                continue
         filtered_rows.append(enriched)
     return sorted(
         filtered_rows,
