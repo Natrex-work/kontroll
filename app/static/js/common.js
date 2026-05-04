@@ -6,7 +6,7 @@
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('/static/sw.js?v=1.8.16').catch(function () {});
+      navigator.serviceWorker.register('/static/sw.js?v=1.8.18').catch(function () {});
     });
   }
 
@@ -337,7 +337,7 @@
   }
 
 
-  var LAYER_PANEL_PREFS_VERSION = '1.8.16';
+  var LAYER_PANEL_PREFS_VERSION = '1.8.18';
 
   function layerPanelStorageKey(el, markerState) {
     return 'kv-temalag:' + LAYER_PANEL_PREFS_VERSION + ':' + String((markerState && markerState.layerPanelKey) || (el && el.id) || 'map');
@@ -718,7 +718,11 @@
 
     function uniqueLayerIds(rows) {
       var seen = {};
-      return (rows || []).map(function (layer) { return Number(layer && layer.id); }).filter(function (value) {
+      return (rows || []).map(function (layer) {
+        var raw = (layer && typeof layer === 'object') ? layer.id : layer;
+        var value = Number(raw);
+        return isFinite(value) ? value : NaN;
+      }).filter(function (value) {
         if (!isFinite(value)) return false;
         if (seen[value]) return false;
         seen[value] = true;

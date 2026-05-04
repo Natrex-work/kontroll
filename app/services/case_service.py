@@ -227,6 +227,7 @@ def store_evidence_upload(
     seizure_ref: str = '',
     device_id: str = '',
     local_media_id: str = '',
+    display_order: int | None = None,
 ) -> tuple[int, str]:
     # Retry-safe upload: if Safari/client retries the same local media item,
     # return the already stored evidence row instead of creating duplicate files.
@@ -262,6 +263,7 @@ def store_evidence_upload(
         sha256=sha256,
         device_id=(device_id or '').strip() or None,
         local_media_id=(local_media_id or '').strip() or None,
+        display_order=display_order,
     )
     return evidence_id, unique_name
 

@@ -1712,7 +1712,7 @@
       var fisherySel = currentFisherySelection();
       var controlSel = currentControlSelection();
       var gearSel = currentGearSelection();
-      // 1.8.16: Yggdrasil/Fiskerireguleringer MapServer IDs, tilpasset
+      // 1.8.18: Yggdrasil/Fiskerireguleringer MapServer IDs, tilpasset
       // kontrolltype + art + redskap slik at ny kontroll viser de samme
       // verne-/reguleringsområdene som Fritidsfiske-kartet, men uten tapt redskap.
       var fritidGenerell = [0, 7, 11, 13, 31, 37, 38];
@@ -1782,7 +1782,7 @@
       if (/(breivikfjorden|borgundfjorden|henningsvaer|lofotfiske)/.test(restrictionText) && !/(torsk|skrei|kommersiell|yrkes)/.test([currentFisherySelection(), currentControlSelection(), restrictionText].join(' '))) return false;
       var status = String(layer.status || '').trim().toLowerCase();
       if (Object.prototype.hasOwnProperty.call(activeLayerStatuses, status) && !activeLayerStatuses[status]) return false;
-      // 1.8.16: Temakartet kan vise bredt uten valg, men under kontroll
+      // 1.8.18: Temakartet kan vise bredt uten valg, men under kontroll
       // skal kartet bare vise lovregulerte lag som passer valgt kontrolltype,
       // art/fiskeri og redskap.
       if (!hasMapSelection()) return true;
@@ -2559,6 +2559,10 @@
     var inlineEvidenceCameraInput = document.getElementById('inline-evidence-camera-input');
     var inlineEvidenceFileInput = document.getElementById('inline-evidence-file-input');
     var ocrSelectedFileBox = document.getElementById('ocr-selected-file');
+    var personImagePreviewGrid = document.getElementById('person-image-preview-grid');
+    var personVisionResultBox = document.getElementById('person-vision-result');
+    var visionUncertaintyBox = document.getElementById('vision-uncertainty-box');
+    var btnApplyPersonVisionFields = document.getElementById('btn-apply-person-vision-fields');
     ocrAutofillPreview = document.getElementById('ocr-autofill-preview');
     var localMediaStatus = document.getElementById('local-media-status');
     var localMediaStatusText = document.getElementById('local-media-status-text');
@@ -2614,7 +2618,7 @@
       storedPositionMode = '';
     }
     if (storedPositionMode !== 'manual' && storedPositionMode !== 'auto') storedPositionMode = '';
-    var zoneOverlayStorageKey = 'kv-case-zone-overlay-1.8.16:' + root.dataset.caseId;
+    var zoneOverlayStorageKey = 'kv-case-zone-overlay-1.8.18:' + root.dataset.caseId;
     var zoneOverlayEnabled = true;
     // Treffende verne-/reguleringsområder skal alltid tegnes i kartet.
     // Tidligere lagret 'skjul'-valg fra eldre PWA-versjoner ignoreres.
@@ -2770,6 +2774,8 @@
     var recordingElapsedStart = 0;
     var recordingPausedByRotation = false;
     var selectedOcrFile = null;
+    var personVisionFiles = [];
+    var lastPersonVisionResult = null;
     var preparedOcrFileCache = {};
     var lastOcrEvidenceSignature = '';
     var cameraCaptureState = null;
@@ -2849,12 +2855,12 @@
     var topPrevStep = document.getElementById('top-prev-step');
     var topNextStep = document.getElementById('top-next-step');
     var topStepLabel = document.getElementById('top-step-label');
-    var stepStorageKey = 'kv-case-step-1.8.16:' + root.dataset.caseId;
+    var stepStorageKey = 'kv-case-step-1.8.18:' + root.dataset.caseId;
     var PERSON_STEP = 3;
     var MAP_STEP = 4;
     var FINDINGS_STEP = 5;
     var ILLUSTRATION_STEP = 6;
-    var DOCUMENT_STEP = 7;
+    var DOCUMENT_STEP = 9;
     var currentStep = 1;
 
     function localMediaSupported() {
@@ -3374,6 +3380,122 @@
       });
     }
 
+    function evidenceDisplayOrder(entry, fallbackIndex) {
+      var value = Number(entry && entry.display_order);
+      if (isFinite(value) && value > 0) return value;
+      var serverId = Number(entry && entry.id);
+      if (isFinite(serverId) && serverId > 0) return serverId * 10;
+      var created = Date.parse(String(entry && entry.created_at || ''));
+      if (isFinite(created)) return 1000000 + Math.floor(created / 1000);
+      return 900000000 + Number(fallbackIndex || 0);
+    }
+
+    function orderedImageEvidenceEntries() {
+      return (evidenceState || []).filter(function (entry) { return evidenceIsImage(entry); }).sort(function (a, b) {
+        var oa = evidenceDisplayOrder(a, 0);
+        var ob = evidenceDisplayOrder(b, 0);
+        if (oa !== ob) return oa - ob;
+        var ca = Date.parse(String(a && a.created_at || ''));
+        var cb = Date.parse(String(b && b.created_at || ''));
+        if (isFinite(ca) && isFinite(cb) && ca !== cb) return ca - cb;
+        return String(a && a.id || '').localeCompare(String(b && b.id || ''));
+      });
+    }
+
+    function nextEvidenceDisplayOrder() {
+      var maxOrder = 0;
+      orderedImageEvidenceEntries().forEach(function (entry, idx) {
+        var value = evidenceDisplayOrder(entry, idx);
+        if (isFinite(value)) maxOrder = Math.max(maxOrder, value);
+      });
+      return Math.max(10, Math.ceil(maxOrder / 10) * 10 + 10);
+    }
+
+    function assignEvidenceDisplayOrder(orderedRows) {
+      (orderedRows || []).forEach(function (entry, idx) {
+        var value = (idx + 1) * 10;
+        entry.display_order = value;
+        (evidenceState || []).forEach(function (candidate) {
+          if (String(candidate && candidate.id || '') === String(entry && entry.id || '')) candidate.display_order = value;
+        });
+      });
+    }
+
+    function renderEvidenceGrid() {
+      if (!evidenceGrid) return;
+      var rows = orderedImageEvidenceEntries();
+      evidenceGrid.innerHTML = rows.map(buildEvidenceCardHtml).join('');
+      if (Common.appendCsrfToForms) Common.appendCsrfToForms(evidenceGrid);
+      renderSeizureReports({ mergeDefaults: false });
+    }
+
+    function persistLocalEvidenceOrder(orderedRows) {
+      if (!localMediaSupported() || !LocalMedia || typeof LocalMedia.update !== 'function') return;
+      (orderedRows || []).forEach(function (entry) {
+        if (!entry || !entry.local_pending || !entry.id) return;
+        try { LocalMedia.update(entry.id, { display_order: entry.display_order || evidenceDisplayOrder(entry, 0) }, ownerOptions()).catch(function () { return null; }); } catch (e) {}
+      });
+    }
+
+    function saveEvidenceOrder() {
+      if (!root || !root.dataset.caseId || String(root.dataset.offlineNew || '0') === '1') return Promise.resolve(false);
+      var ids = orderedImageEvidenceEntries().filter(function (entry) {
+        if (entry.local_pending) return false;
+        var numeric = Number(entry.id);
+        return isFinite(numeric) && numeric > 0;
+      }).map(function (entry) { return Number(entry.id); });
+      if (!ids.length) return Promise.resolve(false);
+      return fetch('/api/cases/' + encodeURIComponent(root.dataset.caseId) + '/evidence/order', secureFetchOptions({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ evidence_ids: ids })
+      })).then(function (response) {
+        return response.json().then(function (payload) { return { ok: response.ok, payload: payload || {} }; }).catch(function () { return { ok: response.ok, payload: {} }; });
+      }).then(function (result) {
+        if (!result.ok || !result.payload || !result.payload.ok) throw new Error((result.payload && result.payload.message) || 'Kunne ikke lagre bilderekkefølge.');
+        if (Array.isArray(result.payload.evidence)) {
+          var byId = {};
+          result.payload.evidence.forEach(function (row) { byId[String(row.id || '')] = row; });
+          (evidenceState || []).forEach(function (entry) {
+            var serverRow = byId[String(entry && entry.id || '')];
+            if (serverRow && serverRow.display_order !== undefined) entry.display_order = serverRow.display_order;
+          });
+        }
+        setAutosaveStatus('Bilderekkefølge lagret', 'is-saved');
+        return true;
+      }).catch(function (err) {
+        setAutosaveStatus((err && err.message) || 'Kunne ikke lagre bilderekkefølge akkurat nå.', 'is-error');
+        return false;
+      });
+    }
+
+    function moveEvidenceEntry(entryId, direction) {
+      var rows = orderedImageEvidenceEntries();
+      var idx = -1;
+      rows.forEach(function (entry, index) { if (String(entry && entry.id || '') === String(entryId || '')) idx = index; });
+      if (idx < 0) return;
+      var targetIdx = direction === 'down' ? idx + 1 : idx - 1;
+      if (targetIdx < 0 || targetIdx >= rows.length) return;
+      var tmp = rows[idx];
+      rows[idx] = rows[targetIdx];
+      rows[targetIdx] = tmp;
+      assignEvidenceDisplayOrder(rows);
+      persistLocalEvidenceOrder(rows);
+      renderEvidenceGrid();
+      saveEvidenceOrder();
+    }
+
+    function bindEvidenceOrdering() {
+      if (!evidenceGrid || evidenceGrid.dataset.orderBound === '1') return;
+      evidenceGrid.dataset.orderBound = '1';
+      evidenceGrid.addEventListener('click', function (event) {
+        var btn = event.target && event.target.closest ? event.target.closest('[data-evidence-move]') : null;
+        if (!btn) return;
+        event.preventDefault();
+        moveEvidenceEntry(btn.getAttribute('data-evidence-id'), btn.getAttribute('data-evidence-move') || 'up');
+      });
+    }
+
     function pendingLocalMediaEntries() {
       return (evidenceState || []).filter(function (entry) { return !!(entry && entry.local_pending); });
     }
@@ -3438,6 +3560,7 @@
         law_text: record.law_text || '',
         violation_reason: record.violation_reason || '',
         seizure_ref: record.seizure_ref || '',
+        display_order: record.display_order || evidenceDisplayOrder(record, 0),
         local_pending: true,
         local_sync_state: record.sync_state || 'pending',
         local_error: record.last_error || '',
@@ -3454,6 +3577,7 @@
       formData.append('law_text', payload.law_text || '');
       formData.append('violation_reason', payload.violation_reason || '');
       formData.append('seizure_ref', payload.seizure_ref || '');
+      if (payload.display_order !== undefined && payload.display_order !== null) formData.append('display_order', payload.display_order || '');
       formData.append('device_id', currentDeviceId);
       formData.append('local_media_id', payload.local_media_id || payload.local_id || '');
       formData.append('file', file, file.name || ('vedlegg-' + Date.now() + '.bin'));
@@ -3494,6 +3618,7 @@
         law_text: payload.law_text || '',
         violation_reason: payload.violation_reason || '',
         seizure_ref: payload.seizure_ref || '',
+        display_order: payload.display_order || (kind === 'image' ? nextEvidenceDisplayOrder() : ''),
         dedupe_signature: options.signature || '',
         group_id: options.groupId || '',
         segment_index: options.segmentIndex || 0,
@@ -3512,6 +3637,8 @@
       if (!file) return Promise.reject(new Error('Velg en fil først.'));
       if (!root.dataset.caseId) return Promise.reject(new Error('Saken mangler ID.'));
       var kind = String(options.kind || (LocalMedia && typeof LocalMedia.inferKind === 'function' ? LocalMedia.inferKind({ mime_type: file.type }) : ((String(file.type || '').toLowerCase().indexOf('audio/') === 0) ? 'audio' : 'image')) || 'image').toLowerCase();
+      payload = Object.assign({}, payload || {});
+      if (kind === 'image' && (payload.display_order === undefined || payload.display_order === null || payload.display_order === '')) payload.display_order = nextEvidenceDisplayOrder();
       var signature = options.signature || fileSignature(file);
       if (signature && (options.preventDuplicate !== false) && (evidenceState || []).some(function (entry) {
         return !!entry && (String(entry.local_signature || '') === String(signature) || String(entry.server_signature || '') === String(signature));
@@ -3586,6 +3713,7 @@
           law_text: record.law_text || '',
           violation_reason: record.violation_reason || '',
           seizure_ref: record.seizure_ref || '',
+          display_order: record.display_order || '',
           local_media_id: record.id || ''
         });
       }).then(function (serverEntry) {
@@ -3700,10 +3828,9 @@
           upsertEvidenceStateEntry(entry, false);
           if (evidenceIsAudio(entry)) {
             if (!audioList || !audioList.querySelector('[data-audio-id="' + String(entry.id || '') + '"]')) appendAudioCard(entry);
-          } else {
-            if (!evidenceGrid || !evidenceGrid.querySelector('[data-evidence-id="' + String(entry.id || '') + '"]')) appendEvidenceCard(entry);
           }
         });
+        renderEvidenceGrid();
         updateLocalMediaStatus();
         return rows || [];
       }).catch(function () {
@@ -4235,7 +4362,15 @@
         return;
       }
       seizureReportList.innerHTML = seizureReportsState.map(function (row, idx) {
-        var linked = (evidenceState || []).filter(function (ev) { return String(ev.seizure_ref || '').trim() && String(ev.seizure_ref || '').trim() === String(row.seizure_ref || '').trim(); });
+        var linked = orderedImageEvidenceEntries().filter(function (ev) { return String(ev.seizure_ref || '').trim() && String(ev.seizure_ref || '').trim() === String(row.seizure_ref || '').trim(); });
+        var linkedHtml = linked.length ? [
+          '<div class="small muted margin-top-s">Tilknyttede bilder i valgt rapportrekkefølge: ' + escapeHtml(linked.map(function (ev) { return ev.caption || ev.original_filename || ('bilde ' + ev.id); }).join(', ')) + '</div>',
+          '<div class="seizure-linked-images">',
+          linked.map(function (ev) {
+            return '<figure class="seizure-linked-thumb"><img src="' + escapeHtml(evidenceFileUrl(ev)) + '" alt="' + escapeHtml(ev.caption || ev.original_filename || 'Beslagsbilde') + '" /><figcaption>' + escapeHtml(ev.caption || ev.original_filename || 'Bilde') + '</figcaption></figure>';
+          }).join(''),
+          '</div>'
+        ].join('') : '<div class="small muted margin-top-s">Ingen bilder med dette beslagsnummeret er koblet ennå.</div>';
         return [
           '<article class="seizure-report-card" data-seizure-index="' + idx + '">',
           '<div class="seizure-report-head"><strong>Beslag ' + escapeHtml(row.seizure_ref || ('B' + String(idx + 1).padStart(2, '0'))) + '</strong><button type="button" class="btn btn-danger btn-small" data-seizure-remove="' + idx + '">Fjern</button></div>',
@@ -4248,7 +4383,7 @@
           '<label class="span-2"><span>Beskrivelse</span><textarea class="seizure-description" rows="3">' + escapeHtml(row.description || '') + '</textarea></label>',
           '<label class="span-2"><span>Lovbrudd / vurdering</span><textarea class="seizure-reason" rows="3">' + escapeHtml(row.violation_reason || '') + '</textarea></label>',
           '</div>',
-          linked.length ? '<div class="small muted margin-top-s">Tilknyttede bilder: ' + escapeHtml(linked.map(function (ev) { return ev.caption || ev.original_filename || ('bilde ' + ev.id); }).join(', ')) + '</div>' : '<div class="small muted margin-top-s">Ingen bilder med dette beslagsnummeret er koblet ennå.</div>',
+          linkedHtml,
           '</article>'
         ].join('');
       }).join('');
@@ -4328,7 +4463,7 @@
         title: 'Kontrollpunkter' + (speciesVal || gearVal ? ' for ' + [controlVal, speciesVal, gearVal].filter(Boolean).join(' / ') : ''),
         description: reason || 'Lokal kontrollpunktliste brukes slik at punktene vises også ved tregt eller tomt regeloppslag.',
         items: items,
-        sources: [{ name: 'Lokal kontrollpunktliste', ref: '1.8.16 fallback', url: '' }]
+        sources: [{ name: 'Lokal kontrollpunktliste', ref: '1.8.18 fallback', url: '' }]
       };
     }
 
@@ -4489,13 +4624,14 @@
 
     function buildEvidenceCardHtml(entry) {
       var isLocal = !!(entry && entry.local_pending);
+      var entryId = String(entry && entry.id || '');
       var statusLine = '';
       if (isLocal) {
         var stateLabel = entry.local_sync_state === 'failed' ? 'Lokal lagring · synk feilet' : (entry.local_sync_state === 'uploading' ? 'Lokal lagring · synker nå' : 'Lokal lagring · ikke synket ennå');
         statusLine = '<div class="muted small evidence-local-state">' + escapeHtml(stateLabel) + (entry.local_error ? ' · ' + escapeHtml(entry.local_error) : '') + '</div>';
       }
       return [
-        '<article class="evidence-card' + (isLocal ? ' evidence-card-local' : '') + '" data-evidence-id="' + escapeHtml(String(entry.id || '')) + '">',
+        '<article class="evidence-card' + (isLocal ? ' evidence-card-local' : '') + '" data-evidence-id="' + escapeHtml(entryId) + '" data-evidence-order="' + escapeHtml(String(evidenceDisplayOrder(entry, 0))) + '" draggable="true">',
         '<img src="' + escapeHtml(evidenceFileUrl(entry)) + '" alt="' + escapeHtml(entry.caption || entry.original_filename || 'Bildebevis') + '" />',
         '<div class="evidence-body">',
         '<strong>' + escapeHtml(entry.caption || entry.original_filename || 'Bildebevis') + '</strong>',
@@ -4504,10 +4640,12 @@
         (entry.seizure_ref ? '<div class="muted small">Beslag / referanse: ' + escapeHtml(entry.seizure_ref) + '</div>' : ''),
         (entry.violation_reason ? '<div class="muted small">Begrunnelse: ' + escapeHtml(entry.violation_reason) + '</div>' : ''),
         (entry.law_text ? '<div class="muted small">Hjemmel: ' + escapeHtml(entry.law_text) + '</div>' : ''),
-        '<div class="actions-row wrap margin-top-s">',
+        '<div class="actions-row wrap margin-top-s evidence-order-actions">',
+        '<button class="btn btn-secondary btn-small" type="button" data-evidence-move="up" data-evidence-id="' + escapeHtml(entryId) + '">Flytt opp</button>',
+        '<button class="btn btn-secondary btn-small" type="button" data-evidence-move="down" data-evidence-id="' + escapeHtml(entryId) + '">Flytt ned</button>',
         (isLocal
-          ? '<button class="btn btn-secondary btn-small" type="button" data-local-sync="' + escapeHtml(String(entry.id || '')) + '">Synk nå</button><button class="btn btn-danger btn-small" type="button" data-local-delete="' + escapeHtml(String(entry.id || '')) + '">Fjern lokalt</button>'
-          : '<form method="post" action="/evidence/' + escapeHtml(String(entry.id || '')) + '/delete" data-confirm="Slette vedlegg?">' + csrfFieldHtml() + '<button class="btn btn-danger btn-small" type="submit">Slett</button></form>'),
+          ? '<button class="btn btn-secondary btn-small" type="button" data-local-sync="' + escapeHtml(entryId) + '">Synk nå</button><button class="btn btn-danger btn-small" type="button" data-local-delete="' + escapeHtml(entryId) + '">Fjern lokalt</button>'
+          : '<form method="post" action="/evidence/' + escapeHtml(entryId) + '/delete" data-confirm="Slette vedlegg?">' + csrfFieldHtml() + '<button class="btn btn-danger btn-small" type="submit">Slett</button></form>'),
         '</div>',
         '</div>',
         '</article>'
@@ -4516,9 +4654,7 @@
 
     function appendEvidenceCard(entry) {
       if (!evidenceGrid || !entry || !evidenceIsImage(entry)) return;
-      removeEvidenceCard(entry.id);
-      evidenceGrid.insertAdjacentHTML('afterbegin', buildEvidenceCardHtml(entry));
-      if (Common.appendCsrfToForms) Common.appendCsrfToForms(evidenceGrid);
+      renderEvidenceGrid();
     }
 
     function resetOcrSelectedFile() {
@@ -4539,6 +4675,265 @@
       }
       ocrSelectedFileBox.classList.remove('hidden');
       ocrSelectedFileBox.innerHTML = '<strong>Valgt bildefil:</strong> ' + escapeHtml(file.name || 'kamerabilde.jpg') + '<div class="small muted">' + escapeHtml(label || 'Klar for lagring som vedlegg.') + '</div>';
+    }
+
+
+    function personVisionFieldElements() {
+      return {
+        navn: document.getElementById('vision_navn'),
+        adresse: document.getElementById('vision_adresse'),
+        postnummer: document.getElementById('vision_postnummer'),
+        poststed: document.getElementById('vision_poststed'),
+        mobil: document.getElementById('vision_mobil'),
+        deltakernummer: document.getElementById('vision_deltakernummer'),
+        annen_merking: document.getElementById('vision_annen_merking')
+      };
+    }
+
+    function personVisionFileKey(file) {
+      return [file && file.name || '', file && file.size || 0, file && file.lastModified || 0, file && file.type || ''].join('|');
+    }
+
+    function updatePersonVisionSelectedStatus(label) {
+      if (!ocrSelectedFileBox) return;
+      if (!personVisionFiles.length) {
+        resetOcrSelectedFile();
+        return;
+      }
+      ocrSelectedFileBox.classList.remove('hidden');
+      var count = personVisionFiles.length;
+      var names = personVisionFiles.slice(0, 4).map(function (item) { return item.file && item.file.name ? item.file.name : 'kamerabilde.jpg'; }).join(', ');
+      if (personVisionFiles.length > 4) names += ' +' + (personVisionFiles.length - 4) + ' til';
+      ocrSelectedFileBox.innerHTML = '<strong>' + count + ' bilde' + (count === 1 ? '' : 'r') + ' valgt:</strong> ' + escapeHtml(names) + '<div class="small muted">' + escapeHtml(label || 'Trykk «Analyser bilde» for automatisk utfylling. Bildene lagres også som vedlegg til illustrasjonsrapporten.') + '</div>';
+    }
+
+    function renderPersonVisionPreviews(label) {
+      if (!personImagePreviewGrid) {
+        updatePersonVisionSelectedStatus(label);
+        return;
+      }
+      if (!personVisionFiles.length) {
+        personImagePreviewGrid.classList.add('hidden');
+        personImagePreviewGrid.innerHTML = '';
+        updatePersonVisionSelectedStatus(label);
+        return;
+      }
+      personImagePreviewGrid.classList.remove('hidden');
+      personImagePreviewGrid.innerHTML = personVisionFiles.map(function (item, idx) {
+        return [
+          '<article class="person-image-preview-card" data-person-vision-id="' + escapeHtml(item.id) + '">',
+          '<img src="' + escapeHtml(item.url || '') + '" alt="Bilde ' + (idx + 1) + ' av merke eller blåse" />',
+          '<div class="person-image-preview-meta">',
+          '<strong>Bilde ' + (idx + 1) + '</strong>',
+          '<span>' + escapeHtml(item.file && item.file.name ? item.file.name : 'kamerabilde.jpg') + '</span>',
+          '<button class="btn btn-secondary btn-small" type="button" data-person-vision-remove="' + escapeHtml(item.id) + '">Fjern</button>',
+          '</div>',
+          '</article>'
+        ].join('');
+      }).join('');
+      updatePersonVisionSelectedStatus(label);
+    }
+
+    function addPersonVisionFiles(fileList, label, options) {
+      options = options || {};
+      var files = Array.prototype.slice.call(fileList || []).filter(Boolean);
+      if (!files.length) return;
+      files.forEach(function (file) {
+        var key = personVisionFileKey(file);
+        if (key && personVisionFiles.some(function (item) { return item.key === key; })) return;
+        var id = 'pv-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+        var url = '';
+        try { url = URL.createObjectURL(file); } catch (e) { url = ''; }
+        personVisionFiles.push({ id: id, key: key, file: file, url: url });
+        selectedOcrFile = file;
+        if (options.saveToReport !== false) attachPersonReportImage(file);
+      });
+      preparedOcrFileCache = {};
+      renderPersonVisionPreviews(label || 'Bilde lagt til. Ta gjerne ett nærbilde til før analyse.');
+    }
+
+    function clearPersonVisionFiles() {
+      personVisionFiles.forEach(function (item) { if (item.url) { try { URL.revokeObjectURL(item.url); } catch (e) {} } });
+      personVisionFiles = [];
+      selectedOcrFile = null;
+      preparedOcrFileCache = {};
+      renderPersonVisionPreviews('Bilder tømt.');
+    }
+
+    function removePersonVisionFile(id) {
+      var keep = [];
+      personVisionFiles.forEach(function (item) {
+        if (String(item.id) === String(id)) {
+          if (item.url) { try { URL.revokeObjectURL(item.url); } catch (e) {} }
+        } else {
+          keep.push(item);
+        }
+      });
+      personVisionFiles = keep;
+      selectedOcrFile = personVisionFiles.length ? personVisionFiles[personVisionFiles.length - 1].file : null;
+      renderPersonVisionPreviews('Bilde fjernet.');
+    }
+
+    function splitPersonVisionPostPlace(value) {
+      var text = String(value || '').trim();
+      var match = text.match(/\b(\d{4})\s+(.+)$/);
+      if (!match) return { postnummer: '', poststed: text };
+      return { postnummer: match[1], poststed: String(match[2] || '').trim() };
+    }
+
+    function personVisionUncertaintyMatches(field, message) {
+      var text = String(message || '').toLowerCase();
+      var words = {
+        navn: ['navn', 'eier', 'person', 'ansvarlig'],
+        adresse: ['adresse', 'gate', 'vei', 'vegen', 'veg ', 'adr'],
+        postnummer: ['postnummer', 'postnr', 'post nr'],
+        poststed: ['poststed', 'sted'],
+        mobil: ['mobil', 'telefon', 'tlf', 'nummer'],
+        deltakernummer: ['deltaker', 'deltakernummer', 'hummernummer', 'hummer'],
+        annen_merking: ['merking', 'merke', 'merke-id', 'vak', 'blåse', 'blaase', 'redskap']
+      }[field] || [field];
+      return words.some(function (word) { return text.indexOf(word) !== -1; });
+    }
+
+    function renderPersonVisionUncertainty(usikkerhet, result) {
+      var messages = Array.isArray(usikkerhet) ? usikkerhet.filter(Boolean).map(String) : [];
+      var fields = personVisionFieldElements();
+      Object.keys(fields).forEach(function (field) {
+        var input = fields[field];
+        var label = input ? input.closest('[data-vision-field]') : null;
+        if (!label) return;
+        var uncertain = messages.some(function (message) { return personVisionUncertaintyMatches(field, message); });
+        if (messages.length && !uncertain && result && !String(result[field] || '').trim()) uncertain = true;
+        label.classList.toggle('is-uncertain', uncertain);
+        if (input) input.setAttribute('aria-invalid', uncertain ? 'true' : 'false');
+      });
+      if (!visionUncertaintyBox) return;
+      if (!messages.length) {
+        visionUncertaintyBox.classList.add('hidden');
+        visionUncertaintyBox.innerHTML = '';
+        return;
+      }
+      visionUncertaintyBox.classList.remove('hidden');
+      visionUncertaintyBox.innerHTML = '<strong>Usikre opplysninger</strong><ul>' + messages.map(function (message) { return '<li>' + escapeHtml(message) + '</li>'; }).join('') + '</ul>';
+    }
+
+    function collectPersonVisionFields() {
+      var fields = personVisionFieldElements();
+      return {
+        navn: fields.navn ? fields.navn.value.trim() : '',
+        adresse: fields.adresse ? fields.adresse.value.trim() : '',
+        postnummer: fields.postnummer ? fields.postnummer.value.trim() : '',
+        poststed: fields.poststed ? fields.poststed.value.trim() : '',
+        mobil: fields.mobil ? fields.mobil.value.trim() : '',
+        deltakernummer: fields.deltakernummer ? fields.deltakernummer.value.trim() : '',
+        annen_merking: fields.annen_merking ? fields.annen_merking.value.trim() : '',
+        usikkerhet: lastPersonVisionResult && Array.isArray(lastPersonVisionResult.usikkerhet) ? lastPersonVisionResult.usikkerhet : []
+      };
+    }
+
+    function fillPersonVisionFields(result) {
+      result = Object.assign({ navn: '', adresse: '', postnummer: '', poststed: '', mobil: '', deltakernummer: '', annen_merking: '', usikkerhet: [] }, result || {});
+      var fields = personVisionFieldElements();
+      Object.keys(fields).forEach(function (key) {
+        if (fields[key]) fields[key].value = String(result[key] || '');
+      });
+      if (personVisionResultBox) personVisionResultBox.classList.remove('hidden');
+      lastPersonVisionResult = result;
+      renderPersonVisionUncertainty(result.usikkerhet || [], result);
+      applyPersonVisionFieldsToCase(result, { silent: true });
+    }
+
+    function applyPersonVisionFieldsToCase(result, options) {
+      result = result || collectPersonVisionFields();
+      options = options || {};
+      function setValue(field, value) {
+        if (!field) return false;
+        var text = String(value || '').trim();
+        if (!text) return false;
+        if (String(field.value || '').trim() === text) return false;
+        field.value = text;
+        return true;
+      }
+      var changed = false;
+      changed = setValue(suspectName, result.navn) || changed;
+      changed = setValue(suspectNameCommercial, result.navn) || changed;
+      changed = setValue(lookupName, result.navn) || changed;
+      changed = setValue(suspectAddress, result.adresse) || changed;
+      var postCombined = [result.postnummer, result.poststed].filter(Boolean).join(' ').trim();
+      if (!postCombined && result.post_place) postCombined = result.post_place;
+      changed = setValue(suspectPostPlace, postCombined) || changed;
+      changed = setValue(suspectPhone, result.mobil) || changed;
+      if (result.mobil) changed = setValue(lookupIdentifier, result.mobil) || changed;
+      changed = setValue(hummerParticipantNo, result.deltakernummer) || changed;
+      if (result.deltakernummer) changed = setValue(lookupIdentifier, result.deltakernummer) || changed;
+      if (result.annen_merking) {
+        var marker = normalizeGearMarkerId(result.annen_merking) || String(result.annen_merking || '').trim().toUpperCase();
+        changed = setValue(gearMarkerId, marker) || changed;
+        var existingLookupText = lookupText ? String(lookupText.value || '').trim() : '';
+        var markerLine = 'Bildeanalyse merking: ' + result.annen_merking;
+        if (lookupText && existingLookupText.indexOf(result.annen_merking) === -1) {
+          lookupText.value = (existingLookupText ? existingLookupText + '\n' : '') + markerLine;
+          changed = true;
+        }
+        if (!lookupIdentifier || !lookupIdentifier.value) changed = setValue(lookupIdentifier, marker) || changed;
+      }
+      updateExternalSearchLinks();
+      renderAutofillPreview({ source: 'OpenAI bildeanalyse', detail: (result.usikkerhet && result.usikkerhet.length) ? 'Kontroller markerte felt' : 'Skjemaet er fylt fra bilde' });
+      if (changed) {
+        loadGearSummary();
+        scheduleAutosave('Person/Fartøy-felter fylt fra bildeanalyse');
+      }
+      if (!options.silent && registryResult) registryResult.innerHTML = '<strong>Person/Fartøy-felter oppdatert</strong><div class="small muted">Kontroller og rediger feltene før saken lagres eller rapporteres.</div>';
+      return changed;
+    }
+
+    function syncPersonVisionFieldsFromExisting() {
+      var fields = personVisionFieldElements();
+      if (!fields.navn) return;
+      var split = splitPersonVisionPostPlace(suspectPostPlace ? suspectPostPlace.value : '');
+      if (!fields.navn.value && suspectName && suspectName.value) fields.navn.value = suspectName.value;
+      if (!fields.adresse.value && suspectAddress && suspectAddress.value) fields.adresse.value = suspectAddress.value;
+      if (!fields.postnummer.value && split.postnummer) fields.postnummer.value = split.postnummer;
+      if (!fields.poststed.value && split.poststed) fields.poststed.value = split.poststed;
+      if (!fields.mobil.value && suspectPhone && suspectPhone.value) fields.mobil.value = suspectPhone.value;
+      if (!fields.deltakernummer.value && hummerParticipantNo && hummerParticipantNo.value) fields.deltakernummer.value = hummerParticipantNo.value;
+      if (!fields.annen_merking.value && gearMarkerId && gearMarkerId.value) fields.annen_merking.value = gearMarkerId.value;
+    }
+
+    function runPersonImageAnalysis() {
+      if (!personVisionFiles.length) {
+        if (registryResult) registryResult.innerHTML = 'Ta eller legg ved minst ett bilde først.';
+        return Promise.resolve(null);
+      }
+      if (registryResult) registryResult.innerHTML = 'Forbereder bildeanalyse. Bruk gjerne ett nærbilde og ett oversiktsbilde for best treff.';
+      var formData = new FormData();
+      personVisionFiles.forEach(function (item, idx) {
+        formData.append('files', item.file, item.file && item.file.name ? item.file.name : ('merking-' + (idx + 1) + '.jpg'));
+      });
+      var useXhr = personVisionFiles.some(function (item) { return shouldUseXhrOcrUpload(item.file); });
+      return postFormDataJson('/api/person-fartoy/analyze-image', formData, {
+        useXhr: useXhr,
+        timeoutMs: 90000,
+        onProgress: function (loaded, total) {
+          if (!registryResult || !total) return;
+          var pct = Math.max(1, Math.min(100, Math.round((loaded / total) * 100)));
+          registryResult.innerHTML = 'Laster opp bilde til analyse ...<div class="small muted">' + pct + '%</div>';
+        }
+      }).then(function (result) {
+        var payload = result && result.payload ? result.payload : {};
+        if (!result.ok) {
+          throw new Error(payload.detail || payload.message || 'Bildeanalyse feilet.');
+        }
+        fillPersonVisionFields(payload);
+        var uncertain = Array.isArray(payload.usikkerhet) ? payload.usikkerhet.length : 0;
+        if (registryResult) {
+          registryResult.innerHTML = '<strong>Bildeanalyse fullført</strong><div class="small muted">Feltene er fylt ut fra ' + personVisionFiles.length + ' bilde' + (personVisionFiles.length === 1 ? '' : 'r') + '. ' + (uncertain ? 'Kontroller markerte usikre felt.' : 'Ingen usikkerhet ble meldt fra bildeanalysen.') + '</div>';
+        }
+        return payload;
+      }).catch(function (err) {
+        if (registryResult) registryResult.innerHTML = 'Bildeanalyse feilet: ' + escapeHtml(err && err.message ? err.message : err);
+        return null;
+      });
     }
 
     function normalizeOcrText(value) {
@@ -5261,18 +5656,18 @@
       var allLayerIds = displayLayers.map(function (layer) { return Number(layer && layer.id); }).filter(function (value) { return isFinite(value); });
       var fisheryPortalService = root.dataset.portalMapserver || (caseMap && caseMap.dataset ? (caseMap.dataset.portalMapserver || '') : '') || 'https://gis.fiskeridir.no/server/rest/services/Yggdrasil/Fiskerireguleringer/MapServer';
       var vernPortalService = root.dataset.portalVernMapserver || (caseMap && caseMap.dataset ? (caseMap.dataset.portalVernMapserver || '') : '') || 'https://portal.fiskeridir.no/server/rest/services/Fiskeridir_vern/MapServer';
-      // 1.8.16: aktuelle verneområder/reguleringer skal vises direkte i kartet
+      // 1.8.18: aktuelle verneområder/reguleringer skal vises direkte i kartet
       // når posisjonssjekken har gitt treff. Uten treff beholdes rask rastervisning.
       mapState.fetchFeatureDetails = options.fetchFeatureDetails === true || mapState.requestFeatureDetails === true || zoneLayerIds.length > 0 || featureDetailIds.length > 0;
       mapState.featureDetailLayerIds = featureDetailIds;
       mapState.defaultVisibleLayerIds = defaultVisibleIds;
       mapState.highlightLayerIds = zoneLayerIds.slice();
-      mapState.detailFetchThresholdZoom = zoneLayerIds.length > 0 ? 0 : 9;
+      mapState.detailFetchThresholdZoom = zoneLayerIds.length > 0 ? 11 : 12;
       mapState.enableAreaPopup = true;
       mapState.showLegend = false;
       mapState.showLayerPanel = !!mapLayerPanelHost;
       mapState.layerPanelDefaultOpen = false;
-      mapState.layerPanelKey = 'case-map-1-8-16';
+      mapState.layerPanelKey = 'case-map-1-8-18';
       mapState.layerPanelTargetSelector = mapLayerPanelHost ? '#case-map-layer-panel-host' : '';
       mapState.rasterLayerIds = allLayerIds;
       mapState.identifyLayerIds = allLayerIds;
@@ -5393,8 +5788,8 @@
       return rows;
     }
 
-    var zoneResultStoragePrefix = 'kv-zone-result-1.8.16:';
-    var nearestPlaceStoragePrefix = 'kv-nearest-place-1.8.16:';
+    var zoneResultStoragePrefix = 'kv-zone-result-1.8.18:';
+    var nearestPlaceStoragePrefix = 'kv-nearest-place-1.8.18:';
     var nearestPlaceController = null;
     var nearestPlaceSequence = 0;
     var nearestPlaceTimer = null;
@@ -5694,7 +6089,7 @@
       scheduleAutosave('Manuell posisjon aktivert');
     }
 
-    var devicePositionStorageKey = 'kv-device-position-1.8.16';
+    var devicePositionStorageKey = 'kv-device-position-1.8.18';
     function readCachedDevicePosition() {
       if (!window.localStorage) return null;
       try {
@@ -7418,6 +7813,8 @@ function renderHummerStatus(result) {
 
     bindLocalMediaActions(evidenceGrid, 'bildefilen');
     bindLocalMediaActions(audioList, 'lydfilen');
+    bindEvidenceOrdering();
+    renderEvidenceGrid();
 
     if (evidenceUploadForm) {
       evidenceUploadForm.addEventListener('submit', function (event) {
@@ -7927,15 +8324,13 @@ function renderHummerStatus(result) {
 
     var btnOcrCamera = document.getElementById('btn-ocr-camera');
     if (btnOcrCamera) btnOcrCamera.addEventListener('click', function () {
-      openCameraCapture({
-        title: 'Ta bilde til rapport',
-        description: 'Ta bilde av person/fartøy/merketøy. Bildet lagres som vedlegg til illustrasjonsrapporten uten OCR-lesing.',
+      if (ocrCameraInput) ocrCameraInput.click();
+      else openCameraCapture({
+        title: 'Ta bilde',
+        description: 'Ta bilde av merke/blåse. Bildet kan analyseres og lagres som vedlegg.',
         fallbackInput: ocrCameraInput,
-        filenamePrefix: 'person-rapport',
-        onFile: function (file) {
-          setSelectedOcrFile(file, 'Bilde tatt. Lagres som vedlegg til illustrasjonsrapporten.');
-          attachPersonReportImage(file);
-        }
+        filenamePrefix: 'person-merking',
+        onFile: function (file) { addPersonVisionFiles([file], 'Bilde tatt. Trykk «Analyser bilde» for automatisk utfylling.'); }
       });
     });
 
@@ -7944,19 +8339,50 @@ function renderHummerStatus(result) {
       if (ocrFileInput) ocrFileInput.click();
     });
 
+    var btnRunPersonImageAnalysis = document.getElementById('btn-run-person-image-analysis');
+    if (btnRunPersonImageAnalysis) btnRunPersonImageAnalysis.addEventListener('click', function () {
+      runPersonImageAnalysis();
+    });
+
+    var btnClearPersonImageAnalysis = document.getElementById('btn-clear-person-image-analysis');
+    if (btnClearPersonImageAnalysis) btnClearPersonImageAnalysis.addEventListener('click', function () {
+      clearPersonVisionFiles();
+      if (personVisionResultBox) personVisionResultBox.classList.add('hidden');
+      if (registryResult) registryResult.innerHTML = 'Bilder tømt. Ta eller legg ved nytt bilde ved behov.';
+    });
+
+    if (btnApplyPersonVisionFields) btnApplyPersonVisionFields.addEventListener('click', function () {
+      applyPersonVisionFieldsToCase(collectPersonVisionFields(), { silent: false });
+    });
+
+    var personVisionFields = personVisionFieldElements();
+    Object.keys(personVisionFields).forEach(function (fieldName) {
+      var input = personVisionFields[fieldName];
+      if (!input) return;
+      input.addEventListener('input', function () {
+        applyPersonVisionFieldsToCase(collectPersonVisionFields(), { silent: true });
+        scheduleAutosave('Person/Fartøy-felt manuelt korrigert etter bildeanalyse');
+      });
+    });
+    syncPersonVisionFieldsFromExisting();
+
+    if (personImagePreviewGrid) personImagePreviewGrid.addEventListener('click', function (event) {
+      var button = event.target.closest('[data-person-vision-remove]');
+      if (!button) return;
+      removePersonVisionFile(button.getAttribute('data-person-vision-remove'));
+    });
+
     if (ocrCameraInput) ocrCameraInput.addEventListener('change', function () {
-      var file = this.files && this.files[0] ? this.files[0] : null;
-      if (!file) return;
-      setSelectedOcrFile(file, 'Bilde valgt. Lagres som vedlegg til illustrasjonsrapporten.');
-      attachPersonReportImage(file);
+      var files = this.files ? Array.prototype.slice.call(this.files) : [];
+      if (!files.length) return;
+      addPersonVisionFiles(files, 'Bilde tatt. Trykk «Analyser bilde» for automatisk utfylling.');
       this.value = '';
     });
 
     if (ocrFileInput) ocrFileInput.addEventListener('change', function () {
-      var file = this.files && this.files[0] ? this.files[0] : null;
-      if (!file) return;
-      setSelectedOcrFile(file, 'Bildefil valgt. Lagres som vedlegg til illustrasjonsrapporten.');
-      attachPersonReportImage(file);
+      var files = this.files ? Array.prototype.slice.call(this.files) : [];
+      if (!files.length) return;
+      addPersonVisionFiles(files, 'Bildefil lagt til. Du kan legge til flere bilder før analyse.');
       this.value = '';
     });
 

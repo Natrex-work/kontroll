@@ -238,6 +238,7 @@ def init_db() -> None:
                 device_id TEXT,
                 local_media_id TEXT,
                 server_received_at TEXT,
+                display_order INTEGER,
                 created_at TEXT NOT NULL,
                 created_by INTEGER REFERENCES users(id) ON DELETE SET NULL
             );
@@ -323,8 +324,11 @@ def init_db() -> None:
         _ensure_column(conn, 'evidence', 'device_id', 'device_id TEXT')
         _ensure_column(conn, 'evidence', 'local_media_id', 'local_media_id TEXT')
         _ensure_column(conn, 'evidence', 'server_received_at', 'server_received_at TEXT')
+        _ensure_column(conn, 'evidence', 'display_order', 'display_order INTEGER')
+        conn.execute('UPDATE evidence SET display_order = id * 10 WHERE display_order IS NULL')
 
         conn.execute('CREATE INDEX IF NOT EXISTS idx_evidence_case_sha ON evidence(case_id, sha256)')
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_evidence_case_order ON evidence(case_id, display_order, id)')
         conn.execute('CREATE INDEX IF NOT EXISTS idx_evidence_local_media_id ON evidence(local_media_id)')
 
         now = utcnow_iso()
@@ -829,23 +833,59 @@ def add_evidence(
     sha256: str | None = None,
     device_id: str | None = None,
     local_media_id: str | None = None,
+    display_order: int | None = None,
 ) -> int:
     now = utcnow_iso()
     with get_conn() as conn:
+        if display_order is None:
+            cur_order = conn.execute('SELECT COALESCE(MAX(display_order), 0) FROM evidence WHERE case_id = ?', (case_id,))
+            display_order = int(cur_order.fetchone()[0] or 0) + 10
         cur = conn.execute(
             '''
-            INSERT INTO evidence(case_id, filename, original_filename, caption, mime_type, finding_key, law_text, violation_reason, seizure_ref, file_size, sha256, sync_state, device_id, local_media_id, server_received_at, created_at, created_by)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO evidence(case_id, filename, original_filename, caption, mime_type, finding_key, law_text, violation_reason, seizure_ref, file_size, sha256, sync_state, device_id, local_media_id, server_received_at, display_order, created_at, created_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''',
-            (case_id, filename, original_filename, caption, mime_type, finding_key, law_text, violation_reason, seizure_ref, file_size, sha256, 'synced', device_id, local_media_id, now, now, created_by),
+            (case_id, filename, original_filename, caption, mime_type, finding_key, law_text, violation_reason, seizure_ref, file_size, sha256, 'synced', device_id, local_media_id, now, int(display_order), now, created_by),
         )
         return int(cur.lastrowid)
 
 
 def list_evidence(case_id: int) -> list[Dict[str, Any]]:
     with get_conn() as conn:
-        cur = conn.execute('SELECT * FROM evidence WHERE case_id = ? ORDER BY created_at DESC, id DESC', (case_id,))
+        cur = conn.execute('''
+            SELECT * FROM evidence
+            WHERE case_id = ?
+            ORDER BY COALESCE(display_order, id * 10) ASC, created_at ASC, id ASC
+        ''', (case_id,))
         return list(cur.fetchall())
+
+
+def reorder_evidence(case_id: int, evidence_ids: list[int]) -> None:
+    clean_ids: list[int] = []
+    seen: set[int] = set()
+    for value in evidence_ids or []:
+        try:
+            item_id = int(value)
+        except Exception:
+            continue
+        if item_id <= 0 or item_id in seen:
+            continue
+        seen.add(item_id)
+        clean_ids.append(item_id)
+    if not clean_ids:
+        return
+    with get_conn() as conn:
+        existing = {int(row['id']) for row in conn.execute('SELECT id FROM evidence WHERE case_id = ?', (case_id,)).fetchall()}
+        order_value = 10
+        for item_id in clean_ids:
+            if item_id not in existing:
+                continue
+            conn.execute('UPDATE evidence SET display_order = ? WHERE case_id = ? AND id = ?', (order_value, case_id, item_id))
+            order_value += 10
+        # Keep non-image/audio rows and rows not included after the explicitly ordered image list.
+        for row in conn.execute('SELECT id FROM evidence WHERE case_id = ? AND id NOT IN (%s) ORDER BY COALESCE(display_order, id * 10), id' % ','.join('?' for _ in clean_ids), (case_id, *clean_ids)).fetchall():
+            conn.execute('UPDATE evidence SET display_order = ? WHERE case_id = ? AND id = ?', (order_value, case_id, int(row['id'])))
+            order_value += 10
 
 
 def get_evidence_by_local_media_id(case_id: int, local_media_id: str | None) -> Optional[Dict[str, Any]]:

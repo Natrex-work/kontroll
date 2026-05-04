@@ -143,8 +143,7 @@
 <section id="avhor" class="card preview-section">
   <div class="card-header"><h2>Avhør / forklaring</h2></div>
   <textarea form="preview-edit-form" name="interview_report_override" rows="16" class="preview-edit-textarea">{{ case.interview_report_override or packet.interview_report }}</textarea>
-  {% if packet.interview_guidance %}<div class="callout margin-top-s"><strong>Forslag til avhørspunkter:</strong><br />{{ packet.interview_guidance|replace('
-', '<br />')|safe }}</div>{% endif %}
+
   <div class="signature-grid margin-top-s">
     <div class="signature-widget"><strong>Etterforsker</strong><span>{{ case.investigator_name or 'Ikke angitt' }}</span><span class="muted small">Signeres eller endres i saksregistreringen.</span></div>
     <div class="signature-widget"><strong>Vitne</strong><span>{{ case.witness_name or 'Ikke angitt' }}</span><span class="muted small">Signeres eller endres i saksregistreringen.</span></div>

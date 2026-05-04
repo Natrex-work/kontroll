@@ -4,7 +4,7 @@
 {% block topbar_extra %}
 <div class="top-step-nav" id="top-step-nav" aria-label="Stegnavigasjon for mobil">
   <button type="button" class="btn btn-secondary btn-small top-step-btn" id="top-prev-step" aria-label="Forrige steg"><span class="top-step-btn-text">Tilbake</span><span class="top-step-btn-icon" aria-hidden="true">←</span></button>
-  <div class="top-step-label" id="top-step-label">1 / 7</div>
+  <div class="top-step-label" id="top-step-label">1 / 9</div>
   <button type="button" class="btn btn-primary btn-small top-step-btn" id="top-next-step" aria-label="Neste steg"><span class="top-step-btn-text">Videre</span><span class="top-step-btn-icon" aria-hidden="true">→</span></button>
 </div>
 {% endblock %}
@@ -82,7 +82,9 @@
     <button class="step-btn" type="button" data-step-target="4">4. Posisjon / Kart</button>
     <button class="step-btn" type="button" data-step-target="5">5. Kontrollpunkter</button>
     <button class="step-btn" type="button" data-step-target="6">6. Illustrasjonsrapport / bilder</button>
-    <button class="step-btn" type="button" data-step-target="7">7. Avhør / signatur / dokumentpakke</button>
+    <button class="step-btn" type="button" data-step-target="7">7. Avhør</button>
+    <button class="step-btn" type="button" data-step-target="8">8. Beslagsrapport</button>
+    <button class="step-btn" type="button" data-step-target="9">9. Oppsummering</button>
   </div>
 
   <form id="case-form" method="post" action="{% if offline_new %}#{% else %}/cases/{{ case.id }}/save{% endif %}" class="stack gap-l">
@@ -172,6 +174,115 @@
       <div class="step-actions"><button type="button" class="btn btn-secondary" data-prev-step>Tilbake</button><button type="button" class="btn btn-primary" data-next-step>Videre</button></div>
     </section>
 
+    <section class="card card-panel step-pane" data-step="3">
+      <div class="card-header panel-header">
+        <div>
+          <h2>3. Person / fartøy</h2>
+          <div id="person-mode-hint" class="muted small hidden"></div>
+        </div>
+      </div>
+      <div class="split-panel margin-top-m">
+        <div class="subcard">
+          <div class="subcard-head">
+            <h3>Bildeanalyse av merke/blåse</h3>
+            <span class="muted small">Ta ett eller flere bilder av vak, blåse, merke eller redskap. Bildet forhåndsvises, kan analyseres og lagres samtidig som rapportvedlegg.</span>
+          </div>
+          <div class="actions-row wrap margin-top-s person-autofill-actions">
+            <button class="btn btn-primary" type="button" id="btn-ocr-camera">Ta bilde</button>
+            <button class="btn btn-secondary" type="button" id="btn-ocr-file">Legg ved bilde</button>
+            <button class="btn btn-secondary" type="button" id="btn-run-person-image-analysis">Analyser bilde</button>
+            <button class="btn btn-secondary" type="button" id="btn-clear-person-image-analysis">Tøm bilder</button>
+            <button class="btn btn-secondary" type="button" id="btn-phone-lookup">Søk mobilnummer</button>
+            <button class="btn btn-secondary" type="button" id="btn-participant-lookup">Søk deltakernummer</button>
+            <button class="btn btn-secondary" type="button" id="btn-lookup-person">Oppslag</button>
+            <input type="file" id="ocr-image-camera" accept="image/*,.heic,.heif" capture="environment" class="hidden" />
+            <input type="file" id="ocr-image-file" accept="image/*,.heic,.heif" multiple class="hidden" />
+            <input type="file" id="inline-evidence-camera-input" accept="image/*,.heic,.heif" capture="environment" class="hidden" />
+            <input type="file" id="inline-evidence-file-input" accept="image/*,.heic,.heif" class="hidden" />
+          </div>
+          <div class="grid-two compact-grid-form margin-top-s">
+            <label><span>Navn eller ansvarlig</span><input id="lookup_name" value="{{ case.suspect_name or '' }}" autocomplete="name" /></label>
+            <label><span>Mobilnummer / fiskerimerke / radiokallesignal / deltakernummer</span><input id="lookup_identifier" value="{{ case.suspect_phone or case.vessel_reg or case.radio_call_sign or case.hummer_participant_no or '' }}" inputmode="text" autocomplete="off" /></label>
+          </div>
+          <details class="source-disclosure margin-top-s">
+            <summary>Vis merketøy/notat ved behov</summary>
+            <label class="margin-top-s"><span>Merketøy / notat</span><textarea name="lookup_text" id="lookup_text" rows="4" placeholder="Skriv inn merketøy eller notat manuelt ved behov.">{{ case.lookup_text or '' }}</textarea></label>
+          </details>
+          <div class="callout margin-top-s hidden" id="ocr-selected-file">Ingen bildefil valgt ennå.</div>
+          <div class="person-image-preview-grid margin-top-s hidden" id="person-image-preview-grid" aria-live="polite"></div>
+          <div class="callout margin-top-s hidden" id="local-media-status"><span id="local-media-status-text">Bilder og lyd lagres lokalt på enheten og synkes til saken i bakgrunnen når nettverket er klart.</span> <button class="btn btn-secondary btn-small" type="button" id="btn-sync-local-media">Synk nå</button></div>
+          <div class="callout margin-top-s" id="registry-result">Bilde/oppslag klar.</div>
+          <div class="person-vision-result hidden margin-top-s" id="person-vision-result" aria-live="polite">
+            <div class="subcard-head compact-head">
+              <h3>Resultat fra bildeanalyse</h3>
+              <span class="muted small">Alle felter kan redigeres. Usikre felter er markert.</span>
+            </div>
+            <div class="grid-two compact-grid-form margin-top-s person-vision-fields">
+              <label data-vision-field="navn"><span>Navn</span><input id="vision_navn" autocomplete="name" /></label>
+              <label data-vision-field="adresse"><span>Adresse</span><input id="vision_adresse" autocomplete="street-address" /></label>
+              <label data-vision-field="postnummer"><span>Postnummer</span><input id="vision_postnummer" inputmode="numeric" autocomplete="postal-code" /></label>
+              <label data-vision-field="poststed"><span>Poststed</span><input id="vision_poststed" autocomplete="address-level2" /></label>
+              <label data-vision-field="mobil"><span>Mobil</span><input id="vision_mobil" inputmode="tel" autocomplete="tel" /></label>
+              <label data-vision-field="deltakernummer"><span>Deltakernummer</span><input id="vision_deltakernummer" inputmode="text" autocomplete="off" /></label>
+              <label class="span-2" data-vision-field="annen_merking"><span>Annen merking</span><input id="vision_annen_merking" inputmode="text" autocomplete="off" /></label>
+            </div>
+            <div class="callout area-warning margin-top-s hidden" id="vision-uncertainty-box"></div>
+            <div class="actions-row wrap margin-top-s">
+              <button class="btn btn-primary btn-small" type="button" id="btn-apply-person-vision-fields">Bruk/oppdater Person/Fartøy-feltene</button>
+            </div>
+          </div>
+          <div id="ocr-autofill-preview" class="ocr-preview hidden"></div>
+          <div id="registry-candidates" class="registry-candidate-list hidden"></div>
+        </div>
+        <div class="subcard">
+          <div class="subcard-head">
+            <h3>Registerstatus</h3>
+          </div>
+          <div id="hummer-registry-status" class="status-panel margin-top-s">
+            <div class="status-title">Ingen registerkontroll kjørt ennå</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-two leisure-fields margin-top-m" id="leisure-fields">
+        <label><span>Navn</span><input name="suspect_name" id="suspect_name" value="{{ case.suspect_name or '' }}" autocomplete="name" /></label>
+        <label><span>Adresse</span><input name="suspect_address" id="suspect_address" value="{{ case.suspect_address or '' }}" autocomplete="street-address" /></label>
+        <label><span>Postnr. og sted</span><input name="suspect_post_place" id="suspect_post_place" value="{{ case.suspect_post_place or '' }}" autocomplete="postal-code" /></label>
+        <label><span>Mobilnummer</span><input name="suspect_phone" id="suspect_phone" value="{{ case.suspect_phone or '' }}" inputmode="tel" autocomplete="tel" /></label>
+        <label><span>Fødselsdato</span><input name="suspect_birthdate" id="suspect_birthdate" value="{{ case.suspect_birthdate or '' }}" /></label>
+        <label><span>Hummerdeltakernummer</span><input name="hummer_participant_no" id="hummer_participant_no" value="{{ case.hummer_participant_no or '' }}" inputmode="numeric" /></label>
+        <label><span>Påmeldt hummerfisket i</span><input name="hummer_last_registered" id="hummer_last_registered" value="{{ case.hummer_last_registered or '' }}" readonly /></label>
+        <label><span>Tidligere registrert på samme person/fartøy i appen</span><input name="observed_gear_count" id="observed_gear_count" type="number" min="0" value="{{ case.observed_gear_count or '' }}" readonly /></label>
+        <div class="callout span-2" id="gear-summary-status">Tidligere registrerte teiner eller andre redskap på samme person/fartøy brukes ikke i oppsummeringen. Feltet holdes på 0, og oppsummeringen bygger bare på faktiske avvik og lovbrudd som registreres i kontrollpunktene.</div>
+      </div>
+      <div class="grid-two commercial-fields hidden margin-top-m" id="commercial-fields">
+        <label><span>Ansvarlig / eier / skipper</span><input id="suspect_name_commercial" value="{{ case.suspect_name or '' }}" /></label>
+        <label><span>Fartøysnavn</span><input name="vessel_name" id="vessel_name" value="{{ case.vessel_name or '' }}" /></label>
+        <label><span>Fiskerimerke</span><input name="vessel_reg" id="vessel_reg" value="{{ case.vessel_reg or '' }}" /></label>
+        <label><span>Radiokallesignal</span><input name="radio_call_sign" id="radio_call_sign" value="{{ case.radio_call_sign or '' }}" /></label>
+      </div>
+      <div class="grid-two compact-grid-form margin-top-s" id="marker-id-fields">
+        <label class="span-2"><span>Merke-ID / vak/blåse</span><input name="gear_marker_id" id="gear_marker_id" value="{{ case.gear_marker_id or '' }}" inputmode="text" placeholder="F.eks. LOB-HUM-1323" /></label>
+        <div class="callout span-2 small">Merke-ID fra blåse/vak lagres separat og fyller ikke ut hummerdeltakernummer. Hummerdeltakernummer brukes kun ved manuelt registertreff.</div>
+      </div>
+
+      <div class="subcard margin-top-m" id="persons-section">
+        <div class="subcard-head">
+          <div>
+            <h3>Flere involverte personer</h3>
+            <div class="muted small">Legg til flere mistenkte, vitner, eier, fører eller andre relevante personer. Disse kan brukes videre i avhør.</div>
+          </div>
+          <div class="actions-row wrap">
+            <button class="btn btn-secondary btn-small" type="button" id="btn-add-suspect">Legg til mistenkt</button>
+            <button class="btn btn-secondary btn-small" type="button" id="btn-add-witness-person">Legg til vitne</button>
+          </div>
+        </div>
+        <div id="persons-list" class="stack gap-m margin-top-s"></div>
+      </div>
+
+      <div class="step-actions"><button type="button" class="btn btn-secondary" data-prev-step>Tilbake</button><button type="button" class="btn btn-primary" data-next-step>Videre</button></div>
+    </section>
+
     <section class="card card-panel step-pane" data-step="4">
       <div class="card-header panel-header">
         <div>
@@ -249,93 +360,6 @@
       <div class="step-actions"><button type="button" class="btn btn-secondary" data-prev-step>Tilbake</button><button type="button" class="btn btn-primary" data-next-step>Videre</button></div>
     </section>
 
-    <section class="card card-panel step-pane" data-step="3">
-      <div class="card-header panel-header">
-        <div>
-          <h2>3. Person / fartøy</h2>
-          <div id="person-mode-hint" class="muted small hidden"></div>
-        </div>
-      </div>
-      <div class="split-panel margin-top-m">
-        <div class="subcard">
-          <div class="subcard-head">
-            <h3>Bilde og oppslag</h3>
-            <span class="muted small">Ta bilde eller legg ved bildefil til illustrasjonsrapporten. Bildet leses ikke automatisk.</span>
-          </div>
-          <div class="actions-row wrap margin-top-s person-autofill-actions">
-            <button class="btn btn-primary" type="button" id="btn-ocr-camera">Ta bilde til rapport</button>
-            <button class="btn btn-secondary" type="button" id="btn-ocr-file">Legg ved bilde</button>
-            <button class="btn btn-secondary" type="button" id="btn-phone-lookup">Søk mobilnummer</button>
-            <button class="btn btn-secondary" type="button" id="btn-participant-lookup">Søk deltakernummer</button>
-            <button class="btn btn-secondary" type="button" id="btn-lookup-person">Oppslag</button>
-            <input type="file" id="ocr-image-camera" accept="image/*,.heic,.heif" capture="environment" class="hidden" />
-            <input type="file" id="ocr-image-file" accept="image/*,.heic,.heif" class="hidden" />
-            <input type="file" id="inline-evidence-camera-input" accept="image/*,.heic,.heif" capture="environment" class="hidden" />
-            <input type="file" id="inline-evidence-file-input" accept="image/*,.heic,.heif" class="hidden" />
-          </div>
-          <div class="grid-two compact-grid-form margin-top-s">
-            <label><span>Navn eller ansvarlig</span><input id="lookup_name" value="{{ case.suspect_name or '' }}" autocomplete="name" /></label>
-            <label><span>Mobilnummer / fiskerimerke / radiokallesignal / deltakernummer</span><input id="lookup_identifier" value="{{ case.suspect_phone or case.vessel_reg or case.radio_call_sign or case.hummer_participant_no or '' }}" inputmode="text" autocomplete="off" /></label>
-          </div>
-          <details class="source-disclosure margin-top-s">
-            <summary>Vis merketøy/notat ved behov</summary>
-            <label class="margin-top-s"><span>Merketøy / notat</span><textarea name="lookup_text" id="lookup_text" rows="4" placeholder="Skriv inn merketøy eller notat manuelt ved behov.">{{ case.lookup_text or '' }}</textarea></label>
-          </details>
-          <div class="callout margin-top-s hidden" id="ocr-selected-file">Ingen bildefil valgt ennå.</div>
-          <div class="callout margin-top-s hidden" id="local-media-status"><span id="local-media-status-text">Bilder og lyd lagres lokalt på enheten og synkes til saken i bakgrunnen når nettverket er klart.</span> <button class="btn btn-secondary btn-small" type="button" id="btn-sync-local-media">Synk nå</button></div>
-          <div class="callout margin-top-s" id="registry-result">Bilde/oppslag klar.</div>
-          <div id="ocr-autofill-preview" class="ocr-preview hidden"></div>
-          <div id="registry-candidates" class="registry-candidate-list hidden"></div>
-        </div>
-        <div class="subcard">
-          <div class="subcard-head">
-            <h3>Registerstatus</h3>
-          </div>
-          <div id="hummer-registry-status" class="status-panel margin-top-s">
-            <div class="status-title">Ingen registerkontroll kjørt ennå</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="grid-two leisure-fields margin-top-m" id="leisure-fields">
-        <label><span>Navn</span><input name="suspect_name" id="suspect_name" value="{{ case.suspect_name or '' }}" autocomplete="name" /></label>
-        <label><span>Adresse</span><input name="suspect_address" id="suspect_address" value="{{ case.suspect_address or '' }}" autocomplete="street-address" /></label>
-        <label><span>Postnr. og sted</span><input name="suspect_post_place" id="suspect_post_place" value="{{ case.suspect_post_place or '' }}" autocomplete="postal-code" /></label>
-        <label><span>Mobilnummer</span><input name="suspect_phone" id="suspect_phone" value="{{ case.suspect_phone or '' }}" inputmode="tel" autocomplete="tel" /></label>
-        <label><span>Fødselsdato</span><input name="suspect_birthdate" id="suspect_birthdate" value="{{ case.suspect_birthdate or '' }}" /></label>
-        <label><span>Hummerdeltakernummer</span><input name="hummer_participant_no" id="hummer_participant_no" value="{{ case.hummer_participant_no or '' }}" inputmode="numeric" /></label>
-        <label><span>Påmeldt hummerfisket i</span><input name="hummer_last_registered" id="hummer_last_registered" value="{{ case.hummer_last_registered or '' }}" readonly /></label>
-        <label><span>Tidligere registrert på samme person/fartøy i appen</span><input name="observed_gear_count" id="observed_gear_count" type="number" min="0" value="{{ case.observed_gear_count or '' }}" readonly /></label>
-        <div class="callout span-2" id="gear-summary-status">Tidligere registrerte teiner eller andre redskap på samme person/fartøy brukes ikke i oppsummeringen. Feltet holdes på 0, og oppsummeringen bygger bare på faktiske avvik og lovbrudd som registreres i kontrollpunktene.</div>
-      </div>
-      <div class="grid-two commercial-fields hidden margin-top-m" id="commercial-fields">
-        <label><span>Ansvarlig / eier / skipper</span><input id="suspect_name_commercial" value="{{ case.suspect_name or '' }}" /></label>
-        <label><span>Fartøysnavn</span><input name="vessel_name" id="vessel_name" value="{{ case.vessel_name or '' }}" /></label>
-        <label><span>Fiskerimerke</span><input name="vessel_reg" id="vessel_reg" value="{{ case.vessel_reg or '' }}" /></label>
-        <label><span>Radiokallesignal</span><input name="radio_call_sign" id="radio_call_sign" value="{{ case.radio_call_sign or '' }}" /></label>
-      </div>
-      <div class="grid-two compact-grid-form margin-top-s" id="marker-id-fields">
-        <label class="span-2"><span>Merke-ID / vak/blåse</span><input name="gear_marker_id" id="gear_marker_id" value="{{ case.gear_marker_id or '' }}" inputmode="text" placeholder="F.eks. LOB-HUM-1323" /></label>
-        <div class="callout span-2 small">Merke-ID fra blåse/vak lagres separat og fyller ikke ut hummerdeltakernummer. Hummerdeltakernummer brukes kun ved manuelt registertreff.</div>
-      </div>
-
-      <div class="subcard margin-top-m" id="persons-section">
-        <div class="subcard-head">
-          <div>
-            <h3>Flere involverte personer</h3>
-            <div class="muted small">Legg til flere mistenkte, vitner, eier, fører eller andre relevante personer. Disse kan brukes videre i avhør.</div>
-          </div>
-          <div class="actions-row wrap">
-            <button class="btn btn-secondary btn-small" type="button" id="btn-add-suspect">Legg til mistenkt</button>
-            <button class="btn btn-secondary btn-small" type="button" id="btn-add-witness-person">Legg til vitne</button>
-          </div>
-        </div>
-        <div id="persons-list" class="stack gap-m margin-top-s"></div>
-      </div>
-
-      <div class="step-actions"><button type="button" class="btn btn-secondary" data-prev-step>Tilbake</button><button type="button" class="btn btn-primary" data-next-step>Videre</button></div>
-    </section>
-
     <section class="card card-panel step-pane" data-step="5">
       <div class="card-header panel-header">
         <div>
@@ -380,7 +404,7 @@
       <div class="evidence-grid" id="evidence-grid">
         {% for item in evidence %}
         {% if not item.mime_type or not item.mime_type.startswith('audio/') %}
-        <article class="evidence-card">
+        <article class="evidence-card" data-evidence-id="{{ item.id }}" data-evidence-order="{{ item.display_order or loop.index * 10 }}" draggable="true">
           <img src="/cases/{{ case.id }}/evidence/{{ item.id }}/file" alt="{{ item.caption or item.original_filename }}" />
           <div class="evidence-body">
             <strong>{{ item.caption or item.original_filename }}</strong>
@@ -388,7 +412,9 @@
             {% if item.seizure_ref %}<div class="muted small">Beslag / referanse: {{ item.seizure_ref }}</div>{% endif %}
             {% if item.violation_reason %}<div class="muted small">Begrunnelse: {{ item.violation_reason }}</div>{% endif %}
             {% if item.law_text %}<div class="muted small">Hjemmel: {{ item.law_text }}</div>{% endif %}
-            <div class="actions-row wrap margin-top-s">
+            <div class="actions-row wrap margin-top-s evidence-order-actions">
+              <button class="btn btn-secondary btn-small" type="button" data-evidence-move="up" data-evidence-id="{{ item.id }}">Flytt opp</button>
+              <button class="btn btn-secondary btn-small" type="button" data-evidence-move="down" data-evidence-id="{{ item.id }}">Flytt ned</button>
               <form method="post" action="/evidence/{{ item.id }}/delete" data-confirm="Slette vedlegg?">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
                 <button class="btn btn-danger btn-small" type="submit">Slett</button>
@@ -403,11 +429,11 @@
     <div class="step-actions"><button type="button" class="btn btn-secondary" data-prev-step>Tilbake</button><button type="button" class="btn btn-primary" data-next-step>Videre</button></div>
   </section>
 
-  <section class="card card-panel step-pane" data-step="7" id="document-package-step">
+  <section class="card card-panel step-pane" data-step="7" id="interview-step">
     <div class="card-header panel-header">
       <div>
-        <h2>7. Avhør / signatur / dokumentpakke</h2>
-        <div class="muted small">Avhør, beslag, signaturer, oppsummering og eksport samlet i siste steg.</div>
+        <h2>7. Avhør</h2>
+        <div class="muted small">Avhør, lydopptak, avhørsutkast og interne forslag til avhørspunkter. Forslagene tas ikke inn i anmeldelsen.</div>
       </div>
     </div>
 
@@ -474,7 +500,7 @@
         <button class="btn btn-secondary btn-small" type="button" id="btn-generate-interview-guidance">Generer punkter</button>
       </div>
       <textarea form="case-form" name="interview_guidance_text" id="interview_guidance_text" rows="7" placeholder="Genererte momenter og spørsmål vises her.">{{ case.interview_guidance_text or '' }}</textarea>
-      <div class="actions-row wrap margin-top-s"><button type="button" class="btn btn-secondary btn-small" id="btn-copy-guidance-to-hearing">Legg inn i samlet avhørsutkast</button><button type="button" class="btn btn-secondary btn-small" id="btn-open-guidance-page">Åpne som hel side</button></div>
+      <div class="actions-row wrap margin-top-s"><button type="button" class="btn btn-secondary btn-small" id="btn-open-guidance-page">Åpne som hel side</button><span class="muted small">Interne forslag eksporteres ikke i anmeldelsen eller dokumentpakken.</span></div>
     </div>
     <div class="grid-two margin-top-m">
       <label class="span-2"><span>Samlet avhørsutkast</span><textarea form="case-form" name="hearing_text" id="hearing_text" rows="12">{{ case.hearing_text or '' }}</textarea></label>
@@ -488,13 +514,14 @@
     <div class="actions-row wrap margin-top-s">
       <form method="post" action="/cases/{{ case.id }}/interview-pdf" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><button class="btn btn-secondary" type="submit">Eksporter kun avhørsrapport</button></form>
     </div>
-    <div class="callout margin-top-m">Beslagsrapporten ligger under i samme steg.</div>
+    <div class="step-actions"><button type="button" class="btn btn-secondary" data-prev-step>Tilbake</button><button type="button" class="btn btn-primary" data-next-step>Videre</button></div>
+  </section>
 
-    <div class="subcard margin-top-m" id="seizure-report-step">
+  <section class="card card-panel step-pane" data-step="8" id="seizure-report-step">
     <div class="card-header panel-header">
       <div>
-        <h3>Beslagsrapport</h3>
-        <div class="muted small">Ved avvik på redskap, minstemål eller maksimalmål opprettes beslagsrader automatisk fra kontrollpunkter og bilder. Hver rad kan endres manuelt.</div>
+        <h2>8. Beslagsrapport</h2>
+        <div class="muted small">Alle beslag og bilder knyttet til beslagsnummer vises samlet. Ved avvik på redskap, minstemål eller maksimalmål opprettes beslagsrader automatisk fra kontrollpunkter og bilder. Hver rad kan endres manuelt.</div>
       </div>
       <div class="actions-row wrap">
         <button class="btn btn-secondary btn-small" type="button" id="btn-refresh-seizure-report">Oppdater fra avvik</button>
@@ -508,7 +535,15 @@
       <div class="signature-widget" data-signature-field="investigator_signature" data-signature-name-source="investigator_name"><div><strong>Etterforskers signatur</strong><div class="muted small signature-status">Ikke signert</div></div><button class="btn btn-secondary btn-small" type="button" data-signature-open>Signer</button></div>
       <div class="signature-widget" data-signature-field="witness_signature" data-signature-name-source="witness_name"><div><strong>Observatør/vitnes signatur</strong><div class="muted small signature-status">Ikke signert</div></div><button class="btn btn-secondary btn-small" type="button" data-signature-open>Signer</button></div>
     </div>
-    <div class="callout margin-top-m">Oppsummering og eksport ligger under i samme steg.</div>
+    <div class="step-actions"><button type="button" class="btn btn-secondary" data-prev-step>Tilbake</button><button type="button" class="btn btn-primary" data-next-step>Videre</button></div>
+  </section>
+
+  <section class="card card-panel step-pane" data-step="9" id="document-package-step">
+    <div class="card-header panel-header">
+      <div>
+        <h2>9. Oppsummering / signatur / dokumentpakke</h2>
+        <div class="muted small">Oppsummering, signatur og eksport av dokumentpakken.</div>
+      </div>
     </div>
 
     <div class="subcard margin-top-m" id="summary-step-section">
@@ -606,5 +641,5 @@
   }
 })();
 </script>
-<script src="/static/js/case-app.js?v=1.8.16"></script>
+<script src="/static/js/case-app.js?v=1.8.18"></script>
 {% endblock %}

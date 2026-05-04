@@ -1,9 +1,9 @@
-# Endringer 1.8.16 – kart/områder og lengdemålt avvik
+# Endringer 1.8.17 – kart/områder og lengdemålt avvik
 
 ## Hovedendringer
 
-- Appversjon bumpet til `1.8.16`.
-- Service worker/cache-navn og statiske JS/CSS-versjonsparametre bumpet til `1.8.16`.
+- Appversjon bumpet til `1.8.17`.
+- Service worker/cache-navn og statiske JS/CSS-versjonsparametre bumpet til `1.8.17`.
 - Kontrollkartet er lagt om til Fiskeridirektoratets `Yggdrasil/Fiskerireguleringer` MapServer som primær kartkilde for regulerings-/verneområder.
 - Kartprofilene for valgt kontrolltype, art/fiskeri og redskap er flyttet fra eldre `fiskeridirWMS_fiskeri`-IDer til faktiske `Fiskerireguleringer`-lag:
   - Hummer: Høstingsforskriften, Hummer fredningsområder, Hummer maksimalmålområde, Korallrev, Verneområder bunnhabitat, Raet og Oslofjorden/nullfiske.

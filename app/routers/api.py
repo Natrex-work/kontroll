@@ -18,7 +18,10 @@ from ..security import enforce_csrf
 from ..pdf_export import build_text_drafts
 from ..schemas import SummarySuggestRequest, TextPolishRequest
 from ..services.ocr_service import extract_text_from_image
+from ..services.openai_vision_service import VisionConfigError, analyze_person_marking_images
 OCR_MAX_UPLOAD_MB = max(2, min(20, int(os.getenv('KV_OCR_MAX_IMAGE_MB', '12') or '12')))
+VISION_MAX_UPLOAD_MB = max(2, min(30, int(os.getenv('KV_OPENAI_VISION_MAX_IMAGE_MB', '16') or '16')))
+VISION_MAX_IMAGES = max(1, min(8, int(os.getenv('KV_OPENAI_VISION_MAX_IMAGES', '4') or '4')))
 MAP_BUNDLE_MAX_LAYERS = max(4, min(20, int(os.getenv('KV_MAP_BUNDLE_MAX_LAYERS', '14') or '14')))
 OCR_CACHE_TTL_SECONDS = max(60, min(3600, int(os.getenv('KV_OCR_CACHE_TTL_SECONDS', '600') or '600')))
 OCR_CACHE_MAX_ENTRIES = max(8, min(128, int(os.getenv('KV_OCR_CACHE_MAX_ENTRIES', '32') or '32')))
@@ -390,6 +393,46 @@ async def api_ocr_extract(request: Request, file: UploadFile = File(...)):
     payload = {'ok': True, **result, 'hints': result.get('hints') or registry.extract_tag_hints(result.get('text') or ''), 'elapsed_ms': elapsed_ms, 'cached': False}
     _put_ocr_cache(cache_key, payload)
     return JSONResponse(payload)
+
+
+@router.post('/api/person-fartoy/analyze-image')
+async def api_person_fartoy_analyze_image(request: Request, files: list[UploadFile] = File(...)):
+    require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til Minfiskerikontroll.')
+    enforce_csrf(request)
+    if not files:
+        raise HTTPException(status_code=400, detail='Legg ved minst ett bilde.')
+    if len(files) > VISION_MAX_IMAGES:
+        raise HTTPException(status_code=400, detail=f'Maks {VISION_MAX_IMAGES} bilder kan analyseres samtidig.')
+    allowed_suffixes = {'.png', '.jpg', '.jpeg', '.webp', '.heic', '.heif'}
+    image_payloads: list[dict] = []
+    total_size = 0
+    for upload in files:
+        filename = sanitize_original_filename(upload.filename or 'merking.jpg')
+        content_type = str(upload.content_type or '').strip().lower()
+        suffix = Path(filename).suffix.lower()
+        if content_type and content_type not in {'application/octet-stream', 'binary/octet-stream'} and not content_type.startswith('image/'):
+            raise HTTPException(status_code=400, detail='Bildeanalyse støtter bare bildefiler.')
+        if suffix not in allowed_suffixes:
+            raise HTTPException(status_code=400, detail='Bildeanalyse støtter JPG, PNG, WEBP, HEIC og HEIF.')
+        content = await upload.read()
+        size_bytes = len(content or b'')
+        validate_saved_file_size(size_bytes)
+        total_size += size_bytes
+        max_bytes = VISION_MAX_UPLOAD_MB * 1024 * 1024
+        if size_bytes > max_bytes:
+            return JSONResponse({'detail': f'Bildet {filename} er for stort for bildeanalyse ({VISION_MAX_UPLOAD_MB} MB maks).'}, status_code=413)
+        image_payloads.append({'filename': filename, 'content': content or b''})
+    if total_size > VISION_MAX_UPLOAD_MB * 1024 * 1024 * max(1, VISION_MAX_IMAGES):
+        return JSONResponse({'detail': 'Samlet bildestørrelse er for stor for bildeanalyse. Prøv færre bilder.'}, status_code=413)
+    try:
+        result = await run_in_threadpool(analyze_person_marking_images, image_payloads)
+    except VisionConfigError as exc:
+        return JSONResponse({'detail': str(exc)}, status_code=503)
+    except ValueError as exc:
+        return JSONResponse({'detail': str(exc)}, status_code=422)
+    except RuntimeError as exc:
+        return JSONResponse({'detail': str(exc)}, status_code=502)
+    return JSONResponse(result, headers={'Cache-Control': 'no-store, max-age=0'})
 
 
 @router.post('/api/summary/suggest')

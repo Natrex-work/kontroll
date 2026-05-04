@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import mimetypes
 from pathlib import Path
+from typing import Any
 from urllib.parse import quote
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
@@ -302,29 +303,65 @@ async def delete_case(request: Request, case_id: int):
 
 
 @router.post('/cases/{case_id}/evidence')
-async def upload_evidence(request: Request, case_id: int, caption: str = Form(default=''), finding_key: str = Form(default=''), law_text: str = Form(default=''), violation_reason: str = Form(default=''), seizure_ref: str = Form(default=''), device_id: str = Form(default=''), local_media_id: str = Form(default=''), file: UploadFile = File(...)):
+async def upload_evidence(request: Request, case_id: int, caption: str = Form(default=''), finding_key: str = Form(default=''), law_text: str = Form(default=''), violation_reason: str = Form(default=''), seizure_ref: str = Form(default=''), device_id: str = Form(default=''), local_media_id: str = Form(default=''), display_order: str = Form(default=''), file: UploadFile = File(...)):
     user = require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til Minfiskerikontroll.')
     form = await request.form()
     enforce_csrf(request, form)
     get_case_for_user(user, case_id)
-    evidence_id, filename = store_evidence_upload(case_id=case_id, upload_file=file, caption=caption, created_by=user['id'], finding_key=finding_key, law_text=law_text, violation_reason=violation_reason, seizure_ref=seizure_ref, device_id=device_id, local_media_id=local_media_id)
+    clean_display_order = None
+    try:
+        clean_display_order = int(str(display_order or '').strip()) if str(display_order or '').strip() else None
+    except Exception:
+        clean_display_order = None
+    evidence_id, filename = store_evidence_upload(case_id=case_id, upload_file=file, caption=caption, created_by=user['id'], finding_key=finding_key, law_text=law_text, violation_reason=violation_reason, seizure_ref=seizure_ref, device_id=device_id, local_media_id=local_media_id, display_order=clean_display_order)
     db.record_audit(user['id'], 'upload_evidence', 'evidence', evidence_id, {'case_id': case_id, 'filename': filename})
     return RedirectResponse(f'/cases/{case_id}/edit', status_code=HTTP_303_SEE_OTHER)
 
 
 @router.post('/api/cases/{case_id}/evidence')
-async def upload_evidence_api(request: Request, case_id: int, caption: str = Form(default=''), finding_key: str = Form(default=''), law_text: str = Form(default=''), violation_reason: str = Form(default=''), seizure_ref: str = Form(default=''), device_id: str = Form(default=''), local_media_id: str = Form(default=''), file: UploadFile = File(...)):
+async def upload_evidence_api(request: Request, case_id: int, caption: str = Form(default=''), finding_key: str = Form(default=''), law_text: str = Form(default=''), violation_reason: str = Form(default=''), seizure_ref: str = Form(default=''), device_id: str = Form(default=''), local_media_id: str = Form(default=''), display_order: str = Form(default=''), file: UploadFile = File(...)):
     user = require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til Minfiskerikontroll.')
     form = await request.form()
     enforce_csrf(request, form)
     get_case_for_user(user, case_id)
-    evidence_id, filename = store_evidence_upload(case_id=case_id, upload_file=file, caption=caption, created_by=user['id'], finding_key=finding_key, law_text=law_text, violation_reason=violation_reason, seizure_ref=seizure_ref, device_id=device_id, local_media_id=local_media_id)
+    clean_display_order = None
+    try:
+        clean_display_order = int(str(display_order or '').strip()) if str(display_order or '').strip() else None
+    except Exception:
+        clean_display_order = None
+    evidence_id, filename = store_evidence_upload(case_id=case_id, upload_file=file, caption=caption, created_by=user['id'], finding_key=finding_key, law_text=law_text, violation_reason=violation_reason, seizure_ref=seizure_ref, device_id=device_id, local_media_id=local_media_id, display_order=clean_display_order)
     row = db.get_evidence_by_id(evidence_id) or {}
     payload = dict(row)
     payload['url'] = f"/cases/{case_id}/evidence/{evidence_id}/file"
     db.record_audit(user['id'], 'upload_evidence_api', 'evidence', evidence_id, {'case_id': case_id, 'filename': filename})
     return JSONResponse({'ok': True, 'message': 'Bildebevis er lagret i illustrasjonsrapporten.', 'evidence': payload})
 
+
+
+
+@router.post('/api/cases/{case_id}/evidence/order')
+async def reorder_case_evidence(request: Request, case_id: int):
+    user = require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til Minfiskerikontroll.')
+    enforce_csrf(request)
+    get_case_for_user(user, case_id)
+    try:
+        payload: dict[str, Any] = await request.json()
+    except Exception:
+        payload = {}
+    ids_raw = payload.get('evidence_ids') if isinstance(payload, dict) else []
+    if not isinstance(ids_raw, list):
+        ids_raw = []
+    ids: list[int] = []
+    for value in ids_raw:
+        try:
+            numeric_id = int(value)
+        except Exception:
+            continue
+        if numeric_id > 0:
+            ids.append(numeric_id)
+    db.reorder_evidence(case_id, ids)
+    db.record_audit(user['id'], 'reorder_evidence', 'case', case_id, {'evidence_ids': ids})
+    return JSONResponse({'ok': True, 'evidence': db.list_evidence(case_id)})
 
 @router.post('/evidence/{evidence_id}/delete')
 async def delete_evidence(request: Request, evidence_id: int):
@@ -497,11 +534,11 @@ async def email_case_package_route(request: Request, case_id: int):
     subject = str(form.get('email_subject') or '').strip()
     body = str(form.get('email_body') or '').strip()
     if not recipient:
-        return _simple_message_html('Mangler e-postmottaker', 'Fyll inn mottakeradresse før du sender anmeldelse med vedlegg.', status_code=400, back_url=f'/cases/{case_id}/edit?step=7')
+        return _simple_message_html('Mangler e-postmottaker', 'Fyll inn mottakeradresse før du sender anmeldelse med vedlegg.', status_code=400, back_url=f'/cases/{case_id}/edit?step=9')
     try:
         result = await run_in_threadpool(send_case_package_email, case_id, case_row, user, to_address=recipient, subject=subject, body=body)
     except Exception as exc:
-        return _simple_message_html('Kunne ikke sende e-post', str(exc), status_code=400, back_url=f'/cases/{case_id}/edit?step=7')
+        return _simple_message_html('Kunne ikke sende e-post', str(exc), status_code=400, back_url=f'/cases/{case_id}/edit?step=9')
     db.record_audit(user['id'], 'email_case_package', 'case', case_id, {'recipient': recipient, 'bundle': result.get('bundle')})
     return _simple_message_html('E-post sendt', f"Dokumentpakken ble sendt til {recipient}.\nVedlegg: {result.get('bundle') or 'pakke.zip'}", back_url=f'/cases/{case_id}/preview')
 

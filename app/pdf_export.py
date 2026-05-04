@@ -258,6 +258,80 @@ def _fetch_osm_tile(z: int, x: int, y: int) -> PILImage.Image | None:
         return None
 
 
+WEB_MERCATOR_ORIGIN = 20037508.342789244
+
+
+def _overview_control_layer_ids(case_row: Dict[str, Any], limit: int = 14) -> list[int]:
+    control_type = str(case_row.get('control_type') or '').strip()
+    fishery = str(case_row.get('fishery_type') or case_row.get('species') or '').strip()
+    gear_type = str(case_row.get('gear_type') or '').strip()
+    ids: list[int] = []
+    try:
+        from . import live_sources
+        for row in live_sources.portal_layer_catalog_fast(fishery=fishery, control_type=control_type, gear_type=gear_type):
+            try:
+                layer_id = int(row.get('id'))
+            except Exception:
+                continue
+            if layer_id == 121 or layer_id in ids:
+                continue
+            ids.append(layer_id)
+            if len(ids) >= limit:
+                break
+    except Exception:
+        pass
+    if not ids:
+        try:
+            from . import map_relevance
+            ids = [int(value) for value in sorted(map_relevance.selection_profile_layer_ids(fishery=fishery, control_type=control_type, gear_type=gear_type)) if int(value) != 121]
+        except Exception:
+            ids = []
+    if not ids:
+        ids = [0, 7, 9, 10, 11, 13, 31, 37, 38]
+    return ids[:limit]
+
+
+def _overview_arcgis_export_overlay(case_row: Dict[str, Any], min_x: float, min_y: float, max_x: float, max_y: float, zoom: int, width: int, height: int) -> PILImage.Image | None:
+    if PILImage is None:
+        return None
+    layer_ids = _overview_control_layer_ids(case_row)
+    if not layer_ids:
+        return None
+    world_size = 256 * (2 ** zoom)
+    meters_per_pixel = (WEB_MERCATOR_ORIGIN * 2.0) / world_size
+    xmin = min_x * meters_per_pixel - WEB_MERCATOR_ORIGIN
+    xmax = max_x * meters_per_pixel - WEB_MERCATOR_ORIGIN
+    ymax = WEB_MERCATOR_ORIGIN - min_y * meters_per_pixel
+    ymin = WEB_MERCATOR_ORIGIN - max_y * meters_per_pixel
+    base_url = str(os.getenv('KV_PORTAL_MAPSERVER', 'https://gis.fiskeridir.no/server/rest/services/Yggdrasil/Fiskerireguleringer/MapServer') or '').rstrip('/')
+    if not base_url:
+        return None
+    params = {
+        'bbox': f'{xmin},{ymin},{xmax},{ymax}',
+        'bboxSR': '3857',
+        'imageSR': '3857',
+        'size': f'{int(width)},{int(height)}',
+        'format': 'png32',
+        'transparent': 'true',
+        'layers': 'show:' + ','.join(str(value) for value in layer_ids),
+        'dpi': '96',
+        'f': 'image',
+    }
+    try:
+        timeout = float(os.getenv('KV_PORTAL_MAP_EXPORT_TIMEOUT', '3.0') or '3.0')
+    except Exception:
+        timeout = 3.0
+    try:
+        response = requests.get(base_url + '/export', params=params, timeout=timeout, headers={'User-Agent': 'KV-Kontroll/1.8.18'})
+        response.raise_for_status()
+        img = PILImage.open(io.BytesIO(response.content)).convert('RGBA')
+        if img.size != (width, height):
+            img = img.resize((width, height))
+        return img
+    except Exception:
+        return None
+
+
 def _generate_tile_overview_map_image(case_row: Dict[str, Any], output_dir: Path, radius_km: float = 50.0, zoom: int = 10) -> dict[str, Any] | None:
     if PILImage is None or ImageDraw is None:
         return None
@@ -287,8 +361,14 @@ def _generate_tile_overview_map_image(case_row: Dict[str, Any], output_dir: Path
             px = int(tx * 256 - min_x)
             py = int(ty * 256 - min_y)
             base.alpha_composite(tile, (px, py))
-    if fetched == 0:
+    portal_overlay = _overview_arcgis_export_overlay(case_row, min_x, min_y, max_x, max_y, zoom, width, height)
+    if fetched == 0 and portal_overlay is None:
         return None
+    if portal_overlay is not None:
+        try:
+            base.alpha_composite(portal_overlay, (0, 0))
+        except Exception:
+            pass
 
     overlay = PILImage.new('RGBA', (width, height), (255, 255, 255, 0))
     draw = ImageDraw.Draw(overlay)
@@ -354,7 +434,7 @@ def _generate_tile_overview_map_image(case_row: Dict[str, Any], output_dir: Path
 
 
 def _generate_overview_map_image(case_row: Dict[str, Any], output_dir: Path, radius_km: float = 50.0) -> dict[str, Any] | None:
-    use_tile_first = str(os.getenv('KV_USE_TILE_OVERVIEW_MAP', '0') or '0').strip().lower() in {'1', 'true', 'yes', 'on'}
+    use_tile_first = str(os.getenv('KV_USE_TILE_OVERVIEW_MAP', '1') or '1').strip().lower() in {'1', 'true', 'yes', 'on'}
     if use_tile_first:
         tile_map = _generate_tile_overview_map_image(case_row, output_dir, radius_km=radius_km)
         if tile_map is not None:
@@ -3001,18 +3081,41 @@ def _seizure_sort_number(value: Any) -> tuple[int, str]:
     return (999999, raw)
 
 
+def _evidence_manual_order_value(item: Dict[str, Any], fallback_index: int = 0) -> int:
+    try:
+        value = int(item.get('display_order'))
+        if value > 0:
+            return value
+    except Exception:
+        pass
+    try:
+        value = int(item.get('id'))
+        if value > 0:
+            return value * 10
+    except Exception:
+        pass
+    raw_date = str(item.get('created_at') or '').strip()
+    if raw_date:
+        try:
+            return 1000000 + int(datetime.fromisoformat(raw_date.replace('Z', '+00:00')).timestamp())
+        except Exception:
+            pass
+    return 900000000 + fallback_index
+
+
 def _sort_evidence_rows_v91(rows: list[Dict[str, Any]]) -> list[Dict[str, Any]]:
-    def key(item: Dict[str, Any]) -> tuple[int, int, str, str]:
+    indexed = [(idx, dict(item)) for idx, item in enumerate(rows or [])]
+
+    def key(pair: tuple[int, Dict[str, Any]]) -> tuple[int, int, str, int]:
+        idx, item = pair
         fk = str(item.get('finding_key') or '').strip().lower()
         caption = str(item.get('caption') or '').strip().lower()
         if fk == 'oversiktskart':
             radius_rank = 0 if '50' in caption else 1
-            return (0, radius_rank, caption, '')
-        if _is_ocr_source_evidence(item):
-            return (1, 0, caption, '')
-        num, raw = _seizure_sort_number(item.get('seizure_ref'))
-        return (2, num, raw, caption)
-    return sorted([dict(item) for item in rows], key=key)
+            return (0, radius_rank, caption, idx)
+        return (1, _evidence_manual_order_value(item, idx), caption, idx)
+
+    return [item for _, item in sorted(indexed, key=key)]
 
 
 def _build_own_report(case_row: Dict[str, Any], findings: list[Dict[str, Any]]) -> str:  # type: ignore[override]
@@ -3097,7 +3200,7 @@ def build_case_packet(case_row: Dict[str, Any], evidence_rows: Iterable[Dict[str
     packet['own_report'] = _build_own_report(case_row, findings)
     packet['interview_not_conducted'] = _interview_not_conducted(case_row)
     packet['interview_not_conducted_reason'] = _interview_not_conducted_reason(case_row)
-    packet['interview_guidance'] = _build_interview_guidance_v91(case_row, findings)
+    packet['interview_guidance'] = ''  # 1.8.18: interne forslag skal ikke inn i anmeldelse/dokumentpakke
     if _interview_not_conducted(case_row):
         packet['interview_report'] = ''
         docs = [dict(doc) for doc in packet.get('documents', []) if 'avhør' not in str(doc.get('title') or '').lower()]
@@ -4095,7 +4198,7 @@ def build_case_packet(case_row: Dict[str, Any], evidence_rows: Iterable[Dict[str
     packet['summary'] = build_summary(case_row, findings)
     packet['short_complaint'] = _build_short_complaint(case_row, findings, sources)
     packet['own_report'] = _build_own_report(case_row, findings)
-    packet['interview_guidance'] = _build_interview_guidance_v91(case_row, findings)
+    packet['interview_guidance'] = ''  # 1.8.18: interne forslag skal ikke inn i anmeldelse/dokumentpakke
     if _interview_not_conducted(case_row):
         packet['interview_report'] = ''
         packet['interview_not_conducted'] = True
