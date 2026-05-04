@@ -45,6 +45,7 @@
   var latestZoneResult = null;
   var findingsState = [];
   var evidenceState = [];
+  var seizureReportsState = [];
   var selectedInlineEvidenceTarget = null;
   var inlineEvidenceFeedback = '';
   var form = null, findingsInput = null, sourcesInput = null, crewInput = null, externalActorsInput = null, personsInput = null, interviewInput = null, seizureReportsInput = null;
@@ -885,7 +886,7 @@
       ensureDeviationState(finding).forEach(function (row) { addUnit(row, defaultDeviationGearKind()); });
       ensureMeasurementState(finding).forEach(function (row) { addUnit(row, 'Måling'); });
     });
-    (seizureReportsState || []).forEach(function (row) { addUnit(row, row && row.type ? row.type : 'Beslag'); });
+    (Array.isArray(seizureReportsState) ? seizureReportsState : []).forEach(function (row) { addUnit(row, row && row.type ? row.type : 'Beslag'); });
     if (currentRow && currentRow.linked_seizure_ref) {
       var currentRef = String(currentRow.linked_seizure_ref || '').trim();
       if (currentRef && !unitsByRef[currentRef]) {
@@ -1697,7 +1698,7 @@
       if (/(breivikfjorden|borgundfjorden|henningsvaer|lofotfiske)/.test(restrictionText) && !/(torsk|skrei|kommersiell|yrkes)/.test([currentFisherySelection(), currentControlSelection(), restrictionText].join(' '))) return false;
       var status = String(layer.status || '').trim().toLowerCase();
       if (Object.prototype.hasOwnProperty.call(activeLayerStatuses, status) && !activeLayerStatuses[status]) return false;
-      // 1.8.14: Temakartet kan vise bredt uten valg, men under kontroll
+      // 1.8.15: Temakartet kan vise bredt uten valg, men under kontroll
       // skal kartet bare vise lovregulerte lag som passer valgt kontrolltype,
       // art/fiskeri og redskap.
       if (!hasMapSelection()) return true;
@@ -2510,7 +2511,7 @@
     var externalActorsState = parseJson(externalActorsInput.value, []) || [];
     var personsState = parseJson(personsInput ? personsInput.value : '[]', []) || [];
     var interviewState = parseJson(interviewInput ? interviewInput.value : '[]', []) || [];
-    var seizureReportsState = parseJson(seizureReportsInput ? seizureReportsInput.value : '[]', []) || [];
+    seizureReportsState = parseJson(seizureReportsInput ? seizureReportsInput.value : '[]', []) || [];
     var candidateState = [];
     var registryLookupTimer = null;
     var registryLookupInFlight = false;
@@ -2529,7 +2530,7 @@
       storedPositionMode = '';
     }
     if (storedPositionMode !== 'manual' && storedPositionMode !== 'auto') storedPositionMode = '';
-    var zoneOverlayStorageKey = 'kv-case-zone-overlay-1.8.14:' + root.dataset.caseId;
+    var zoneOverlayStorageKey = 'kv-case-zone-overlay-1.8.15:' + root.dataset.caseId;
     var zoneOverlayEnabled = true;
     // Treffende verne-/reguleringsområder skal alltid tegnes i kartet.
     // Tidligere lagret 'skjul'-valg fra eldre PWA-versjoner ignoreres.
@@ -2764,7 +2765,12 @@
     var topPrevStep = document.getElementById('top-prev-step');
     var topNextStep = document.getElementById('top-next-step');
     var topStepLabel = document.getElementById('top-step-label');
-    var stepStorageKey = 'kv-case-step:' + root.dataset.caseId;
+    var stepStorageKey = 'kv-case-step-1.8.15:' + root.dataset.caseId;
+    var PERSON_STEP = 3;
+    var MAP_STEP = 4;
+    var FINDINGS_STEP = 5;
+    var ILLUSTRATION_STEP = 6;
+    var DOCUMENT_STEP = 7;
     var currentStep = 1;
 
     function localMediaSupported() {
@@ -3631,7 +3637,7 @@
     }
 
     function mapStepIsVisible() {
-      return currentStep === 2 && document.visibilityState === 'visible';
+      return currentStep === MAP_STEP && document.visibilityState === 'visible';
     }
 
     function syncStepNavigation() {
@@ -3659,7 +3665,7 @@
       panes.forEach(function (pane) { pane.classList.toggle('active', Number(pane.dataset.step) === step); });
       stepButtons.forEach(function (btn) { btn.classList.toggle('active', Number(btn.dataset.stepTarget) === step); });
       syncStepNavigation();
-      if (step === 3) {
+      if (step === MAP_STEP) {
         setTimeout(function () {
           updateCaseMap();
           if (autoLocationAttempted) startLocationWatch({ deviceOnly: mapState.manualPosition === true, recenter: mapState.manualPosition !== true });
@@ -3669,7 +3675,7 @@
           }
         }, 180);
       }
-      if (step === 4) {
+      if (step === FINDINGS_STEP) {
         window.setTimeout(function () { loadRules(); }, 0);
       }
       if (options.scroll !== false) window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -4238,7 +4244,7 @@
         title: 'Kontrollpunkter' + (speciesVal || gearVal ? ' for ' + [controlVal, speciesVal, gearVal].filter(Boolean).join(' / ') : ''),
         description: reason || 'Lokal kontrollpunktliste brukes slik at punktene vises også ved tregt eller tomt regeloppslag.',
         items: items,
-        sources: [{ name: 'Lokal kontrollpunktliste', ref: '1.8.14 fallback', url: '' }]
+        sources: [{ name: 'Lokal kontrollpunktliste', ref: '1.8.15 fallback', url: '' }]
       };
     }
 
@@ -4330,7 +4336,7 @@
       var ref = deviationRow && deviationRow.seizure_ref ? deviationRow.seizure_ref : '';
       var text = ref ? ('Bilde kobles til beslag ' + ref + '.') : 'Bilde kobles til valgt avvik.';
       selectedFindingCard.innerHTML = escapeHtml(text);
-      if (options.showStepFive !== false) showStep(5, { scroll: true });
+      if (options.showStepFive !== false) showStep(ILLUSTRATION_STEP, { scroll: true });
     }
 
     function currentInlineEvidenceTarget() {
@@ -5171,7 +5177,7 @@
       var allLayerIds = displayLayers.map(function (layer) { return Number(layer && layer.id); }).filter(function (value) { return isFinite(value); });
       var fisheryPortalService = root.dataset.portalMapserver || (caseMap && caseMap.dataset ? (caseMap.dataset.portalMapserver || '') : '') || 'https://portal.fiskeridir.no/server/rest/services/fiskeridirWMS_fiskeri/MapServer';
       var vernPortalService = root.dataset.portalVernMapserver || (caseMap && caseMap.dataset ? (caseMap.dataset.portalVernMapserver || '') : '') || 'https://portal.fiskeridir.no/server/rest/services/Fiskeridir_vern/MapServer';
-      // 1.8.14: aktuelle verneområder/reguleringer skal vises direkte i kartet
+      // 1.8.15: aktuelle verneområder/reguleringer skal vises direkte i kartet
       // når posisjonssjekken har gitt treff. Uten treff beholdes rask rastervisning.
       mapState.fetchFeatureDetails = options.fetchFeatureDetails === true || mapState.requestFeatureDetails === true || zoneLayerIds.length > 0;
       mapState.featureDetailLayerIds = featureDetailIds;
@@ -5303,8 +5309,8 @@
       return rows;
     }
 
-    var zoneResultStoragePrefix = 'kv-zone-result-1.8.14:';
-    var nearestPlaceStoragePrefix = 'kv-nearest-place-1.8.14:';
+    var zoneResultStoragePrefix = 'kv-zone-result-1.8.15:';
+    var nearestPlaceStoragePrefix = 'kv-nearest-place-1.8.15:';
     var nearestPlaceController = null;
     var nearestPlaceSequence = 0;
     var nearestPlaceTimer = null;
@@ -5604,7 +5610,7 @@
       scheduleAutosave('Manuell posisjon aktivert');
     }
 
-    var devicePositionStorageKey = 'kv-device-position-1.8.14';
+    var devicePositionStorageKey = 'kv-device-position-1.8.15';
     function readCachedDevicePosition() {
       if (!window.localStorage) return null;
       try {
@@ -5735,7 +5741,7 @@
         persistLocalCaseDraft({ silent: true });
         return;
       }
-      if (currentStep !== 2) return;
+      if (currentStep !== MAP_STEP) return;
       startLocationWatch({ deviceOnly: mapState.manualPosition === true, recenter: mapState.manualPosition !== true });
     });
     window.addEventListener('pagehide', function () { persistLocalCaseDraft({ silent: true }); cleanupCasePageResources(); });
@@ -8014,7 +8020,7 @@ function renderHummerStatus(result) {
       window.setTimeout(function () { checkZone({ force: true, skipMapUpdate: true }); }, 350);
     }
     maintainOfflinePackages(true).then(function () { return refreshOfflinePackageList(); }).then(function () { return autoRefreshStalePackages(); });
-    setTimeout(function () { if (currentStep === 2) maybeAutoStartLocation(); }, 250);
+    setTimeout(function () { if (currentStep === MAP_STEP) maybeAutoStartLocation(); }, 250);
     renderFindings();
     scheduleSummaryWarmup();
     loadLocalEvidenceFromDevice().then(function () { updateLocalMediaStatus(); });

@@ -460,7 +460,7 @@ async def export_interview_pdf_route(request: Request, case_id: int):
         raise
     if int(case_row.get('interview_not_conducted') or 0):
         reason = str(case_row.get('interview_not_conducted_reason') or 'Ikke fått kontakt med vedkommende.').strip()
-        return _simple_message_html('Avhør ikke gjennomført', f'Avhørsrapport eksporteres ikke fordi avhør er markert som ikke gjennomført. Registrert årsak: {reason}', status_code=409, back_url=f'/cases/{case_id}/edit?step=6')
+        return _simple_message_html('Avhør ikke gjennomført', f'Avhørsrapport eksporteres ikke fordi avhør er markert som ikke gjennomført. Registrert årsak: {reason}', status_code=409, back_url=f'/cases/{case_id}/edit?step=7')
     outpath = await run_in_threadpool(export_interview_pdf, case_id, case_row, user)
     db.record_audit(user['id'], 'export_interview_pdf', 'case', case_id, {'filename': outpath.name})
     return FileResponse(path=str(outpath), media_type='application/pdf', filename=outpath.name, headers={'Cache-Control': 'no-store'})

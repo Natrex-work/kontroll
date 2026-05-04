@@ -4,7 +4,7 @@
 {% block topbar_extra %}
 <div class="top-step-nav" id="top-step-nav" aria-label="Stegnavigasjon for mobil">
   <button type="button" class="btn btn-secondary btn-small top-step-btn" id="top-prev-step" aria-label="Forrige steg"><span class="top-step-btn-text">Tilbake</span><span class="top-step-btn-icon" aria-hidden="true">←</span></button>
-  <div class="top-step-label" id="top-step-label">1 / 8</div>
+  <div class="top-step-label" id="top-step-label">1 / 7</div>
   <button type="button" class="btn btn-primary btn-small top-step-btn" id="top-next-step" aria-label="Neste steg"><span class="top-step-btn-text">Videre</span><span class="top-step-btn-icon" aria-hidden="true">→</span></button>
 </div>
 {% endblock %}
@@ -78,13 +78,11 @@
   <div class="stepper glass-stepper">
     <button class="step-btn active" type="button" data-step-target="1">1. Roller / grunnlag</button>
     <button class="step-btn" type="button" data-step-target="2">2. Kontrollvalg</button>
-    <button class="step-btn" type="button" data-step-target="3">3. Posisjon/Kart</button>
-    <button class="step-btn" type="button" data-step-target="4">4. Kontrollpunkter</button>
-    <button class="step-btn" type="button" data-step-target="5">5. Person / fartøy</button>
-    <button class="step-btn" type="button" data-step-target="6">6. Illustrasjonsrapport</button>
-    <button class="step-btn" type="button" data-step-target="7">7. Avhør</button>
-    <button class="step-btn" type="button" data-step-target="8">8. Beslagsrapport</button>
-    <button class="step-btn" type="button" data-step-target="9">9. Oppsummering</button>
+    <button class="step-btn" type="button" data-step-target="3">3. Person / fartøy</button>
+    <button class="step-btn" type="button" data-step-target="4">4. Posisjon / Kart</button>
+    <button class="step-btn" type="button" data-step-target="5">5. Kontrollpunkter</button>
+    <button class="step-btn" type="button" data-step-target="6">6. Illustrasjonsrapport / bilder</button>
+    <button class="step-btn" type="button" data-step-target="7">7. Avhør / signatur / dokumentpakke</button>
   </div>
 
   <form id="case-form" method="post" action="{% if offline_new %}#{% else %}/cases/{{ case.id }}/save{% endif %}" class="stack gap-l">
@@ -174,10 +172,10 @@
       <div class="step-actions"><button type="button" class="btn btn-secondary" data-prev-step>Tilbake</button><button type="button" class="btn btn-primary" data-next-step>Videre</button></div>
     </section>
 
-    <section class="card card-panel step-pane" data-step="3">
+    <section class="card card-panel step-pane" data-step="4">
       <div class="card-header panel-header">
         <div>
-          <h2>3. Posisjon/Kart</h2>
+          <h2>4. Posisjon / Kart</h2>
         </div>
       </div>
       <div class="subcard">
@@ -251,10 +249,10 @@
       <div class="step-actions"><button type="button" class="btn btn-secondary" data-prev-step>Tilbake</button><button type="button" class="btn btn-primary" data-next-step>Videre</button></div>
     </section>
 
-    <section class="card card-panel step-pane" data-step="5">
+    <section class="card card-panel step-pane" data-step="3">
       <div class="card-header panel-header">
         <div>
-          <h2>5. Person / fartøy</h2>
+          <h2>3. Person / fartøy</h2>
           <div id="person-mode-hint" class="muted small hidden"></div>
         </div>
       </div>
@@ -338,10 +336,10 @@
       <div class="step-actions"><button type="button" class="btn btn-secondary" data-prev-step>Tilbake</button><button type="button" class="btn btn-primary" data-next-step>Videre</button></div>
     </section>
 
-    <section class="card card-panel step-pane" data-step="4">
+    <section class="card card-panel step-pane" data-step="5">
       <div class="card-header panel-header">
         <div>
-          <h2>4. Kontrollpunkter</h2>
+          <h2>5. Kontrollpunkter</h2>
           <div class="muted small">Kontrollpunktene filtreres automatisk av kontrolltype, art, redskap og dato.</div>
         </div>
       </div>
@@ -359,7 +357,7 @@
   <section class="card card-panel step-pane" data-step="6">
     <div class="card-header panel-header">
       <div>
-        <h2>6. Illustrasjonsrapport</h2>
+        <h2>6. Illustrasjonsrapport / bilder</h2>
       </div>
     </div>
     <div id="selected-finding-card" class="callout">Velg avvik for bilde.</div>
@@ -405,8 +403,13 @@
     <div class="step-actions"><button type="button" class="btn btn-secondary" data-prev-step>Tilbake</button><button type="button" class="btn btn-primary" data-next-step>Videre</button></div>
   </section>
 
-  <section class="card card-panel step-pane" data-step="7">
-    <div class="card-header panel-header"><h2>7. Avhør</h2></div>
+  <section class="card card-panel step-pane" data-step="7" id="document-package-step">
+    <div class="card-header panel-header">
+      <div>
+        <h2>7. Avhør / signatur / dokumentpakke</h2>
+        <div class="muted small">Avhør, beslag, signaturer, oppsummering og eksport samlet i siste steg.</div>
+      </div>
+    </div>
 
     <div class="callout margin-bottom-m" id="interview-not-conducted-panel">
       <label class="check-chip">
@@ -485,13 +488,12 @@
     <div class="actions-row wrap margin-top-s">
       <form method="post" action="/cases/{{ case.id }}/interview-pdf" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><button class="btn btn-secondary" type="submit">Eksporter kun avhørsrapport</button></form>
     </div>
-    <div class="step-actions"><button type="button" class="btn btn-secondary" data-prev-step>Tilbake</button><button type="button" class="btn btn-primary" data-next-step>Videre</button></div>
-  </section>
+    <div class="callout margin-top-m">Beslagsrapporten ligger under i samme steg.</div>
 
-<section class="card card-panel step-pane" data-step="8" id="seizure-report-step">
+    <div class="subcard margin-top-m" id="seizure-report-step">
     <div class="card-header panel-header">
       <div>
-        <h2>8. Beslagsrapport</h2>
+        <h3>Beslagsrapport</h3>
         <div class="muted small">Ved avvik på redskap, minstemål eller maksimalmål opprettes beslagsrader automatisk fra kontrollpunkter og bilder. Hver rad kan endres manuelt.</div>
       </div>
       <div class="actions-row wrap">
@@ -506,13 +508,13 @@
       <div class="signature-widget" data-signature-field="investigator_signature" data-signature-name-source="investigator_name"><div><strong>Etterforskers signatur</strong><div class="muted small signature-status">Ikke signert</div></div><button class="btn btn-secondary btn-small" type="button" data-signature-open>Signer</button></div>
       <div class="signature-widget" data-signature-field="witness_signature" data-signature-name-source="witness_name"><div><strong>Observatør/vitnes signatur</strong><div class="muted small signature-status">Ikke signert</div></div><button class="btn btn-secondary btn-small" type="button" data-signature-open>Signer</button></div>
     </div>
-    <div class="step-actions"><button type="button" class="btn btn-secondary" data-prev-step>Tilbake</button><button type="button" class="btn btn-primary" data-next-step>Videre</button></div>
-  </section>
+    <div class="callout margin-top-m">Oppsummering og eksport ligger under i samme steg.</div>
+    </div>
 
-<section class="card card-panel step-pane" data-step="9">
+    <div class="subcard margin-top-m" id="summary-step-section">
     <div class="card-header panel-header">
       <div>
-        <h2>9. Oppsummering</h2>
+        <h3>Oppsummering og eksport</h3>
         <div class="muted small">Dokumentpakken følger samme dokumentrekkefølge som malene du har lastet opp.</div>
       </div>
     </div>
@@ -543,7 +545,8 @@
       {% endif %}
     </div>
     <div class="callout margin-top-s" id="summary-preview">Punktvis utkast vises her når du trykker på knappen. Oppsummeringen bygger bare på registrerte avvik og lovbrudd i kontrollpunktene og viser forholdene per beslagnummer når dette finnes.</div>
-    <div class="step-actions"><button type="button" class="btn btn-secondary" data-prev-step>Tilbake</button></div>
+      <div class="step-actions"><button type="button" class="btn btn-secondary" data-prev-step>Tilbake</button></div>
+    </div>
   </section>
 
 
@@ -603,5 +606,5 @@
   }
 })();
 </script>
-<script src="/static/js/case-app.js?v=1.8.14"></script>
+<script src="/static/js/case-app.js?v=1.8.15"></script>
 {% endblock %}

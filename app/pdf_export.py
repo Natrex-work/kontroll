@@ -4072,8 +4072,24 @@ def build_text_drafts(case_row: Dict[str, Any], findings: list[Dict[str, Any]]) 
     }
 
 
+def _ensure_evidence_preview_urls_1_8_15(case_row: Dict[str, Any], rows: Iterable[Dict[str, Any]]) -> list[Dict[str, Any]]:
+    case_id = case_row.get('id')
+    result: list[Dict[str, Any]] = []
+    for item in rows or []:
+        if not isinstance(item, dict):
+            continue
+        clone = dict(item)
+        if not clone.get('preview_url') and case_id is not None and clone.get('id') is not None:
+            clone['preview_url'] = f"/cases/{case_id}/evidence/{clone.get('id')}/file"
+        result.append(clone)
+    return result
+
+
 def build_case_packet(case_row: Dict[str, Any], evidence_rows: Iterable[Dict[str, Any]]) -> Dict[str, Any]:  # type: ignore[override]
+    evidence_rows = list(evidence_rows)
     packet = _build_case_packet_before_1_7(case_row, evidence_rows)
+    packet['evidence'] = _ensure_evidence_preview_urls_1_8_15(case_row, packet.get('evidence') or [])
+    packet['audio_files'] = _ensure_evidence_preview_urls_1_8_15(case_row, packet.get('audio_files') or [])
     findings = [dict(item, display_notes=_finding_display_note(item)) for item in _safe_findings(case_row)]
     sources = _safe_sources(case_row)
     packet['summary'] = build_summary(case_row, findings)

@@ -1,17 +1,18 @@
-const CACHE = 'kv-kontroll-1-8-14-static';
-const MAP_TILE_CACHE = 'kv-kontroll-1-8-14-map-tiles';
+const CACHE = 'kv-kontroll-1-8-15-static';
+const MAP_TILE_CACHE = 'kv-kontroll-1-8-15-map-tiles';
 const STATIC_PREFIX = '/static/';
-const API_CACHE_PREFIXES = ['/api/map/catalog', '/api/map/bundle', '/api/map/offline-package', '/api/map/features', '/api/map/identify', '/api/rules'];
+const API_CACHE_PREFIXES = ['/api/map/catalog', '/api/map/bundle', '/api/map/offline-package', '/api/map/features', '/api/map/identify'];
+const NETWORK_ONLY_PREFIXES = ['/api/rules', '/api/zones/check'];
 const ASSETS = [
-  '/static/styles.css?v=1.8.14',
-  '/static/js/local-media.js?v=1.8.14',
-  '/static/js/local-cases.js?v=1.8.14',
-  '/static/js/local-map.js?v=1.8.14',
-  '/static/js/common.js?v=1.8.14',
-  '/static/js/case-app.js?v=1.8.14',
-  '/static/js/map-overview.js?v=1.8.14',
-  '/static/js/rules-overview.js?v=1.8.14',
-  '/static/js/admin-users.js?v=1.8.14',
+  '/static/styles.css?v=1.8.15',
+  '/static/js/local-media.js?v=1.8.15',
+  '/static/js/local-cases.js?v=1.8.15',
+  '/static/js/local-map.js?v=1.8.15',
+  '/static/js/common.js?v=1.8.15',
+  '/static/js/case-app.js?v=1.8.15',
+  '/static/js/map-overview.js?v=1.8.15',
+  '/static/js/rules-overview.js?v=1.8.15',
+  '/static/js/admin-users.js?v=1.8.15',
   '/static/icon-192.png',
   '/static/icon-512.png'
 ];
@@ -28,6 +29,10 @@ self.addEventListener('activate', event => {
 
 function shouldHandleApi(url) {
   return API_CACHE_PREFIXES.some(prefix => url.pathname.startsWith(prefix));
+}
+
+function shouldBypassCache(url) {
+  return NETWORK_ONLY_PREFIXES.some(prefix => url.pathname.startsWith(prefix));
 }
 
 function isHtmlNavigation(request, url) {
@@ -60,6 +65,11 @@ self.addEventListener('fetch', event => {
   }
 
   if (url.origin !== self.location.origin) return;
+
+  if (shouldBypassCache(url)) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
 
   if (url.pathname.startsWith(STATIC_PREFIX)) {
     event.respondWith(
