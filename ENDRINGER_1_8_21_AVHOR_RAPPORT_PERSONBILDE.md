@@ -1,4 +1,4 @@
-# Endringer 1.8.21 - avhør, rapporttekst og bildeanalyse
+# Endringer 1.8.23 - avhør, rapporttekst og bildeanalyse
 
 ## Avhør
 
@@ -27,5 +27,5 @@
 
 ## Cache / versjon
 
-- Versjon bumpet til 1.8.21.
-- Service worker-cache og JS/CSS-cache busting er oppdatert til 1.8.21.
+- Versjon bumpet til 1.8.23.
+- Service worker-cache og JS/CSS-cache busting er oppdatert til 1.8.23.

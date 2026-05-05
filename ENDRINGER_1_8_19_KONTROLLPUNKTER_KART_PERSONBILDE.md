@@ -1,4 +1,4 @@
-# Endringer 1.8.21 - kontrollpunkter, kart og person/fartoy bildeanalyse
+# Endringer 1.8.23 - kontrollpunkter, kart og person/fartoy bildeanalyse
 
 ## Kontrollpunkter / redskap-beslag
 
@@ -15,7 +15,7 @@
 - Reduserte blinking ved zoom ved aa unngaa unodvendig redraw av ArcGIS export-raster nar lagutvalget ikke er endret.
 - Beholder forrige detaljoverlay ved tomt eller feilet feature-svar, slik at kart ikke blir blankt ved tregt nett.
 - Detalj-/vektorhenting brukes bare ved konkrete omradetreff eller eksplisitt detaljforesporsel; rasterlaget holder visuell omradevisning stabilt.
-- Temalag-preferanser er bumpet til ny versjon slik at gamle skjulte lag fra 1.8.18 ikke skjuler nye lag i 1.8.21.
+- Temalag-preferanser er bumpet til ny versjon slik at gamle skjulte lag fra 1.8.18 ikke skjuler nye lag i 1.8.23.
 
 ## Person / fartoy bildeanalyse
 
@@ -25,6 +25,6 @@
 
 ## Cache / versjon
 
-- Appversjon bumpet til 1.8.21.
-- Service worker-cache bumpet til kv-kontroll-1-8-21-static og kv-kontroll-1-8-21-map-tiles.
-- JS/CSS lastes med ?v=1.8.21.
+- Appversjon bumpet til 1.8.23.
+- Service worker-cache bumpet til kv-kontroll-1-8-23-static og kv-kontroll-1-8-23-map-tiles.
+- JS/CSS lastes med ?v=1.8.23.

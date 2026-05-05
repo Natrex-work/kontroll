@@ -90,11 +90,18 @@ def _sanitize_polish_location(value: str) -> str:
     return text
 
 
+def _normalize_case_basis_for_text(case_basis: str) -> str:
+    return 'tips' if str(case_basis or '').strip().lower() == 'tips' else 'patruljeobservasjon'
+
+
 def _basis_opening_phrase(case_basis: str, source_name: str = '') -> str:
+    basis = _normalize_case_basis_for_text(case_basis)
     raw_source = str(source_name or '').strip()
-    if raw_source and case_basis not in {'tips', 'anmeldelse'}:
-        return f'Det ble gjennomført stedlig fiskerikontroll fra {raw_source}'
-    return 'Det ble gjennomført stedlig fiskerikontroll'
+    if basis == 'tips' and raw_source:
+        return f'På bakgrunn av tips eller opplysninger fra {raw_source} ble det gjennomført stedlig fiskerikontroll'
+    if basis == 'tips':
+        return 'På bakgrunn av tips eller opplysninger ble det gjennomført stedlig fiskerikontroll'
+    return 'Det ble gjennomført stedlig fiskerikontroll som ledd i patrulje'
 
 
 @router.post('/api/text/polish')
@@ -103,7 +110,7 @@ def api_text_polish(request: Request, payload: TextPolishRequest):
     enforce_csrf(request)
     mode = str(payload.mode or 'generic').strip()
     text_in = str(payload.text or '').strip()
-    case_basis = str(payload.case_basis or '').strip() or 'patruljeobservasjon'
+    case_basis = _normalize_case_basis_for_text(str(payload.case_basis or '').strip() or 'patruljeobservasjon')
     source_name = str(payload.source_name or '').strip()
     subject = str(payload.subject or '').strip()
     location = _sanitize_polish_location(str(payload.location or '').strip())
@@ -130,9 +137,15 @@ def api_text_polish(request: Request, payload: TextPolishRequest):
         'Kontrollen ble også sett i sammenheng med tidligere registrerte ' + 'opplysninger i saken',
         'Det ble fra ' + 'Kyst' + 'vakten lettbåt gjennomført',
         'Det ble fra ' + 'kyst' + 'vakten lettbåt gjennomført',
+        'invol' + 'verte personer/fartøy',
+        'invol' + 'verte personer eller fartøy',
     )
     for unwanted in unwanted_phrases:
         cleaned = re.sub(re.escape(unwanted), '', cleaned, flags=re.IGNORECASE).strip()
+    cleaned = re.sub(r'\s*,\s*og\s+relevante område-', ', med relevante område-', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'\s*,\s*og\s+øvrige kontrollpunkter', ' og øvrige kontrollpunkter', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'\bkontrollere\s*,', 'kontrollere', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'\s{2,}', ' ', cleaned).strip(' ,;')
     if cleaned and cleaned[0].islower():
         cleaned = cleaned[0].upper() + cleaned[1:]
     if mode == 'basis':
@@ -140,6 +153,8 @@ def api_text_polish(request: Request, payload: TextPolishRequest):
         sentence_starters = (
             opening.lower(),
             'det ble gjennomført stedlig fiskerikontroll',
+            'på bakgrunn av tips',
+            'på bakgrunn av opplysninger',
             'den ',
             'kontrollen ',
             'patrulje ',

@@ -34,8 +34,6 @@ CREW_ROLE_OPTIONS = catalog.CREW_ROLES
 CASE_BASIS_OPTIONS = [
     {'value': 'patruljeobservasjon', 'label': CASE_BASIS_LABELS['patruljeobservasjon']},
     {'value': 'tips', 'label': CASE_BASIS_LABELS['tips']},
-    {'value': 'anmeldelse', 'label': CASE_BASIS_LABELS['anmeldelse']},
-    {'value': 'annen_omstendighet', 'label': CASE_BASIS_LABELS['annen_omstendighet']},
 ]
 
 

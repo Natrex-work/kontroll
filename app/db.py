@@ -12,7 +12,7 @@ DB_PATH = settings.db_path
 
 USER_ROLES = ('admin', 'investigator')
 CASE_STATUSES = ('Utkast', 'Anmeldt', 'Anmeldt og sendt', 'Ingen reaksjon', 'Advarsel')
-CASE_BASIS = ('patruljeobservasjon', 'tips', 'anmeldelse', 'annen_omstendighet')
+CASE_BASIS = ('patruljeobservasjon', 'tips')
 INVESTIGATOR_PERMISSION_OPTIONS = ('kv_kontroll', 'kart', 'regelverk')
 ADMIN_PERMISSION_OPTIONS = ('user_admin', 'control_admin')
 USER_PERMISSION_OPTIONS = INVESTIGATOR_PERMISSION_OPTIONS + ADMIN_PERMISSION_OPTIONS
@@ -353,6 +353,7 @@ def init_db() -> None:
         conn.execute("UPDATE cases SET seizure_reports_json = '[]' WHERE seizure_reports_json IS NULL OR seizure_reports_json = ''")
         conn.execute("UPDATE cases SET interview_not_conducted = 0 WHERE interview_not_conducted IS NULL")
         conn.execute("UPDATE cases SET case_basis = 'patruljeobservasjon' WHERE case_basis IS NULL OR case_basis = ''")
+        conn.execute("UPDATE cases SET case_basis = 'patruljeobservasjon' WHERE case_basis NOT IN ('patruljeobservasjon', 'tips')")
         conn.execute("UPDATE cases SET status = 'Utkast' WHERE status IS NULL OR status = '' OR lower(status) = 'draft'")
         conn.execute("UPDATE cases SET status = 'Anmeldt' WHERE lower(status) = 'klar for anmeldelse'")
         conn.execute("UPDATE cases SET status = 'Anmeldt og sendt' WHERE lower(status) = 'ferdig eksportert'")

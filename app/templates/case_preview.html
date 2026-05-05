@@ -96,7 +96,7 @@
     {% if packet.legal_refs %}
       <div class="source-list">
         {% for item in packet.legal_refs %}
-        <div class="source-chip"><strong>Hjemmel</strong><span>{{ item }}</span></div>
+        <div class="source-chip"><strong>Hjemmel</strong><span>{% if item.name or item.ref %}{{ item.name }}{% if item.ref %} - {{ item.ref }}{% endif %}{% else %}{{ item }}{% endif %}{% if item.excerpt or item.law_text %}<br><small>Utdrag: {{ item.excerpt or item.law_text }}</small>{% endif %}</span></div>
         {% endfor %}
       </div>
     {% else %}

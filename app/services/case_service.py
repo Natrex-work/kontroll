@@ -52,9 +52,11 @@ def clean_int(value: str | None) -> int | None:
 
 
 def clean_case_basis(value: str | None) -> str:
-    raw = (value or '').strip()
-    if raw in CASE_BASIS_LABELS:
-        return raw
+    raw = (value or '').strip().lower()
+    # 1.8.23: Grunnlag for kontroll skal bare være Patrulje eller Tips.
+    # Legacyverdier som 'anmeldelse' og 'annen_omstendighet' normaliseres til patrulje.
+    if raw == 'tips':
+        return 'tips'
     return 'patruljeobservasjon'
 
 

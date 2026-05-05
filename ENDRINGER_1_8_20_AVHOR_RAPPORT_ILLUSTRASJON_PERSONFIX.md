@@ -1,4 +1,4 @@
-# Endringer 1.8.21 - avhør, rapport, illustrasjon og personbilde
+# Endringer 1.8.23 - avhør, rapport, illustrasjon og personbilde
 
 ## Person / fartøy
 
@@ -26,5 +26,5 @@
 
 ## Cache
 
-- Appversjon og cache er bumpet til 1.8.21.
-- JS/CSS lastes med `?v=1.8.21`.
+- Appversjon og cache er bumpet til 1.8.23.
+- JS/CSS lastes med `?v=1.8.23`.

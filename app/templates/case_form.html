@@ -114,7 +114,7 @@
       <div class="grid-two">
         <label><span>Etterforsker</span><input name="investigator_name" id="investigator_name" value="{{ case.investigator_name }}" readonly /></label>
         <label><span>Anmelder</span><input name="complainant_name" id="complainant_name" value="{{ case.complainant_name or '' }}" /></label>
-        <label><span>Hovedvitne</span><input name="witness_name" id="witness_name" value="{{ case.witness_name or '' }}" /></label>
+        <label><span>Observatør / vitne</span><input name="witness_name" id="witness_name" value="{{ case.witness_name or '' }}" /></label>
         <label><span>Grunnlag for kontroll</span><select name="case_basis" id="case_basis">{% for option in case_basis_options %}<option value="{{ option.value }}" {% if case.case_basis == option.value %}selected{% endif %}>{{ option.label }}</option>{% endfor %}</select></label>
         <label class="span-2"><span>Patruljeformål / begrunnelse</span><textarea name="basis_details" id="basis_details" rows="5">{{ case.basis_details or '' }}</textarea></label>
       </div>
@@ -269,8 +269,8 @@
       <div class="subcard margin-top-m" id="persons-section">
         <div class="subcard-head">
           <div>
-            <h3>Flere involverte personer</h3>
-            <div class="muted small">Legg til flere mistenkte, vitner, eier, fører eller andre relevante personer. Disse kan brukes videre i avhør.</div>
+            <h3>Flere personer i saken</h3>
+            <div class="muted small">Legg til mistenkt/siktet, eier, fører/skipper, eksternt vitne eller annen relevant person. Disse kan brukes videre i avhør.</div>
           </div>
           <div class="actions-row wrap">
             <button class="btn btn-secondary btn-small" type="button" id="btn-add-suspect">Legg til mistenkt</button>
@@ -555,7 +555,7 @@
     </div>
     <div class="grid-two">
       <label class="span-2"><span>Utfyllende kontrollnotater</span><textarea form="case-form" name="notes" id="notes" rows="8">{{ case.notes or '' }}</textarea></label>
-      <label class="span-2"><span>Anmeldelsestekst og oppsummering</span><textarea form="case-form" name="summary" id="summary" rows="7">{{ case.summary or '' }}</textarea></label>
+      <label class="span-2"><span>Rapportutkast / oppsummering</span><textarea form="case-form" name="summary" id="summary" rows="7">{{ case.summary or '' }}</textarea></label>
     </div>
     <div class="signature-grid margin-top-s">
       <div class="signature-widget" data-signature-field="complainant_signature" data-signature-name-source="complainant_name"><div><strong>Anmelders signatur</strong><div class="muted small signature-status">Ikke signert</div></div><button class="btn btn-secondary btn-small" type="button" data-signature-open>Signer</button></div>
@@ -641,5 +641,5 @@
   }
 })();
 </script>
-<script src="/static/js/case-app.js?v=1.8.21"></script>
+<script src="/static/js/case-app.js?v=1.8.23"></script>
 {% endblock %}
