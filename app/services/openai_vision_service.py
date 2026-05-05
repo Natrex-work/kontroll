@@ -10,6 +10,11 @@ from typing import Any
 import httpx
 from PIL import Image, ImageOps, ImageEnhance, ImageFilter
 
+try:
+    from .ocr_service import extract_text_from_image as _local_extract_text_from_image
+except Exception:  # pragma: no cover - optional fallback
+    _local_extract_text_from_image = None
+
 try:  # pragma: no cover - optional HEIC/HEIF support at runtime
     from pillow_heif import register_heif_opener
 except Exception:  # pragma: no cover
@@ -252,6 +257,118 @@ def _first_configured_api_key() -> tuple[str, str]:
     return '', ''
 
 
+
+
+def _split_post_place_text(value: Any) -> tuple[str, str]:
+    text = _clean_string(value, max_len=120)
+    if not text:
+        return '', ''
+    match = re.search(r'\b(\d{4})\s+([A-ZÆØÅa-zæøå][A-Za-zÆØÅæøå\- ]{1,60})', text)
+    if match:
+        return match.group(1), _clean_string(match.group(2), max_len=80)
+    return _normalize_postnummer(text), ''
+
+
+def _merge_unique(parts: list[str], *, max_len: int = 220) -> str:
+    seen: set[str] = set()
+    out: list[str] = []
+    for part in parts:
+        text = _clean_string(part, max_len=max_len)
+        key = text.lower()
+        if text and key not in seen:
+            seen.add(key)
+            out.append(text)
+    return '; '.join(out)[:max_len]
+
+
+def _local_ocr_person_marking_fallback(images: list[dict[str, Any]], *, reason: str = '') -> dict[str, Any]:
+    """Best-effort fallback when OpenAI vision is not configured.
+
+    The fallback uses the app's existing local OCR/hint extraction. It is less
+    accurate than OpenAI vision on handwriting and dirty/bent markers, so every
+    returned result is marked for manual review through the usikkerhet field.
+    """
+    if not images:
+        raise ValueError('Legg ved minst ett bilde.')
+    if _local_extract_text_from_image is None:
+        return _sanitize_result({
+            'navn': '',
+            'adresse': '',
+            'postnummer': '',
+            'poststed': '',
+            'mobil': '',
+            'deltakernummer': '',
+            'annen_merking': '',
+            'usikkerhet': [
+                reason or 'OpenAI API-nøkkel er ikke satt på serveren.',
+                'Lokal OCR-reserve er ikke tilgjengelig i dette servermiljøet. Kontroller bildet manuelt og fyll ut feltene selv.',
+            ],
+        })
+    max_images = _env_int('KV_OPENAI_VISION_MAX_IMAGES', 4, minimum=1, maximum=8)
+    result: dict[str, Any] = {
+        'navn': '',
+        'adresse': '',
+        'postnummer': '',
+        'poststed': '',
+        'mobil': '',
+        'deltakernummer': '',
+        'annen_merking': '',
+        'usikkerhet': [],
+    }
+    other_markings: list[str] = []
+    uncertainties: list[str] = []
+    if reason:
+        uncertainties.append(reason)
+    for idx, image in enumerate(images[:max_images], start=1):
+        filename = str(image.get('filename') or f'bilde-{idx}.jpg')
+        content = bytes(image.get('content') or b'')
+        try:
+            parsed = _local_extract_text_from_image(content, filename=filename, timeout_seconds=45)
+        except Exception as exc:
+            uncertainties.append(f'Bilde {idx}: lokal OCR kunne ikke lese bildet ({exc}).')
+            continue
+        hints = dict((parsed or {}).get('hints') or {})
+        if not result['navn'] and hints.get('name'):
+            result['navn'] = hints.get('name')
+        if not result['adresse'] and hints.get('address'):
+            result['adresse'] = hints.get('address')
+        if hints.get('post_place') and (not result['postnummer'] or not result['poststed']):
+            post_no, post_place = _split_post_place_text(hints.get('post_place'))
+            if post_no and not result['postnummer']:
+                result['postnummer'] = post_no
+            if post_place and not result['poststed']:
+                result['poststed'] = post_place
+        if not result['mobil'] and hints.get('phone'):
+            result['mobil'] = hints.get('phone')
+        if not result['deltakernummer'] and hints.get('hummer_participant_no'):
+            result['deltakernummer'] = hints.get('hummer_participant_no')
+        if hints.get('gear_marker_id'):
+            other_markings.append('Merke-ID: ' + str(hints.get('gear_marker_id')).strip())
+        if hints.get('vessel_reg'):
+            other_markings.append('Fiskerimerke: ' + str(hints.get('vessel_reg')).strip())
+        if hints.get('radio_call_sign'):
+            other_markings.append('Kallesignal: ' + str(hints.get('radio_call_sign')).strip())
+        if hints.get('vessel_name'):
+            other_markings.append('Fartøysnavn: ' + str(hints.get('vessel_name')).strip())
+        raw_text = _clean_string((parsed or {}).get('text') or (parsed or {}).get('raw_text'), max_len=220)
+        if raw_text and not hints:
+            other_markings.append(raw_text)
+        uncertain = (parsed or {}).get('uncertain_fields') or []
+        if isinstance(uncertain, list):
+            for field in uncertain:
+                name = _clean_string(field, max_len=80)
+                if name:
+                    uncertainties.append(f'Bilde {idx}: usikkert felt {name}.')
+        if (parsed or {}).get('needs_manual_review'):
+            uncertainties.append(f'Bilde {idx}: kontroller OCR-resultatet manuelt.')
+    result['annen_merking'] = _merge_unique(other_markings)
+    if not any(_clean_string(result.get(field)) for field in PERSON_MARKING_FIELDS if field != 'usikkerhet'):
+        uncertainties.append('Ingen sikre tekstfelt ble lest fra bildet. Ta et tydelig nærbilde i bedre lys eller fyll ut manuelt.')
+    elif not reason:
+        uncertainties.append('Lokal OCR er brukt. Kontroller feltene manuelt før lagring.')
+    result['usikkerhet'] = _merge_unique(uncertainties, max_len=1000).split('; ') if uncertainties else []
+    return _sanitize_result(result)
+
 def analyze_person_marking_images(images: list[dict[str, Any]]) -> dict[str, Any]:
     """Analyze one or more gear/marker photos with OpenAI vision.
 
@@ -260,7 +377,10 @@ def analyze_person_marking_images(images: list[dict[str, Any]]) -> dict[str, Any
     """
     api_key, api_key_source = _first_configured_api_key()
     if not api_key:
-        raise VisionConfigError('Bildeanalyse er ikke aktivert på serveren. Legg inn OPENAI_API_KEY eller KV_OPENAI_API_KEY i Render → Environment, og deploy på nytt.')
+        return _local_ocr_person_marking_fallback(
+            images,
+            reason='OpenAI API-nøkkel er ikke satt på serveren. Lokal OCR er brukt som reserve; kontroller alle felt manuelt.'
+        )
     if not images:
         raise ValueError('Legg ved minst ett bilde.')
     max_images = _env_int('KV_OPENAI_VISION_MAX_IMAGES', 4, minimum=1, maximum=8)

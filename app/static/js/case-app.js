@@ -1750,7 +1750,7 @@
       var fisherySel = currentFisherySelection();
       var controlSel = currentControlSelection();
       var gearSel = currentGearSelection();
-      // 1.8.19: Yggdrasil/Fiskerireguleringer MapServer IDs, tilpasset
+      // 1.8.21: Yggdrasil/Fiskerireguleringer MapServer IDs, tilpasset
       // kontrolltype + art + redskap slik at ny kontroll viser de samme
       // verne-/reguleringsområdene som Fritidsfiske-kartet, men uten tapt redskap.
       var fritidGenerell = [0, 7, 11, 13, 31, 37, 38];
@@ -1820,7 +1820,7 @@
       if (/(breivikfjorden|borgundfjorden|henningsvaer|lofotfiske)/.test(restrictionText) && !/(torsk|skrei|kommersiell|yrkes)/.test([currentFisherySelection(), currentControlSelection(), restrictionText].join(' '))) return false;
       var status = String(layer.status || '').trim().toLowerCase();
       if (Object.prototype.hasOwnProperty.call(activeLayerStatuses, status) && !activeLayerStatuses[status]) return false;
-      // 1.8.19: Temakartet kan vise bredt uten valg, men under kontroll
+      // 1.8.21: Temakartet kan vise bredt uten valg, men under kontroll
       // skal kartet bare vise lovregulerte lag som passer valgt kontrolltype,
       // art/fiskeri og redskap.
       if (!hasMapSelection()) return true;
@@ -2656,7 +2656,7 @@
       storedPositionMode = '';
     }
     if (storedPositionMode !== 'manual' && storedPositionMode !== 'auto') storedPositionMode = '';
-    var zoneOverlayStorageKey = 'kv-case-zone-overlay-1.8.19:' + root.dataset.caseId;
+    var zoneOverlayStorageKey = 'kv-case-zone-overlay-1.8.21:' + root.dataset.caseId;
     var zoneOverlayEnabled = true;
     // Treffende verne-/reguleringsområder skal alltid tegnes i kartet.
     // Tidligere lagret 'skjul'-valg fra eldre PWA-versjoner ignoreres.
@@ -2893,7 +2893,7 @@
     var topPrevStep = document.getElementById('top-prev-step');
     var topNextStep = document.getElementById('top-next-step');
     var topStepLabel = document.getElementById('top-step-label');
-    var stepStorageKey = 'kv-case-step-1.8.19:' + root.dataset.caseId;
+    var stepStorageKey = 'kv-case-step-1.8.21:' + root.dataset.caseId;
     var PERSON_STEP = 3;
     var MAP_STEP = 4;
     var FINDINGS_STEP = 5;
@@ -4095,7 +4095,8 @@
         start: startTime.value || '',
         end: endTime.value || '',
         transcript: '',
-        summary: ''
+        summary: '',
+        conducted: false
       };
     }
 
@@ -4501,7 +4502,7 @@
         title: 'Kontrollpunkter' + (speciesVal || gearVal ? ' for ' + [controlVal, speciesVal, gearVal].filter(Boolean).join(' / ') : ''),
         description: reason || 'Lokal kontrollpunktliste brukes slik at punktene vises også ved tregt eller tomt regeloppslag.',
         items: items,
-        sources: [{ name: 'Lokal kontrollpunktliste', ref: '1.8.19 fallback', url: '' }]
+        sources: [{ name: 'Lokal kontrollpunktliste', ref: '1.8.21 fallback', url: '' }]
       };
     }
 
@@ -4916,7 +4917,9 @@
         if (!lookupIdentifier || !lookupIdentifier.value) changed = setValue(lookupIdentifier, marker) || changed;
       }
       updateExternalSearchLinks();
-      renderAutofillPreview({ source: 'OpenAI bildeanalyse', detail: (result.usikkerhet && result.usikkerhet.length) ? 'Kontroller markerte felt' : 'Skjemaet er fylt fra bilde' });
+      var uncertaintyText = Array.isArray(result.usikkerhet) ? result.usikkerhet.join(' ').toLowerCase() : '';
+      var analysisSource = uncertaintyText.indexOf('lokal ocr') !== -1 || uncertaintyText.indexOf('api-nøkkel') !== -1 ? 'Bildeanalyse / lokal OCR-reserve' : 'OpenAI bildeanalyse';
+      renderAutofillPreview({ source: analysisSource, detail: (result.usikkerhet && result.usikkerhet.length) ? 'Kontroller markerte felt' : 'Skjemaet er fylt fra bilde' });
       if (changed) {
         loadGearSummary();
         scheduleAutosave('Person/Fartøy-felter fylt fra bildeanalyse');
@@ -5506,8 +5509,9 @@
         seizure_ref: row.seizure_ref || ''
       }, {
         sourceKind: 'inline-evidence',
-        statusMessage: 'Bildebevis lokalt. Synk venter.',
-        autosaveMessage: 'Bildebevis lagret lokalt'
+        statusMessage: 'Bildebevis lagres og synkes til rapport ...',
+        autosaveMessage: 'Bildebevis lagret lokalt',
+        autoSync: true
       }).then(function (entry) {
         if (!entry) return;
         evidenceCaption.value = entry.caption || evidenceCaption.value;
@@ -5535,8 +5539,9 @@
         seizure_ref: ''
       }, {
         sourceKind: 'person-vessel-image',
-        statusMessage: 'Bilde lagret lokalt. Synk venter.',
-        autosaveMessage: 'Bilde til illustrasjonsrapport lagret lokalt'
+        statusMessage: 'Bilde lagres og synkes til illustrasjonsrapport ...',
+        autosaveMessage: 'Bilde til illustrasjonsrapport lagret lokalt',
+        autoSync: true
       }).then(function (entry) {
         if (registryResult) registryResult.innerHTML = '<strong>Bilde lagret</strong><div class="small muted">Bildet er lagt ved saken og tas med i illustrasjonsrapporten.</div>';
         if (entry) scheduleAutosave('Bilde til illustrasjonsrapport lagret');
@@ -5694,7 +5699,7 @@
       var allLayerIds = displayLayers.map(function (layer) { return Number(layer && layer.id); }).filter(function (value) { return isFinite(value); });
       var fisheryPortalService = root.dataset.portalMapserver || (caseMap && caseMap.dataset ? (caseMap.dataset.portalMapserver || '') : '') || 'https://gis.fiskeridir.no/server/rest/services/Yggdrasil/Fiskerireguleringer/MapServer';
       var vernPortalService = root.dataset.portalVernMapserver || (caseMap && caseMap.dataset ? (caseMap.dataset.portalVernMapserver || '') : '') || 'https://portal.fiskeridir.no/server/rest/services/Fiskeridir_vern/MapServer';
-      // 1.8.19: rasterlaget skal holde områdene visuelt stabile på alle zoomnivå.
+      // 1.8.21: rasterlaget skal holde områdene visuelt stabile på alle zoomnivå.
       // Detalj-/vektorhenting brukes bare ved konkrete områdetreff eller når brukeren
       // eksplisitt ber om detaljer, slik at kartet ikke blinker/forsvinner ved innzoom.
       mapState.fetchFeatureDetails = options.fetchFeatureDetails === true || mapState.requestFeatureDetails === true || zoneLayerIds.length > 0;
@@ -5706,7 +5711,7 @@
       mapState.showLegend = false;
       mapState.showLayerPanel = !!mapLayerPanelHost;
       mapState.layerPanelDefaultOpen = false;
-      mapState.layerPanelKey = 'case-map-1-8-19';
+      mapState.layerPanelKey = 'case-map-1-8-21';
       mapState.layerPanelTargetSelector = mapLayerPanelHost ? '#case-map-layer-panel-host' : '';
       mapState.rasterLayerIds = allLayerIds;
       mapState.identifyLayerIds = allLayerIds;
@@ -5827,8 +5832,8 @@
       return rows;
     }
 
-    var zoneResultStoragePrefix = 'kv-zone-result-1.8.19:';
-    var nearestPlaceStoragePrefix = 'kv-nearest-place-1.8.19:';
+    var zoneResultStoragePrefix = 'kv-zone-result-1.8.21:';
+    var nearestPlaceStoragePrefix = 'kv-nearest-place-1.8.21:';
     var nearestPlaceController = null;
     var nearestPlaceSequence = 0;
     var nearestPlaceTimer = null;
@@ -6128,7 +6133,7 @@
       scheduleAutosave('Manuell posisjon aktivert');
     }
 
-    var devicePositionStorageKey = 'kv-device-position-1.8.19';
+    var devicePositionStorageKey = 'kv-device-position-1.8.21';
     function readCachedDevicePosition() {
       if (!window.localStorage) return null;
       try {
@@ -6895,7 +6900,7 @@ function renderHummerStatus(result) {
 
       var basis = String(payload && payload.basis_details || '').trim();
       if (!basis) {
-        basis = 'Den ' + when + ' ble det gjennomført stedlig fiskerikontroll ved ' + place + '. Kontrollen gjaldt ' + topic.toLowerCase() + '. Formålet var å kontrollere faktiske forhold på stedet og sikre notoritet rundt observasjoner, bevis og eventuelle beslag.';
+        basis = 'Den ' + when + ' ble det gjennomført stedlig fiskerikontroll ved ' + place + '. Kontrollen gjaldt ' + topic.toLowerCase() + '. Formålet var å kontrollere faktiske forhold på stedet og dokumentere observasjoner, bevis og eventuelle beslag.';
       } else {
         basis = sentenceize(basis);
       }
@@ -6929,7 +6934,7 @@ function renderHummerStatus(result) {
       var summaryText = lines.join('\n').trim();
       return {
         basis_details: basis,
-        notes: avvik.length ? 'Egenrapport bør beskrive egne observasjoner, hvem som observerte hva, og hvilke beslag/bilder som dokumenterer funnene.' : 'Ingen avvik er registrert i kontrollpunktene ennå.',
+        notes: '',
         summary: summaryText,
         complaint_preview: summaryText,
         source_label: 'rask straffesaksmal'
@@ -7029,7 +7034,7 @@ function renderHummerStatus(result) {
       if (basis === 'tips') {
         basisNote = ' Patruljen ble rettet mot observerbare forhold på stedet. Teksten beskriver kontrollens formål, faktiske observasjoner, bevis og gjennomførte kontrollhandlinger.';
       } else if (basis === 'anmeldelse') {
-        basisNote = ' Patruljen ble gjennomført som oppfølging av registrerte opplysninger, med formål å klarlegge faktum og sikre notoritet rundt observasjoner og bevis.';
+        basisNote = ' Patruljen ble gjennomført som oppfølging av registrerte opplysninger, med formål å klarlegge faktum og dokumentere observasjoner og bevis.';
       }
       var texts = {
         'patrol-general': opening + ' Patruljen var rettet mot ' + theme.toLowerCase() + '. ' + purposeBase + controlArea + basisNote,
@@ -7871,8 +7876,9 @@ function renderHummerStatus(result) {
           seizure_ref: evidenceSeizureRef ? (evidenceSeizureRef.value || '') : ''
         }, {
           sourceKind: 'illustration',
-          statusMessage: 'Illustrasjon lokalt. Synk venter.',
-          autosaveMessage: 'Illustrasjonsbilde lagret lokalt'
+          statusMessage: 'Illustrasjon lagres og synkes til rapport ...',
+          autosaveMessage: 'Illustrasjonsbilde lagret lokalt',
+          autoSync: true
         }).then(function (entry) {
           if (!entry) return;
           evidenceFileInput.value = '';
@@ -7906,10 +7912,33 @@ function renderHummerStatus(result) {
       serializeInterviews();
     }
 
+    function isInterviewEntryConducted(entry) {
+      if (!entry) return false;
+      var value = entry.conducted;
+      if (value === undefined) value = entry.completed;
+      if (value === undefined) value = entry.report_included;
+      if (value === undefined) value = entry.include_in_report;
+      if (value === undefined) value = entry.gjennomfort;
+      if (value === undefined) value = entry['gjennomført'];
+      if (typeof value === 'boolean') return value;
+      if (typeof value === 'number') return value === 1;
+      var text = String(value || '').trim().toLowerCase();
+      return ['1', 'true', 'yes', 'ja', 'on', 'gjennomført', 'gjennomfort'].indexOf(text) !== -1;
+    }
+
+    function hasInterviewEntryText(entry) {
+      return !!String((entry && (entry.summary || entry.transcript || entry.notes || entry.notater || entry.text || entry.tekst)) || '').trim();
+    }
+
+    function conductedInterviewEntries() {
+      return (interviewState || []).filter(function (entry) { return isInterviewEntryConducted(entry) && hasInterviewEntryText(entry); });
+    }
+
     function buildInterviewCombinedText() {
       if (interviewNotConducted && interviewNotConducted.checked) return '';
-      if (!interviewState.length) return hearingText.value || '';
-      return interviewState.map(function (entry, idx) {
+      var reportEntries = conductedInterviewEntries();
+      if (!reportEntries.length) return '';
+      return reportEntries.map(function (entry, idx) {
         var header = 'Avhør ' + (idx + 1) + ': ' + (entry.name || 'Ukjent');
         var lines = [header, 'Rolle: ' + (entry.role || 'Avhørt')];
         if (entry.method || entry.place) lines.push('Sted/metode: ' + [entry.method || '', entry.place || ''].filter(Boolean).join(' - '));
@@ -7930,9 +7959,11 @@ function renderHummerStatus(result) {
         return;
       }
       wrap.innerHTML = interviewState.map(function (entry, idx) {
+        var conducted = isInterviewEntryConducted(entry);
         return [
           '<article class="interview-card" data-index="' + idx + '">',
           '<div class="grid-two compact-grid-form">',
+          '<label class="span-2 check-chip"><input type="checkbox" class="interview-conducted" ' + (conducted ? 'checked' : '') + ' /> Avhør gjennomført - ta med i avhørsrapport</label>',
           '<label><span>Navn</span><input class="interview-name" value="' + escapeHtml(entry.name || '') + '" /></label>',
           '<label><span>Rolle</span><select class="interview-role">' + ['Mistenkt', 'Vitne', 'Annen forklaring'].map(function (role) { return '<option value="' + role + '" ' + (role === (entry.role || 'Mistenkt') ? 'selected' : '') + '>' + role + '</option>'; }).join('') + '</select></label>',
           '<label><span>Avhørsmåte</span><input class="interview-method" value="' + escapeHtml(entry.method || 'Telefon / på stedet') + '" /></label>',
@@ -7946,6 +7977,7 @@ function renderHummerStatus(result) {
           '<button type="button" class="btn btn-secondary btn-small interview-summarize">Lag sammendrag</button>',
           '<button type="button" class="btn btn-secondary btn-small interview-polish">Rettskriv</button>',
           '<button type="button" class="btn btn-danger btn-small interview-remove">Fjern</button>',
+          '<span class="small muted">Avhøret eksporteres bare når det er merket gjennomført.</span>',
           '</div>',
           '</article>'
         ].join('');
@@ -7958,6 +7990,7 @@ function renderHummerStatus(result) {
       document.querySelectorAll('#interview-list .interview-card').forEach(function (card) {
         var idx = Number(card.dataset.index);
         interviewState[idx] = interviewState[idx] || {};
+        interviewState[idx].conducted = !!(card.querySelector('.interview-conducted') && card.querySelector('.interview-conducted').checked);
         interviewState[idx].name = card.querySelector('.interview-name').value;
         interviewState[idx].role = card.querySelector('.interview-role').value;
         interviewState[idx].method = card.querySelector('.interview-method').value;
@@ -8112,6 +8145,7 @@ function renderHummerStatus(result) {
     var syncInterviewsBtn = document.getElementById('btn-sync-interviews');
     if (syncInterviewsBtn) syncInterviewsBtn.addEventListener('click', syncInterviewsFromDom);
     document.getElementById('interview-list').addEventListener('input', function () { syncInterviewsFromDom(); });
+    document.getElementById('interview-list').addEventListener('change', function () { syncInterviewsFromDom(); });
     document.getElementById('interview-list').addEventListener('click', function (event) {
       var card = event.target.closest('.interview-card');
       if (!card) return;

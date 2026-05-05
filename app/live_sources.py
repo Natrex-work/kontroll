@@ -40,7 +40,7 @@ YGG_BASE = os.getenv('KV_YGG_BASE', os.getenv('KV_PORTAL_MAPSERVER', 'https://gi
 LOVDATA_TOPICS_PATH = DATA_DIR / 'lovdata_topics.json'
 FDIR_CACHE_JSON = CACHE_DIR / 'fdir_registry_cache.json'
 FDIR_CACHE_META = CACHE_DIR / 'fdir_registry_meta.json'
-UA = 'Minfiskerikontroll-1.8.19/1.8.19 (+field trial app)'
+UA = 'Minfiskerikontroll-1.8.21/1.8.21 (+field trial app)'
 HUMMER_REGISTER_URL = 'https://tableau.fiskeridir.no/t/Internet/views/Pmeldehummarfiskarargjeldander/Pmeldehummarfiskarar?:showVizHome=no'
 HUMMER_REGISTER_FALLBACK_URL = 'https://www.fiskeridir.no/statistikk-tall-og-analyse/data-og-statistikk-om-turist--og-fritidsfiske/registrerte-hummarfiskarar'
 HUMMER_CACHE_JSON = CACHE_DIR / 'hummer_registry_cache.json'

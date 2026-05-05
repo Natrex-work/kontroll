@@ -137,7 +137,7 @@
 {% if packet.interview_not_conducted %}
 <section id="avhor" class="card preview-section">
   <div class="card-header"><h2>Avhør / forklaring</h2></div>
-  <div class="callout">Avhør er markert som ikke gjennomført. Avhørsrapport fylles ikke ut i dokumentpakken. Registrert årsak: {{ packet.interview_not_conducted_reason }}</div>
+  <div class="callout">Ingen avhør er merket gjennomført for rapport. Avhørsrapport fylles derfor ikke ut i dokumentpakken{% if packet.interview_not_conducted_reason %}. Registrert årsak: {{ packet.interview_not_conducted_reason }}{% endif %}.</div>
 </section>
 {% else %}
 <section id="avhor" class="card preview-section">

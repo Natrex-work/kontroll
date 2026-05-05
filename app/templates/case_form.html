@@ -433,7 +433,7 @@
     <div class="card-header panel-header">
       <div>
         <h2>7. Avhør</h2>
-        <div class="muted small">Avhør, lydopptak, avhørsutkast og interne forslag til avhørspunkter. Forslagene tas ikke inn i anmeldelsen.</div>
+        <div class="muted small">Avhør, lydopptak, avhørsutkast og interne forslag til avhørspunkter. Bare avhør som er merket gjennomført tas inn i dokumentpakken.</div>
       </div>
     </div>
 
@@ -443,7 +443,7 @@
         Avhør ikke gjennomført
       </label>
       <label class="margin-top-s block" id="interview-not-conducted-reason-wrap"><span>Årsak / standardtekst</span><textarea form="case-form" name="interview_not_conducted_reason" id="interview_not_conducted_reason" rows="2">{{ case.interview_not_conducted_reason or 'Ikke fått kontakt med vedkommende.' }}</textarea></label>
-      <div class="small muted margin-top-s">Når dette er krysset av, fylles ikke avhørsrapporten ut i dokumentpakken. Årsaken tas inn som merknad i egenrapport/oppsummering.</div>
+      <div class="small muted margin-top-s">Når dette er krysset av, eller når ingen avhør er merket gjennomført, fylles ikke avhørsrapporten ut i dokumentpakken.</div>
     </div>
     <div class="split-panel">
       <div class="subcard">
@@ -503,7 +503,7 @@
       <div class="actions-row wrap margin-top-s"><button type="button" class="btn btn-secondary btn-small" id="btn-open-guidance-page">Åpne som hel side</button><span class="muted small">Interne forslag eksporteres ikke i anmeldelsen eller dokumentpakken.</span></div>
     </div>
     <div class="grid-two margin-top-m">
-      <label class="span-2"><span>Samlet avhørsutkast</span><textarea form="case-form" name="hearing_text" id="hearing_text" rows="12">{{ case.hearing_text or '' }}</textarea></label>
+      <label class="span-2"><span>Samlet avhørsutkast (kun gjennomførte avhør)</span><textarea form="case-form" name="hearing_text" id="hearing_text" rows="12">{{ case.hearing_text or '' }}</textarea></label>
       <label class="span-2"><span>Beslag / bevismerknader</span><textarea form="case-form" name="seizure_notes" id="seizure_notes" rows="5">{{ case.seizure_notes or '' }}</textarea></label>
     </div>
     <div class="signature-grid margin-top-s">
@@ -641,5 +641,5 @@
   }
 })();
 </script>
-<script src="/static/js/case-app.js?v=1.8.19"></script>
+<script src="/static/js/case-app.js?v=1.8.21"></script>
 {% endblock %}
