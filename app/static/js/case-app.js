@@ -664,16 +664,9 @@
     if (!rows.length) return '';
     return rows.map(function (row, idx) {
       var ref = row.seizure_ref || ('Beslag ' + (idx + 1));
-      var gearKind = row.gear_kind ? (' / type ' + row.gear_kind) : '';
-      var legacyRef = row.gear_ref ? (' / tidligere ID ' + row.gear_ref) : '';
-      var qty = row.quantity ? (' / antall ' + row.quantity) : '';
-      var position = row.position ? (' / posisjon ' + row.position) : '';
-      var violation = row.violation || 'ikke spesifisert avvik';
-      var note = row.note ? (' / ' + row.note) : '';
-      var links = deviationLinksSummary(row);
-      var linkText = links ? (' / ' + links) : '';
-      var groupText = 'Lenke ' + (Number(row.link_group_index || 0) + 1) + ' / ';
-      return groupText + ref + gearKind + legacyRef + qty + position + ': ' + violation + note + linkText;
+      var kind = row.gear_kind || defaultDeviationGearKind();
+      var violation = row.violation || suggestedDeviationText(item);
+      return [ref, kind, violation].filter(Boolean).join(' · ');
     }).join('; ');
   }
 
@@ -778,12 +771,11 @@
     var quantity = String(row.quantity || '1').trim();
     var violation = String(row.violation || suggestedDeviationText(item)).trim();
     var position = String(row.position || currentCoordText()).trim();
-    if (ref) parts.push('Beslagsnummer: ' + ref + '.');
-    parts.push('Gjenstand: ' + quantity + ' ' + kind.toLowerCase() + '.');
-    if (violation) parts.push('Grunnlag for beslag/avvik: ' + violation + '.');
-    if (position) parts.push('Posisjon: ' + position + '.');
-    parts.push('Bildebevis kan tas med kamera eller lastes opp og legges i illustrasjonsrapporten.');
-    return parts.join(' ');
+    if (ref) parts.push('Beslag ' + ref);
+    parts.push(quantity + ' ' + kind.toLowerCase());
+    if (violation) parts.push(violation);
+    if (position) parts.push('posisjon ' + position);
+    return parts.filter(Boolean).join(' · ');
   }
 
   function defaultDeviationGearKind() {
@@ -1098,41 +1090,19 @@
   }
 
   function deviationTargetSummary(item, row) {
-    if (!item || !row) return 'Ingen rad valgt ennå.';
-    var parts = [row.seizure_ref || 'uten beslag', row.gear_kind || 'redskap', row.violation || suggestedDeviationText(item)];
-    if (row.position) parts.push('posisjon ' + row.position);
-    if (row.gear_ref) parts.push('tidligere ID ' + row.gear_ref);
-    return parts.filter(Boolean).join(' · ');
+    if (!item || !row) return 'Ingen rad valgt.';
+    return [row.seizure_ref || 'uten beslag', row.gear_kind || 'redskap'].filter(Boolean).join(' · ');
   }
 
   function deviationInfoBoxHtml(item, rows) {
     rows = rows || [];
-    if (!rows.length || String(item.status || '').toLowerCase() !== 'avvik') return '';
+    if (!rows.length || String(item.status || '').toLowerCase() !== 'avvik' || !inlineEvidenceFeedback) return '';
     var activeRow = null;
     rows.forEach(function (row) {
       if (!activeRow && selectedInlineTargetMatches(item, row)) activeRow = row;
     });
-    if (!activeRow) activeRow = rows[0] || null;
-    var linked = evidenceItemsForDeviation(item, activeRow);
-    var linkedPreview = linked.length ? linked.slice(0, 3).map(function (entry) {
-      return '<div class="small muted">\u2022 ' + escapeHtml(entry.caption || entry.original_filename || 'Bildebevis') + '</div>';
-    }).join('') : '<div class="small muted">Ingen bilder koblet.</div>';
-    var feedback = activeRow && selectedInlineTargetMatches(item, activeRow) && inlineEvidenceFeedback ? '<div class="small deviation-upload-status">' + escapeHtml(inlineEvidenceFeedback) + '</div>' : '';
-    var unitMode = measurementOptionModeForItem(item);
-    var knownUnits = collectDeviationUnits(null, { mode: unitMode });
-    var knownSummary = knownUnits.length ? knownUnits.slice(0, 6).map(function (row) { return deviationUnitLabel(row); }).join(', ') + (knownUnits.length > 6 ? ' ...' : '') : (unitMode === 'measurement' ? 'Ingen tidligere lengdemålingsbeslag.' : 'Ingen tidligere beslag.');
-    return [
-      '<div class="callout deviation-info-box">',
-      '<strong>Redskap/beslag</strong>',
-      '<div class="small muted">Beslagsnr. settes automatisk. Velg tidligere beslag for flere avvik p\u00e5 samme redskap.</div>',
-      '<div class="small muted">Tidligere: ' + escapeHtml(knownSummary) + '</div>',
-      '<div class="small" style="margin-top:8px"><strong>Valgt rad:</strong> ' + escapeHtml(deviationTargetSummary(item, activeRow)) + '</div>',
-      '<div class="small muted">Bilder: ' + escapeHtml(String(linked.length)) + '</div>',
-      linkedPreview,
-      '<div class="actions-row wrap margin-top-s"><button type="button" class="btn btn-secondary btn-small inline-evidence-camera">Kamera</button><button type="button" class="btn btn-secondary btn-small inline-evidence-file">Legg til bilde</button></div>',
-      feedback,
-      '</div>'
-    ].join('');
+    if (!activeRow) return '';
+    return '<div class="small deviation-upload-status deviation-upload-status-compact">' + escapeHtml(inlineEvidenceFeedback) + '</div>';
   }
 
   function measurementSummaryText(item) {
@@ -1257,7 +1227,6 @@
           '<button type="button" class="btn btn-secondary btn-small deviation-position-fill">Bruk posisjon</button>',
           '<label><span>Avvik</span><input class="deviation-violation" placeholder="Kort lov-/forskriftsbrudd" value="' + escapeHtml(row.violation || '') + '" /></label>',
           '<label><span>Merknad</span><input class="deviation-note" placeholder="Fritekst" value="' + escapeHtml(row.note || '') + '" /></label>',
-          '<label class="span-2"><span>Beslagsrapporttekst</span><textarea class="deviation-report-draft" rows="3" readonly title="Autogenerert tekst til beslagsrapport">' + escapeHtml(deviationReportDraftText(item, row)) + '</textarea></label>',
           linkedCount ? '<span class="small muted deviation-linked-count">Bilder: ' + escapeHtml(String(linkedCount)) + '</span>' : '',
           '<button type="button" class="btn btn-secondary btn-small deviation-camera">Kamera</button>',
           '<button type="button" class="btn btn-secondary btn-small deviation-file">Legg til bilde</button>',
@@ -1266,7 +1235,6 @@
           '</div>'
         ].join('');
       }).join('') + '</div>',
-      '<div class="small muted structured-preview">' + escapeHtml(deviationSummaryText(item)) + '</div>',
       deviationInfoBoxHtml(item, rows),
       '</div>'
     ].join('');
@@ -1750,7 +1718,7 @@
       var fisherySel = currentFisherySelection();
       var controlSel = currentControlSelection();
       var gearSel = currentGearSelection();
-      // 1.8.23: Yggdrasil/Fiskerireguleringer MapServer IDs, tilpasset
+      // 1.8.24: Yggdrasil/Fiskerireguleringer MapServer IDs, tilpasset
       // kontrolltype + art + redskap slik at ny kontroll viser de samme
       // verne-/reguleringsområdene som Fritidsfiske-kartet, men uten tapt redskap.
       var fritidGenerell = [0, 7, 11, 13, 31, 37, 38];
@@ -1820,7 +1788,7 @@
       if (/(breivikfjorden|borgundfjorden|henningsvaer|lofotfiske)/.test(restrictionText) && !/(torsk|skrei|kommersiell|yrkes)/.test([currentFisherySelection(), currentControlSelection(), restrictionText].join(' '))) return false;
       var status = String(layer.status || '').trim().toLowerCase();
       if (Object.prototype.hasOwnProperty.call(activeLayerStatuses, status) && !activeLayerStatuses[status]) return false;
-      // 1.8.23: Temakartet kan vise bredt uten valg, men under kontroll
+      // 1.8.24: Temakartet kan vise bredt uten valg, men under kontroll
       // skal kartet bare vise lovregulerte lag som passer valgt kontrolltype,
       // art/fiskeri og redskap.
       if (!hasMapSelection()) return true;
@@ -2656,7 +2624,7 @@
       storedPositionMode = '';
     }
     if (storedPositionMode !== 'manual' && storedPositionMode !== 'auto') storedPositionMode = '';
-    var zoneOverlayStorageKey = 'kv-case-zone-overlay-1.8.23:' + root.dataset.caseId;
+    var zoneOverlayStorageKey = 'kv-case-zone-overlay-1.8.24:' + root.dataset.caseId;
     var zoneOverlayEnabled = true;
     // Treffende verne-/reguleringsområder skal alltid tegnes i kartet.
     // Tidligere lagret 'skjul'-valg fra eldre PWA-versjoner ignoreres.
@@ -2893,7 +2861,7 @@
     var topPrevStep = document.getElementById('top-prev-step');
     var topNextStep = document.getElementById('top-next-step');
     var topStepLabel = document.getElementById('top-step-label');
-    var stepStorageKey = 'kv-case-step-1.8.23:' + root.dataset.caseId;
+    var stepStorageKey = 'kv-case-step-1.8.24:' + root.dataset.caseId;
     var PERSON_STEP = 3;
     var MAP_STEP = 4;
     var FINDINGS_STEP = 5;
@@ -4502,7 +4470,7 @@
         title: 'Kontrollpunkter' + (speciesVal || gearVal ? ' for ' + [controlVal, speciesVal, gearVal].filter(Boolean).join(' / ') : ''),
         description: reason || 'Lokal kontrollpunktliste brukes slik at punktene vises også ved tregt eller tomt regeloppslag.',
         items: items,
-        sources: [{ name: 'Lokal kontrollpunktliste', ref: '1.8.23 fallback', url: '' }]
+        sources: [{ name: 'Lokal kontrollpunktliste', ref: '1.8.24 fallback', url: '' }]
       };
     }
 
@@ -4651,7 +4619,6 @@
         if (!row && findingsList) row = findingsList.querySelector('.finding-card .deviation-row:not([hidden])');
         if (!row) return;
         row.classList.add('deviation-row-flash');
-        try { row.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) { try { row.scrollIntoView(); } catch (ignore) {} }
         window.setTimeout(function () { row.classList.remove('deviation-row-flash'); }, 1600);
       }, 0);
     }
@@ -5699,7 +5666,7 @@
       var allLayerIds = displayLayers.map(function (layer) { return Number(layer && layer.id); }).filter(function (value) { return isFinite(value); });
       var fisheryPortalService = root.dataset.portalMapserver || (caseMap && caseMap.dataset ? (caseMap.dataset.portalMapserver || '') : '') || 'https://gis.fiskeridir.no/server/rest/services/Yggdrasil/Fiskerireguleringer/MapServer';
       var vernPortalService = root.dataset.portalVernMapserver || (caseMap && caseMap.dataset ? (caseMap.dataset.portalVernMapserver || '') : '') || 'https://portal.fiskeridir.no/server/rest/services/Fiskeridir_vern/MapServer';
-      // 1.8.23: rasterlaget skal holde områdene visuelt stabile på alle zoomnivå.
+      // 1.8.24: rasterlaget skal holde områdene visuelt stabile på alle zoomnivå.
       // Detalj-/vektorhenting brukes bare ved konkrete områdetreff eller når brukeren
       // eksplisitt ber om detaljer, slik at kartet ikke blinker/forsvinner ved innzoom.
       mapState.fetchFeatureDetails = options.fetchFeatureDetails === true || mapState.requestFeatureDetails === true || zoneLayerIds.length > 0;
@@ -5711,7 +5678,7 @@
       mapState.showLegend = false;
       mapState.showLayerPanel = !!mapLayerPanelHost;
       mapState.layerPanelDefaultOpen = false;
-      mapState.layerPanelKey = 'case-map-1-8-23';
+      mapState.layerPanelKey = 'case-map-1-8-24';
       mapState.layerPanelTargetSelector = mapLayerPanelHost ? '#case-map-layer-panel-host' : '';
       mapState.rasterLayerIds = allLayerIds;
       mapState.identifyLayerIds = allLayerIds;
@@ -5832,8 +5799,8 @@
       return rows;
     }
 
-    var zoneResultStoragePrefix = 'kv-zone-result-1.8.23:';
-    var nearestPlaceStoragePrefix = 'kv-nearest-place-1.8.23:';
+    var zoneResultStoragePrefix = 'kv-zone-result-1.8.24:';
+    var nearestPlaceStoragePrefix = 'kv-nearest-place-1.8.24:';
     var nearestPlaceController = null;
     var nearestPlaceSequence = 0;
     var nearestPlaceTimer = null;
@@ -6133,7 +6100,7 @@
       scheduleAutosave('Manuell posisjon aktivert');
     }
 
-    var devicePositionStorageKey = 'kv-device-position-1.8.23';
+    var devicePositionStorageKey = 'kv-device-position-1.8.24';
     function readCachedDevicePosition() {
       if (!window.localStorage) return null;
       try {
@@ -6894,51 +6861,47 @@ function renderHummerStatus(result) {
 
       function findingLine(item, idx) {
         var label = String(item && (item.label || item.key) || ('Avvik ' + idx)).trim();
-        var note = String(item && (item.summary_text || item.notes || item.auto_note || '') || '').trim();
-        var ref = [item && (item.source_name || item.law_name), item && (item.source_ref || item.section)].filter(function (x) { return String(x || '').trim(); }).join(' - ');
-        return String(idx) + '. ' + sentenceize(label + (note ? ' - ' + note : '') + (ref ? ' (' + ref + ')' : ''));
+        var note = String(item && (item.notes || item.auto_note || item.summary_text || '') || '').trim();
+        note = note.replace(/\s*Kontrollposisjon:\s*[^.]+\./ig, '').trim();
+        return String(idx) + '. ' + sentenceize(label + (note ? ': ' + note : ''));
       }
 
       var basis = String(payload && payload.basis_details || '').trim();
       if (!basis) {
-        basis = 'Den ' + when + ' var patruljen på fiskeripatrulje/oppsyn ved ' + place + '. Patruljeformålet var å kontrollere ' + topic.toLowerCase() + ' og etterlevelse av relevante regler om redskap, merking, fangst/oppbevaring, posisjon og eventuelle områdebestemmelser.';
+        basis = 'Den ' + when + ' var patruljen på fiskeripatrulje ved ' + place + '. Patruljeformålet var å kontrollere ' + topic.toLowerCase() + ' og avklare om redskap, merking, fangst/oppbevaring og områdebestemmelser var i samsvar med gjeldende regelverk.';
       } else {
         basis = sentenceize(basis);
       }
 
       var lines = [
-        'Oppsummering / rapportgrunnlag',
+        'Rapportgrunnlag',
         '',
-        '1. Tid, sted og kontrolltema',
-        'Den ' + when + ' ble det gjennomført kontroll ved ' + place + '. Kontrollen gjaldt ' + topic.toLowerCase() + '.',
+        'Tid og sted',
+        'Den ' + when + ' ble det gjennomført kontroll ved ' + place + '. Kontrolltema var ' + topic.toLowerCase() + '.',
       ];
       if (areaNameText || (areaStatusText && areaStatusText.toLowerCase() !== 'ingen treff')) {
         lines.push('Kontrollstedet er vurdert mot registrert områdestatus/verneområde: ' + [areaNameText, areaStatusText].filter(Boolean).join(' - ') + '.');
       }
-      lines = lines.concat([subjectLine, '', '2. Bakgrunn og gjennomføring', basis, '', '3. Registrerte funn og avvik']);
+      lines = lines.concat([subjectLine, '', 'Bakgrunn', basis, '', 'Registrerte avvik']);
       if (!avvik.length) {
         lines.push('Det er ikke registrert avvik i kontrollpunktene på tidspunktet for tekstutkastet.');
       } else {
         avvik.forEach(function (item, idx) { lines.push(findingLine(item, idx + 1)); });
       }
-      lines = lines.concat(['', '4. Beslag, bildebevis og dokumentasjon']);
+      lines = lines.concat(['', 'Dokumentasjon']);
       if (payload && payload.seizure_reports && payload.seizure_reports.length) {
-        payload.seizure_reports.forEach(function (row, idx) {
-          var ref = String(row.seizure_ref || row.gear_ref || ('Beslag ' + (idx + 1))).trim();
-          var desc = String(row.description || row.violation_reason || row.type || 'registrert beslag/avvik').trim();
-          lines.push((idx + 1) + '. ' + sentenceize(ref + ': ' + desc));
-        });
+        lines.push('Beslag er ført i beslagsrapport. Bilder og kart fremgår av illustrasjonsmappe/fotomappe.');
       } else {
-        lines.push('Det er ikke registrert beslag i saken.');
+        lines.push('Bilder og kart fremgår av illustrasjonsmappe/fotomappe der dette er registrert.');
       }
-      lines = lines.concat(['', '5. Dokumentgrunnlag', 'Utkastet beskriver registrerte observasjoner, avvik, beslag og dokumentasjon. Endelig vurdering av skyld og reaksjon ligger til påtalemyndigheten.']);
+      lines.push('Endelig vurdering av skyld og reaksjon ligger til påtalemyndigheten.');
       var summaryText = lines.join('\n').trim();
       return {
         basis_details: basis,
         notes: '',
         summary: summaryText,
         complaint_preview: summaryText,
-        source_label: 'rask straffesaksmal'
+        source_label: 'lokal IKV-mal 1.8.24'
       };
     }
 
@@ -7693,9 +7656,7 @@ function renderHummerStatus(result) {
         syncDeviationDefaults(item);
         item.deviation_summary = deviationSummaryText(item);
         findingsInput.value = JSON.stringify(findingsState);
-        setInlineEvidenceTarget(item, newRow, 'Redskap/beslag lagt til. Fyll korttekst, merknad og bilde ved behov.');
-        renderFindings();
-        flashActiveDeviationRow();
+        setInlineEvidenceTarget(item, newRow, 'Redskap/beslag lagt til.');
         scheduleAutosave('Ny avviksrad lagt til');
         return;
       }

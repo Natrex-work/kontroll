@@ -320,7 +320,7 @@ def _overview_arcgis_export_overlay(case_row: Dict[str, Any], min_x: float, min_
     except Exception:
         timeout = 3.0
     try:
-        response = requests.get(base_url + '/export', params=params, timeout=timeout, headers={'User-Agent': 'KV-Kontroll/1.8.23'})
+        response = requests.get(base_url + '/export', params=params, timeout=timeout, headers={'User-Agent': 'KV-Kontroll/1.8.24'})
         response.raise_for_status()
         img = PILImage.open(io.BytesIO(response.content)).convert('RGBA')
         if img.size != (width, height):
@@ -4686,7 +4686,7 @@ def build_text_drafts(case_row: Dict[str, Any], findings: list[Dict[str, Any]]) 
         'basis_details': build_control_reason(case_row, findings),
         'notes': _build_own_report(case_row, findings),
         'complaint_preview': _build_short_complaint(case_row, findings, _safe_sources(case_row)),
-        'source_label': 'straffesaksmal 1.8.23',
+        'source_label': 'straffesaksmal 1.8.24',
     }
 
 
@@ -5097,7 +5097,7 @@ def build_text_drafts(case_row: Dict[str, Any], findings: list[Dict[str, Any]]) 
         'basis_details': build_control_reason(case_row, findings),
         'notes': '',
         'complaint_preview': _build_short_complaint(case_row, findings, _safe_sources(case_row)),
-        'source_label': 'straffesaksmal 1.8.23',
+        'source_label': 'straffesaksmal 1.8.24',
     }
 
 # ---- 1.8.23: standardtekster etter Kystvaktens straffesaksføringer ----
@@ -5331,7 +5331,7 @@ def build_text_drafts(case_row: Dict[str, Any], findings: list[Dict[str, Any]]) 
         'basis_details': build_control_reason(case_row, findings),
         'notes': '',
         'complaint_preview': _build_short_complaint(case_row, findings, _safe_sources(case_row)),
-        'source_label': 'straffesaksmal 1.8.23',
+        'source_label': 'straffesaksmal 1.8.24',
     }
 
 # ---- 1.8.23: anmeldelse/egenrapport/fotomappe tekstmaler tilpasset Kystvaktens IKV-stil ----
@@ -5745,7 +5745,7 @@ def build_text_drafts(case_row: Dict[str, Any], findings: list[Dict[str, Any]]) 
         'basis_details': build_control_reason(case_row, findings),
         'notes': '',
         'complaint_preview': _build_short_complaint(case_row, findings, _safe_sources(case_row)),
-        'source_label': 'straffesaksmal 1.8.23',
+        'source_label': 'straffesaksmal 1.8.24',
     }
 
 # 1.8.23a: small precision fixes for dates, law excerpts and tips/patrol basis text.
@@ -5867,3 +5867,729 @@ def build_control_reason(case_row: Dict[str, Any], findings: list[Dict[str, Any]
             )
         return cleaned_override
     return _clean_standard_text_1_7(_basis_intro_for_case_1_8_23(case_row, findings), case_row)
+
+# ---- 1.8.24: compact avvik UI text and IKV-style report wording ----
+# These overrides keep the generated documents closer to Kystvakten/IKV examples:
+# short anmeldelse, only relevant law excerpts, concise egenrapport and photo text.
+
+_POSITION_RE_1_8_24 = re.compile(
+    r'\s*(?:/|;|,)?\s*(?:kontrollposisjon|posisjon|startposisjon\s+lenke|sluttposisjon\s+lenke|lenke\s*\d+\s*:\s*start)\s*[: ]\s*'
+    r'(?:N\s*)?\d{1,2}[^.;,\n]*(?:Ø|O|E)\s*\d{1,3}[^.;,\n]*',
+    flags=re.IGNORECASE,
+)
+
+
+def _strip_position_phrases_1_8_24(value: Any) -> str:
+    text = re.sub(r'\s+', ' ', str(value or '')).strip()
+    if not text:
+        return ''
+    prev = None
+    while prev != text:
+        prev = text
+        text = _POSITION_RE_1_8_24.sub('', text)
+    text = re.sub(r'\s*/\s*(?=[.;,]|$)', '', text)
+    text = re.sub(r'\s*;\s*(?=[.;,]|$)', '', text)
+    text = re.sub(r'\s{2,}', ' ', text).strip(' ;,.-')
+    return text
+
+
+def _compact_law_excerpt_1_8_24(ref: Dict[str, Any], limit: int = 260) -> str:
+    text = _clean_law_text_1_8_23(ref.get('law_text'))
+    if not text:
+        text = str(ref.get('excerpt') or '').strip()
+    if not text:
+        return ''
+    # Keep only the first legally useful sentence/fragment. Drop long area lists,
+    # coordinates, tables and full Lovdata text that clutter the complaint.
+    stop_patterns = [
+        r'\bNavn på gytefelt\b', r'\bPunktPosisjon\b', r'\bAvgrenset i\b',
+        r'\bSjøområdet innenfor\b', r'\bFølgende områder\b', r'\bKoordinat\b',
+        r'\bIndre Oslofjord\b', r'\bMossesundet\b', r'\bHvaler\b', r'\bSletterhausen\b',
+    ]
+    for pattern in stop_patterns:
+        m = re.search(pattern, text, flags=re.IGNORECASE)
+        if m and m.start() > 35:
+            text = text[:m.start()].strip(' ,.;:')
+            break
+    # Prefer text up to a colon when it is an introductory legal norm.
+    colon_pos = text.find(':')
+    if 45 < colon_pos < 220:
+        excerpt = text[:colon_pos + 1]
+    else:
+        parts = re.split(r'(?<=[.!?])\s+(?=[A-ZÆØÅ«])', text)
+        excerpt = ' '.join(p.strip() for p in parts[:2] if p.strip()) or text
+    excerpt = re.sub(r'\s+', ' ', excerpt).strip(' ;,')
+    if len(excerpt) > limit:
+        excerpt = excerpt[:limit].rsplit(' ', 1)[0].rstrip(' ,.;:') + '...'
+    return excerpt
+
+
+def _display_ref_row_1_8_24(ref: Dict[str, Any]) -> Dict[str, str]:
+    head_name = str(ref.get('name') or ref.get('law_name') or '').strip()
+    head_ref = str(ref.get('ref') or ref.get('section') or '').strip()
+    excerpt = _compact_law_excerpt_1_8_24(ref, 260)
+    return {
+        'name': head_name,
+        'ref': head_ref,
+        'law_text': excerpt,
+        'excerpt': excerpt,
+    }
+
+
+def _registered_avvik_ref_rows_1_8_21(case_row: Dict[str, Any], findings: list[Dict[str, Any]] | None = None) -> list[Dict[str, str]]:  # type: ignore[override]
+    findings = findings if findings is not None else _safe_findings(case_row)
+    rows: list[Dict[str, str]] = []
+    for block in _offence_blocks(case_row, findings):
+        for ref in block.get('legal_refs') or []:
+            if isinstance(ref, dict):
+                rows.append(_display_ref_row_1_8_24(ref))
+    if not rows:
+        # Fallback, but still restrict through existing avvik-aware function when possible.
+        try:
+            raw_rows = _registered_avvik_ref_rows_before_1_8_23(case_row, findings)
+        except Exception:
+            raw_rows = []
+        rows = [_display_ref_row_1_8_24(row) for row in raw_rows if isinstance(row, dict)]
+    return _merge_ref_rows(rows)
+
+
+def _full_ref_rows(case_row: Dict[str, Any]) -> list[Dict[str, str]]:  # type: ignore[override]
+    return _registered_avvik_ref_rows_1_8_21(case_row)
+
+
+def _refs_to_text(refs: list[Dict[str, str]]) -> str:  # type: ignore[override]
+    chunks: list[str] = []
+    for ref in refs or []:
+        head = _legal_ref_head_1_8_23(ref)
+        excerpt = str(ref.get('excerpt') or ref.get('law_text') or '').strip()
+        if head:
+            chunks.append(head)
+        if excerpt:
+            chunks.append('Utdrag: ' + excerpt)
+        if head or excerpt:
+            chunks.append('')
+    return '\n'.join(chunks).strip()
+
+
+def _deviation_summary(item: Dict[str, Any]) -> str:  # type: ignore[override]
+    rows = _deviation_rows(item)
+    if not rows:
+        return ''
+    parts: list[str] = []
+    for idx, row in enumerate(rows, start=1):
+        seizure_ref = str(row.get('seizure_ref') or '').strip() or f'Beslag {idx}'
+        gear_kind = str(row.get('gear_kind') or row.get('type') or '').strip()
+        quantity = str(row.get('quantity') or '').strip()
+        violation = _strip_position_phrases_1_8_24(row.get('violation') or row.get('violation_reason') or '').strip()
+        note = _strip_position_phrases_1_8_24(row.get('note') or '').strip()
+        head = ' - '.join([part for part in [seizure_ref, gear_kind] if part])
+        bits = [head]
+        if quantity:
+            bits.append(f'antall {quantity}')
+        if violation:
+            bits.append(violation)
+        elif note:
+            bits.append(note)
+        parts.append(': '.join([bits[0], '; '.join(bits[1:])]) if len(bits) > 1 else bits[0])
+    return '; '.join(part for part in parts if part).strip()
+
+
+def _finding_display_note(item: Dict[str, Any]) -> str:  # type: ignore[override]
+    base_parts = [
+        _strip_position_phrases_1_8_24(item.get('notes')),
+        _strip_position_phrases_1_8_24(item.get('auto_note')),
+        _measurement_summary(item),
+        _marker_summary(item),
+        _deviation_summary(item),
+    ]
+    text = ' '.join(part for part in base_parts if part).strip()
+    return _strip_position_phrases_1_8_24(text)
+
+
+def _finding_note(item: Dict[str, Any]) -> str:  # type: ignore[override]
+    return _finding_display_note(item)
+
+
+def _short_avvik_lines_1_8_24(findings: list[Dict[str, Any]], *, limit: int = 240) -> list[str]:
+    avvik = _avvik_1_7(findings)
+    if not avvik:
+        return ['Det er ikke registrert avvik i kontrollpunktene på tidspunktet rapporten ble laget.']
+    rows: list[str] = []
+    for idx, item in enumerate(avvik, start=1):
+        label = _finding_label_v91(item, idx)
+        note = _strip_position_phrases_1_8_24(_first_clean_1_7(item.get('display_notes'), item.get('notes'), item.get('auto_note'), item.get('summary_text')))
+        line = label
+        if note:
+            line += ': ' + _shorten_sentence_1_8_21(note, limit)
+        rows.append(f'{idx}. {_sentence_1_7(line)}')
+    return rows
+
+
+def _collect_seizure_rows_from_findings(findings: list[Dict[str, Any]]) -> list[Dict[str, Any]]:  # type: ignore[override]
+    rows: list[Dict[str, Any]] = []
+    for item in findings or []:
+        if str(item.get('status') or '').lower() != 'avvik':
+            continue
+        finding_key = str(item.get('key') or '').strip()
+        caption = str(item.get('label') or item.get('key') or 'Avvik').strip()
+        law_text = str(item.get('law_text') or item.get('help_text') or '').strip()
+        for idx, row in enumerate(_deviation_rows(item), start=1):
+            violation = _strip_position_phrases_1_8_24(row.get('violation') or '') or _strip_position_phrases_1_8_24(_finding_display_note(item))
+            rows.append({
+                'finding_key': finding_key,
+                'caption': caption,
+                'seizure_ref': str(row.get('seizure_ref') or '').strip() or f'{str(item.get("key") or "AVVIK").upper()}-{idx:02d}',
+                'gear_kind': str(row.get('gear_kind') or '').strip(),
+                'gear_ref': str(row.get('gear_ref') or '').strip(),
+                'quantity': str(row.get('quantity') or '').strip() or '1',
+                'position': str(row.get('position') or '').strip(),
+                'linked_seizure_ref': str(row.get('linked_seizure_ref') or '').strip(),
+                'violation_reason': violation,
+                'description': violation,
+                'law_text': law_text,
+                'note': _strip_position_phrases_1_8_24(row.get('note') or ''),
+                'photo_ref': str(row.get('photo_ref') or '').strip(),
+            })
+        measurements = item.get('measurements') or []
+        if isinstance(measurements, list):
+            for idx, row in enumerate(measurements, start=1):
+                if not isinstance(row, dict):
+                    continue
+                seizure_ref = str(row.get('seizure_ref') or row.get('reference') or '').strip() or f'{str(item.get("key") or "MALING").upper()}-M{idx:02d}'
+                length = str(row.get('length_cm') or '').strip()
+                delta_text = str(row.get('delta_text') or '').strip()
+                violation_reason = str(row.get('violation_text') or '').strip()
+                if not violation_reason:
+                    if length and delta_text:
+                        violation_reason = f'Kontrollmålt til {length} cm - {delta_text}.'
+                    elif length:
+                        violation_reason = f'Kontrollmålt til {length} cm.'
+                    else:
+                        violation_reason = _strip_position_phrases_1_8_24(_finding_display_note(item))
+                rows.append({
+                    'finding_key': finding_key,
+                    'caption': caption,
+                    'seizure_ref': seizure_ref,
+                    'gear_kind': 'Lengdemåling',
+                    'gear_ref': '',
+                    'quantity': '1',
+                    'position': str(row.get('position') or '').strip(),
+                    'linked_seizure_ref': str(row.get('linked_seizure_ref') or '').strip(),
+                    'violation_reason': _strip_position_phrases_1_8_24(violation_reason),
+                    'description': _strip_position_phrases_1_8_24(violation_reason),
+                    'law_text': law_text,
+                    'note': _strip_position_phrases_1_8_24(row.get('note') or ''),
+                    'photo_ref': str(row.get('photo_ref') or '').strip(),
+                })
+    return rows
+
+
+def _stored_seizure_rows_v93(case_row: Dict[str, Any], findings: list[Dict[str, Any]], evidence_rows: Iterable[Dict[str, Any]]) -> list[Dict[str, Any]]:  # type: ignore[override]
+    stored = _parse_json_list_v93(case_row.get('seizure_reports_json'))
+    generated = _collect_seizure_rows_from_findings(findings)
+    result: list[Dict[str, Any]] = []
+    by_key: dict[str, Dict[str, Any]] = {}
+    for row in stored + generated:
+        if not isinstance(row, dict):
+            continue
+        clone = dict(row)
+        for key in ('description', 'violation_reason', 'note'):
+            clone[key] = _strip_position_phrases_1_8_24(clone.get(key))
+        key = str(clone.get('source_key') or clone.get('seizure_ref') or clone.get('caption') or len(result)).strip()
+        if key in by_key:
+            by_key[key].update({k: v for k, v in clone.items() if v not in (None, '', [])})
+        else:
+            by_key[key] = clone
+            result.append(clone)
+    for ev in evidence_rows or []:
+        ref = str((ev or {}).get('seizure_ref') or '').strip()
+        if not ref:
+            continue
+        target = None
+        for row in result:
+            if str(row.get('seizure_ref') or '').strip() == ref:
+                target = row
+                break
+        if target is None:
+            target = {
+                'seizure_ref': ref,
+                'type': 'Bildebevis',
+                'description': _strip_position_phrases_1_8_24((ev or {}).get('caption') or (ev or {}).get('original_filename') or ''),
+            }
+            result.append(target)
+        target.setdefault('evidence_refs', [])
+        label = _first_clean_1_7((ev or {}).get('caption'), (ev or {}).get('original_filename'), (ev or {}).get('id'), 'bilde')
+        if label and label not in target['evidence_refs']:
+            target['evidence_refs'].append(label)
+    return result
+
+
+def _seizure_rows_1_7(case_row: Dict[str, Any], findings: list[Dict[str, Any]]) -> list[Dict[str, Any]]:  # type: ignore[override]
+    try:
+        return _stored_seizure_rows_v93(case_row, findings, [])
+    except Exception:
+        return _parse_json_list_v93(case_row.get('seizure_reports_json'))
+
+
+def _build_seizure_report(case_row: Dict[str, Any], evidence_rows: list[Dict[str, Any]]) -> str:  # type: ignore[override]
+    rows = _stored_seizure_rows_v93(case_row, _safe_findings(case_row), evidence_rows)
+    override = str(case_row.get('seizure_report_override') or '').strip()
+    if not rows and not override:
+        return 'Det er ikke registrert beslag i saken.'
+    lines = ['Beslagsrapport', '']
+    place = _location_line(case_row)
+    if place and place != '-':
+        lines.append(f'Kontrollsted: {place}.')
+    lines.append(f'Ledet av: {_fmt_value(case_row.get("investigator_name"))}.')
+    if rows:
+        lines.extend(['', 'Registrerte beslag:'])
+        for idx, row in enumerate(rows, start=1):
+            ref = _first_clean_1_7(row.get('seizure_ref'), f'Beslag {idx}')
+            kind = _first_clean_1_7(row.get('gear_kind'), row.get('type'), 'redskap/beslag')
+            qty = _first_clean_1_7(row.get('quantity'))
+            desc = _strip_position_phrases_1_8_24(_first_clean_1_7(row.get('description'), row.get('violation_reason'), row.get('caption'), 'registrert avvik'))
+            note = _strip_position_phrases_1_8_24(row.get('note'))
+            pos = _first_clean_1_7(row.get('position'))
+            ev = ', '.join([str(x) for x in row.get('evidence_refs') or [] if str(x).strip()])
+            first = f'{idx}. {ref} - {kind}'
+            if qty:
+                first += f', antall {qty}'
+            first += '.'
+            lines.append(first)
+            if desc:
+                lines.append(f'   Avvik: {_shorten_sentence_1_8_21(desc, 260)}')
+            if note and note.lower() not in (desc or '').lower():
+                lines.append(f'   Merknad: {_shorten_sentence_1_8_21(note, 220)}')
+            if pos:
+                lines.append(f'   Posisjon: {pos}.')
+            if ev:
+                lines.append(f'   Tilknyttede bilder: {_shorten_sentence_1_8_21(ev, 220)}')
+    if override:
+        lines.extend(['', 'Utfyllende merknader:', _strip_position_phrases_1_8_24(override)])
+    return _clean_standard_text_1_7('\n'.join(lines).strip(), case_row)
+
+
+def _offence_title(case_row: Dict[str, Any], findings: list[Dict[str, Any]]) -> str:  # type: ignore[override]
+    titles: list[str] = []
+    for block in _offence_blocks(case_row, findings):
+        title = _offence_title_from_block_1_8_23(block)
+        if title and title not in titles:
+            titles.append(title)
+    if titles:
+        return ', '.join(titles[:4]) + (' m.m.' if len(titles) > 4 else '')
+    topic = _topic_1_7(case_row).lower()
+    return f'Kontroll av {topic}' if topic and topic != '-' else 'Fiskerikontroll'
+
+
+def _offence_fact_line_1_8_24(block: Dict[str, Any], idx: int) -> str:
+    title = _offence_title_from_block_1_8_23(block)
+    details = _strip_position_phrases_1_8_24(block.get('details') or block.get('allegation') or '')
+    details = re.sub(r'^Mulig\s+brudd\s+på\s+[^:]+:\s*', '', details, flags=re.IGNORECASE).strip()
+    if details and title.lower() not in details.lower():
+        text = f'{title}: {details}'
+    else:
+        text = title
+    return f'{idx}. {_shorten_sentence_1_8_21(_sentence_1_7(text), 300)}'
+
+
+def build_control_reason(case_row: Dict[str, Any], findings: list[Dict[str, Any]]) -> str:  # type: ignore[override]
+    override = str(case_row.get('basis_details') or '').strip()
+    basis = _normal_case_basis_1_8_22(case_row.get('case_basis'))
+    if override and not _looks_like_old_generated_basis_1_8_22(override):
+        cleaned = _clean_standard_text_1_7(override, case_row)
+        if basis == 'tips' and 'patruljens egne observasjoner' not in cleaned.lower():
+            source = _first_clean_1_7(case_row.get('basis_source_name'))
+            source_text = f' fra {source}' if source else ''
+            cleaned = f'Kontrollen ble gjennomført etter tips/opplysninger{source_text}. Tipsopplysningene var bakgrunn for kontrollen. Rapporten bygger på patruljens egne observasjoner og dokumentasjon på stedet. {cleaned}'
+        return _clean_standard_text_1_7(cleaned, case_row)
+    unit = _case_vessel_unit_1_8_23(case_row)
+    when = _case_time_phrase_1_8_23(case_row)
+    place = _case_place_1_8_23(case_row)
+    topic = _topic_1_7(case_row).lower()
+    source = _first_clean_1_7(case_row.get('basis_source_name'))
+    if basis == 'tips':
+        source_text = f' fra {source}' if source else ''
+        return _clean_standard_text_1_7(
+            f'{unit} gjennomførte den {when} kontroll ved {place} etter tips/opplysninger{source_text}. Tipsopplysningene var bakgrunn for kontrollen. Patruljens vurderinger bygger på egne observasjoner, kontroll av redskap og dokumentasjon sikret på stedet.',
+            case_row,
+        )
+    return _clean_standard_text_1_7(
+        f'{unit} var den {when} på fiskeripatrulje/oppsyn ved {place}. Patruljeformålet var å kontrollere {topic} og avklare om redskap, merking, fangst/oppbevaring, posisjon og relevante områdebestemmelser var i samsvar med gjeldende regelverk.',
+        case_row,
+    )
+
+
+def _subject_status_1_8_24(case_row: Dict[str, Any]) -> str:
+    # When beslag is used, known person is normally omtalt as siktede in the complaint.
+    has_seizure = bool(_seizure_rows_1_7(case_row, _safe_findings(case_row)))
+    return 'siktede' if has_seizure else 'mistenkte'
+
+
+def _build_short_complaint(case_row: Dict[str, Any], findings: list[Dict[str, Any]], sources: list[Dict[str, Any]]) -> str:  # type: ignore[override]
+    override = str(case_row.get('complaint_override') or '').strip()
+    if override:
+        return _clean_standard_text_1_7(_strip_doc_heading_1_8_23(override), case_row)
+    subject = _first_clean_1_7(case_row.get('suspect_name'), case_row.get('vessel_name'), 'ukjent gjerningsperson')
+    status_word = _subject_status_1_8_24(case_row)
+    when = _case_time_phrase_1_8_23(case_row)
+    place = _case_place_1_8_23(case_row)
+    unit = _case_vessel_unit_1_8_23(case_row)
+    topic = _topic_1_7(case_row).lower()
+    offences = _offence_blocks(case_row, findings)
+    lines: list[str] = []
+    if offences:
+        lines.append(f'Med dette anmeldes {subject} for {_offence_title(case_row, findings).lower()} avdekket {when} ved {place}.')
+        lines.append(f'Forholdet ble avdekket da {unit} gjennomførte fiskerioppsyn/kontroll. Kontrollen gjaldt {topic}.')
+        lines.append('')
+        lines.append('Under kontrollen ble følgende forhold registrert:')
+        for idx, block in enumerate(offences, start=1):
+            lines.append(_offence_fact_line_1_8_24(block, idx))
+        refs = _registered_avvik_ref_rows_1_8_21(case_row, findings)
+        if refs:
+            lines.append('')
+            lines.append('Aktuelle lovhjemler er begrenset til lov-/forskriftshenvisninger knyttet til registrerte avvik.')
+        evidence_docs = ['egenrapport', 'beslagsrapport', 'illustrasjonsmappe/fotomappe']
+        if _has_interview_report_content_1_8_21(case_row):
+            evidence_docs.append('avhørsrapport')
+        lines.append('')
+        lines.append('For nærmere detaljer om faktum og bevissituasjonen vises det til sakens ' + ', '.join(evidence_docs) + '.')
+        if subject != 'ukjent gjerningsperson':
+            lines.append(f'I den videre teksten omtales {subject} som {status_word}.')
+    else:
+        lines.append(f'Det ble gjennomført fiskerikontroll av {subject} {when} ved {place}. Det er ikke registrert avvik som danner grunnlag for anmeldelse i kontrollpunktene på tidspunktet for utkastet.')
+    return _clean_standard_text_1_7('\n'.join(lines).strip(), case_row)
+
+
+def _build_own_report(case_row: Dict[str, Any], findings: list[Dict[str, Any]]) -> str:  # type: ignore[override]
+    override = str(case_row.get('own_report_override') or '').strip()
+    if override:
+        return _clean_standard_text_1_7(_strip_doc_heading_1_8_23(override), case_row)
+    investigator = _first_clean_1_7(case_row.get('investigator_name'), 'rapportskriver')
+    unit = _case_vessel_unit_1_8_23(case_row)
+    when = _case_time_phrase_1_8_23(case_row)
+    place = _case_place_1_8_23(case_row)
+    topic = _topic_1_7(case_row).lower()
+    crew = _crew_text(case_row)
+    subject = _first_clean_1_7(case_row.get('suspect_name'), case_row.get('vessel_name'))
+    lines: list[str] = []
+    lines.append(f'Den {when} var {unit} på fiskeripatrulje/oppsyn ved {place}.')
+    lines.append(f'Jeg, {investigator}, deltok i kontrollen. Kontrolltema var {topic}.')
+    if crew and crew != '-':
+        lines.append(f'Patruljen/inspeksjonslaget bestod for øvrig av: {crew}.')
+    lines.append('')
+    lines.append(build_control_reason(case_row, findings))
+    if subject:
+        lines.append(f'Kontrollobjekt/ansvarlig registrert i saken er {subject}.')
+    avvik = _avvik_1_7(findings)
+    if avvik:
+        lines.append('')
+        lines.append('Under kontrollen ble følgende forhold registrert som avvik:')
+        lines.extend(_short_avvik_lines_1_8_24(findings, limit=260))
+    else:
+        lines.append('')
+        lines.append('Det ble ikke registrert avvik i kontrollpunktene på tidspunktet rapporten ble laget.')
+    if _seizure_rows_1_7(case_row, findings):
+        lines.append('')
+        lines.append('Redskap/beslag er ført i egen beslagsrapport. Relevante fotografier og kartutsnitt fremgår av illustrasjonsmappe/fotomappe.')
+    elif any(True for _ in findings or []):
+        lines.append('')
+        lines.append('Relevante fotografier og kartutsnitt fremgår av illustrasjonsmappe/fotomappe der dette er registrert.')
+    if _has_interview_report_content_1_8_21(case_row):
+        lines.append('Gjennomført avhør/forklaring er protokollert i egen avhørsrapport.')
+    notes = _strip_generated_report_noise_1_8_21(case_row.get('notes'))
+    notes = _strip_position_phrases_1_8_24(notes)
+    if notes:
+        lines.append('')
+        lines.append('Kontrollørs merknad: ' + _shorten_sentence_1_8_21(notes, 420))
+    return _clean_standard_text_1_7('\n\n'.join(line for line in lines if line is not None).strip(), case_row)
+
+
+def _build_interview_report(case_row: Dict[str, Any]) -> str:  # type: ignore[override]
+    if not _has_interview_report_content_1_8_21(case_row):
+        return ''
+    override = str(case_row.get('interview_report_override') or '').strip()
+    if override:
+        return _clean_standard_text_1_7(_strip_doc_heading_1_8_23(override), case_row)
+    entries = _conducted_interview_entries_1_8_21(case_row)
+    lines: list[str] = []
+    used = 0
+    for entry in entries:
+        body = _interview_entry_body_1_8_21(entry)
+        if not body:
+            continue
+        used += 1
+        name = _first_clean_1_7(entry.get('name'), case_row.get('suspect_name'), f'avhørt person {used}')
+        role = _first_clean_1_7(entry.get('role'), 'mistenkt/siktet')
+        method = _first_clean_1_7(entry.get('method'), 'ikke oppgitt')
+        place = _first_clean_1_7(entry.get('place'), _place_phrase_1_7(case_row))
+        start = _fmt_datetime(entry.get('start') or case_row.get('start_time'))
+        end = _fmt_datetime(entry.get('end') or case_row.get('end_time'))
+        if used > 1:
+            lines.append('')
+        lines.append(f'Avhør av {name}')
+        lines.append(f'Status/rolle: {role}.')
+        lines.append(f'Tid/sted/metode: {start} - {end}, {place}, {method}.')
+        lines.append('Forklaring/sammendrag:')
+        lines.append(body.strip())
+    if used == 0:
+        return ''
+    return _clean_standard_text_1_7('\n'.join(lines).strip(), case_row)
+
+
+def _image_caption_base_1_8_24(item: Dict[str, Any], idx: int) -> str:
+    raw = _first_clean_1_7(item.get('caption'), item.get('original_filename'), item.get('filename'), f'foto {idx}')
+    raw = _strip_position_phrases_1_8_24(raw)
+    raw = re.sub(r'\s+', ' ', raw).strip(' .')
+    if not raw:
+        raw = f'foto {idx}'
+    low = raw.lower()
+    if low.startswith('bilde viser') or low.startswith('foto viser'):
+        text = raw[0].upper() + raw[1:]
+    else:
+        text = 'Bilde viser ' + raw[0].lower() + raw[1:]
+    if not text.endswith('.'):
+        text += '.'
+    return text
+
+
+def _build_illustration_texts(evidence_rows: list[Dict[str, Any]]) -> list[str]:  # type: ignore[override]
+    if not evidence_rows:
+        return ['Ingen illustrasjoner registrert i saken.']
+    texts: list[str] = []
+    for idx, item in enumerate(evidence_rows, start=1):
+        finding_key = str(item.get('finding_key') or '').strip().lower()
+        caption = str(item.get('caption') or '').strip()
+        filename = str(item.get('filename') or item.get('generated_path') or '').strip().lower()
+        if finding_key == 'oversiktskart':
+            if '2km' in filename or '5km' in filename or caption.lower().startswith('detaljert'):
+                texts.append('Bilde viser detaljert kartutsnitt med kontrollposisjon og registrerte avviks-/beslagsposisjoner.')
+            else:
+                texts.append('Bilde viser oversiktskart av kontrollposisjon.')
+            continue
+        base = _image_caption_base_1_8_24(item, idx)
+        seizure = _first_clean_1_7(item.get('seizure_ref'))
+        reason = _strip_position_phrases_1_8_24(_first_clean_1_7(item.get('violation_reason')))
+        extras: list[str] = []
+        if seizure:
+            extras.append(f'Beslag {seizure}')
+        if reason:
+            extras.append(f'Avvik: {_shorten_sentence_1_8_21(reason, 120)}')
+        if extras:
+            base = base.rstrip('.') + ' - ' + ' - '.join(extras) + '.'
+        texts.append(_shorten_sentence_1_8_21(base, 240))
+    return texts
+
+
+def build_summary(case_row: Dict[str, Any], findings: list[Dict[str, Any]]) -> str:  # type: ignore[override]
+    if (case_row.get('summary') or '').strip():
+        return _clean_standard_text_1_7(case_row.get('summary'), case_row)
+    when = _case_time_phrase_1_8_23(case_row)
+    place = _case_place_1_8_23(case_row)
+    topic = _topic_1_7(case_row).lower()
+    lines: list[str] = [
+        f'Kontrollen ble gjennomført {when} ved {place}. Kontrolltema var {topic}.',
+        build_control_reason(case_row, findings),
+    ]
+    avvik = _avvik_1_7(findings)
+    if avvik:
+        lines.append('Registrerte avvik:')
+        lines.extend(_short_avvik_lines_1_8_24(findings, limit=180))
+    else:
+        lines.append('Det er ikke registrert avvik i kontrollpunktene.')
+    if avvik:
+        lines.append('Dokumentasjon fremgår av egenrapport, beslagsrapport og illustrasjonsmappe/fotomappe. Avhørsrapport tas bare med når avhør er merket gjennomført.')
+    return _clean_standard_text_1_7('\n'.join(lines), case_row)
+
+
+_build_case_packet_before_1_8_24 = build_case_packet
+
+
+def build_case_packet(case_row: Dict[str, Any], evidence_rows: Iterable[Dict[str, Any]]) -> Dict[str, Any]:  # type: ignore[override]
+    packet = _build_case_packet_before_1_8_24(case_row, evidence_rows)
+    findings = [dict(item, display_notes=_finding_display_note(item)) for item in _safe_findings(case_row)]
+    sources = _safe_sources(case_row)
+    image_rows = list(packet.get('evidence') or [])
+    has_interview = _has_interview_report_content_1_8_21(case_row)
+    packet.update({
+        'has_offences': bool(_offence_blocks(case_row, findings)),
+        'title': _offence_title(case_row, findings),
+        'summary': build_summary(case_row, findings),
+        'short_complaint': _build_short_complaint(case_row, findings, sources),
+        'own_report': _build_own_report(case_row, findings),
+        'interview_report': _build_interview_report(case_row) if has_interview else '',
+        'interview_guidance': '',
+        'interview_not_conducted': not has_interview,
+        'seizure_rows': _stored_seizure_rows_v93(case_row, findings, image_rows),
+        'seizure_report': _build_seizure_report(case_row, image_rows),
+        'illustration_texts': _build_illustration_texts(image_rows),
+        'legal_refs': _registered_avvik_ref_rows_1_8_21(case_row, findings),
+        'findings': findings,
+        'sources': sources,
+        'notes': _build_own_report(case_row, findings),
+    })
+    return packet
+
+
+def build_text_drafts(case_row: Dict[str, Any], findings: list[Dict[str, Any]]) -> Dict[str, str]:  # type: ignore[override]
+    return {
+        'summary': build_summary(case_row, findings),
+        'basis_details': build_control_reason(case_row, findings),
+        'notes': '',
+        'complaint_preview': _build_short_complaint(case_row, findings, _safe_sources(case_row)),
+        'source_label': 'straffesaksmal 1.8.24',
+    }
+
+# 1.8.24a: remove decimal-coordinate repetitions from offence/beslag text.
+_DECIMAL_POS_RE_1_8_24 = re.compile(r'\s*(?:/|;|,)?\s*(?:[A-ZÆØÅa-zæøå][^.;\n]{0,90}:\s*)?-?\d{1,3}\.\d{3,}\s*,\s*-?\d{1,3}\.\d{3,}', flags=re.IGNORECASE)
+
+
+def _strip_position_phrases_1_8_24(value: Any) -> str:  # type: ignore[override]
+    text = re.sub(r'\s+', ' ', str(value or '')).strip()
+    if not text:
+        return ''
+    prev = None
+    while prev != text:
+        prev = text
+        text = _POSITION_RE_1_8_24.sub('', text)
+        text = _DECIMAL_POS_RE_1_8_24.sub('', text)
+    text = re.sub(r'\s*/\s*(?=[.;,]|$)', '', text)
+    text = re.sub(r'\s*;\s*(?=[.;,]|$)', '', text)
+    text = re.sub(r'\s{2,}', ' ', text).strip(' ;,.-')
+    return text
+
+
+def _offence_fact_line_1_8_24(block: Dict[str, Any], idx: int) -> str:  # type: ignore[override]
+    title = _offence_title_from_block_1_8_23(block)
+    details = _strip_position_phrases_1_8_24(block.get('details') or block.get('allegation') or '')
+    details = re.sub(r'^Mulig\s+brudd\s+på\s+[^:]+:\s*', '', details, flags=re.IGNORECASE).strip()
+    details = re.sub(r'\s{2,}', ' ', details).strip(' ;,.-')
+    if details and title.lower() not in details.lower():
+        text = f'{title}: {details}'
+    else:
+        text = title
+    return f'{idx}. {_shorten_sentence_1_8_21(_sentence_1_7(text), 280)}'
+
+
+def _build_seizure_report(case_row: Dict[str, Any], evidence_rows: list[Dict[str, Any]]) -> str:  # type: ignore[override]
+    rows = _stored_seizure_rows_v93(case_row, _safe_findings(case_row), evidence_rows)
+    override = str(case_row.get('seizure_report_override') or '').strip()
+    if not rows and not override:
+        return 'Det er ikke registrert beslag i saken.'
+    lines = ['Beslagsrapport', '']
+    place = _case_place_1_8_23(case_row)
+    if place and place != '-':
+        lines.append(f'Kontrollsted: {place}.')
+    lines.append(f'Ledet av: {_fmt_value(case_row.get("investigator_name"))}.')
+    if rows:
+        lines.extend(['', 'Registrerte beslag:'])
+        for idx, row in enumerate(rows, start=1):
+            ref = _first_clean_1_7(row.get('seizure_ref'), f'Beslag {idx}')
+            kind = _first_clean_1_7(row.get('gear_kind'), row.get('type'), 'redskap/beslag')
+            qty = _first_clean_1_7(row.get('quantity'))
+            desc = _strip_position_phrases_1_8_24(_first_clean_1_7(row.get('description'), row.get('violation_reason'), row.get('caption'), 'registrert avvik'))
+            note = _strip_position_phrases_1_8_24(row.get('note'))
+            pos = _first_clean_1_7(row.get('position'))
+            ev = ', '.join([str(x) for x in row.get('evidence_refs') or [] if str(x).strip()])
+            first = f'{idx}. {ref} - {kind}'
+            if qty:
+                first += f', antall {qty}'
+            first += '.'
+            lines.append(first)
+            if desc:
+                lines.append(f'   Avvik: {_shorten_sentence_1_8_21(desc, 260)}')
+            if note and note.lower() not in (desc or '').lower():
+                lines.append(f'   Merknad: {_shorten_sentence_1_8_21(note, 220)}')
+            if pos:
+                lines.append(f'   Posisjon: {pos}.')
+            if ev:
+                lines.append(f'   Tilknyttede bilder: {_shorten_sentence_1_8_21(ev, 220)}')
+    if override:
+        lines.extend(['', 'Utfyllende merknader:', _strip_position_phrases_1_8_24(override)])
+    return _clean_standard_text_1_7('\n'.join(lines).strip(), case_row)
+
+# 1.8.24b: complaint/egenrapport should not carry full inline beslag summaries.
+_INLINE_SEIZURE_RE_1_8_24 = re.compile(r'\s*[A-ZÆØÅ0-9]{2,10}\s*\d{5}-\d{3}\s*(?:[-–]\s*[^:.;]{1,40})?(?::\s*antall\s*\d+)?', flags=re.IGNORECASE)
+
+
+def _strip_inline_seizure_text_1_8_24(value: Any) -> str:
+    text = _strip_position_phrases_1_8_24(value)
+    text = _INLINE_SEIZURE_RE_1_8_24.sub('', text)
+    text = re.sub(r'\s{2,}', ' ', text).strip(' ;,.-:')
+    return text
+
+
+def _offence_fact_line_1_8_24(block: Dict[str, Any], idx: int) -> str:  # type: ignore[override]
+    title = _offence_title_from_block_1_8_23(block)
+    details = _strip_inline_seizure_text_1_8_24(block.get('details') or block.get('allegation') or '')
+    details = re.sub(r'^Mulig\s+brudd\s+på\s+[^:]+:\s*', '', details, flags=re.IGNORECASE).strip()
+    details = re.sub(r'\s{2,}', ' ', details).strip(' ;,.-')
+    if details and title.lower() not in details.lower():
+        text = f'{title}: {details}'
+    else:
+        text = title
+    return f'{idx}. {_shorten_sentence_1_8_21(_sentence_1_7(text), 260)}'
+
+
+def _short_avvik_lines_1_8_24(findings: list[Dict[str, Any]], *, limit: int = 240) -> list[str]:  # type: ignore[override]
+    avvik = _avvik_1_7(findings)
+    if not avvik:
+        return ['Det er ikke registrert avvik i kontrollpunktene på tidspunktet rapporten ble laget.']
+    rows: list[str] = []
+    for idx, item in enumerate(avvik, start=1):
+        label = _finding_label_v91(item, idx)
+        note = _strip_inline_seizure_text_1_8_24(_first_clean_1_7(item.get('notes'), item.get('auto_note'), item.get('summary_text')))
+        line = label
+        if note:
+            line += ': ' + _shorten_sentence_1_8_21(note, limit)
+        rows.append(f'{idx}. {_sentence_1_7(line)}')
+    return rows
+
+# 1.8.24c: egenrapport should not repeat time/place from patruljeformål.
+def _own_report_basis_1_8_24(case_row: Dict[str, Any], findings: list[Dict[str, Any]]) -> str:
+    override = str(case_row.get('basis_details') or '').strip()
+    basis = _normal_case_basis_1_8_22(case_row.get('case_basis'))
+    if override and not _looks_like_old_generated_basis_1_8_22(override):
+        cleaned = _clean_standard_text_1_7(override, case_row)
+        if basis == 'tips' and 'tipsopplysningene' not in cleaned.lower():
+            return 'Tipsopplysningene var bakgrunn for kontrollen. ' + cleaned
+        return cleaned
+    topic = _topic_1_7(case_row).lower()
+    if basis == 'tips':
+        source = _first_clean_1_7(case_row.get('basis_source_name'))
+        source_text = f' fra {source}' if source else ''
+        return f'Kontrollen ble gjennomført etter tips/opplysninger{source_text}. Tipsopplysningene var bakgrunn for kontrollen. Mine observasjoner og vurderinger bygger på det som ble kontrollert og dokumentert på stedet.'
+    return f'Patruljeformålet var å kontrollere {topic} og avklare om redskap, merking, fangst/oppbevaring og relevante områdebestemmelser var i samsvar med gjeldende regelverk.'
+
+
+def _build_own_report(case_row: Dict[str, Any], findings: list[Dict[str, Any]]) -> str:  # type: ignore[override]
+    override = str(case_row.get('own_report_override') or '').strip()
+    if override:
+        return _clean_standard_text_1_7(_strip_doc_heading_1_8_23(override), case_row)
+    investigator = _first_clean_1_7(case_row.get('investigator_name'), 'rapportskriver')
+    unit = _case_vessel_unit_1_8_23(case_row)
+    when = _case_time_phrase_1_8_23(case_row)
+    place = _case_place_1_8_23(case_row)
+    topic = _topic_1_7(case_row).lower()
+    crew = _crew_text(case_row)
+    subject = _first_clean_1_7(case_row.get('suspect_name'), case_row.get('vessel_name'))
+    paragraphs: list[str] = []
+    paragraphs.append(f'Den {when} var {unit} på fiskeripatrulje/oppsyn ved {place}. Jeg, {investigator}, deltok i kontrollen. Kontrolltema var {topic}.')
+    if crew and crew != '-':
+        paragraphs.append(f'Patruljen/inspeksjonslaget bestod for øvrig av: {crew}.')
+    paragraphs.append(_own_report_basis_1_8_24(case_row, findings))
+    if subject:
+        paragraphs.append(f'Kontrollobjekt/ansvarlig registrert i saken er {subject}.')
+    if _avvik_1_7(findings):
+        paragraphs.append('Under kontrollen ble følgende forhold registrert som avvik:\n' + '\n'.join(_short_avvik_lines_1_8_24(findings, limit=260)))
+    else:
+        paragraphs.append('Det ble ikke registrert avvik i kontrollpunktene på tidspunktet rapporten ble laget.')
+    if _seizure_rows_1_7(case_row, findings):
+        paragraphs.append('Redskap/beslag er ført i egen beslagsrapport. Relevante fotografier og kartutsnitt fremgår av illustrasjonsmappe/fotomappe.')
+    else:
+        paragraphs.append('Relevante fotografier og kartutsnitt fremgår av illustrasjonsmappe/fotomappe der dette er registrert.')
+    if _has_interview_report_content_1_8_21(case_row):
+        paragraphs.append('Gjennomført avhør/forklaring er protokollert i egen avhørsrapport.')
+    notes = _strip_inline_seizure_text_1_8_24(_strip_generated_report_noise_1_8_21(case_row.get('notes')))
+    if notes:
+        paragraphs.append('Kontrollørs merknad: ' + _shorten_sentence_1_8_21(notes, 420))
+    return _clean_standard_text_1_7('\n\n'.join(part for part in paragraphs if part).strip(), case_row)

@@ -3,8 +3,8 @@ FROM python:3.11-slim
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PORT=10000 \
-    KV_APP_VERSION=1.8.23 \
-    KV_APP_VERSION_LABEL=1.8.23 \
+    KV_APP_VERSION=1.8.24 \
+    KV_APP_VERSION_LABEL=1.8.24 \
     KV_ZONE_CHECK_MAX_LIVE_LAYERS=14 \
     KV_MAP_BUNDLE_MAX_LAYERS=14 \
     KV_PORTAL_MAPSERVER=https://gis.fiskeridir.no/server/rest/services/Yggdrasil/Fiskerireguleringer/MapServer \

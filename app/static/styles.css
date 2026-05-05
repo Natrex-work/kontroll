@@ -4223,3 +4223,19 @@ body.case-map-focus-mode { overflow: hidden; }
   min-height: 2.2rem;
   align-items: center;
 }
+
+/* 1.8.24: Hold avviksrader stabile på mobil når nye beslag/bilder legges til. */
+.finding-deviations,
+.deviation-list,
+.deviation-row,
+.deviation-row-fields,
+.deviation-upload-status-compact {
+  overflow-anchor: none;
+}
+.deviation-upload-status-compact {
+  margin-top: 0.45rem;
+  padding: 0.25rem 0;
+}
+.deviation-linked-count {
+  align-self: center;
+}
