@@ -98,10 +98,10 @@ def _basis_opening_phrase(case_basis: str, source_name: str = '') -> str:
     basis = _normalize_case_basis_for_text(case_basis)
     raw_source = str(source_name or '').strip()
     if basis == 'tips' and raw_source:
-        return f'På bakgrunn av tips eller opplysninger fra {raw_source} ble det gjennomført stedlig fiskerikontroll'
+        return f'Kontrollen ble gjennomført på bakgrunn av tips/opplysninger fra {raw_source}'
     if basis == 'tips':
-        return 'På bakgrunn av tips eller opplysninger ble det gjennomført stedlig fiskerikontroll'
-    return 'Det ble gjennomført stedlig fiskerikontroll som ledd i patrulje'
+        return 'Kontrollen ble gjennomført på bakgrunn av tips/opplysninger'
+    return 'Patruljen gjennomførte fiskerioppsyn som ledd i planlagt patrulje/oppsyn'
 
 
 @router.post('/api/text/polish')
@@ -145,6 +145,9 @@ def api_text_polish(request: Request, payload: TextPolishRequest):
     cleaned = re.sub(r'\s*,\s*og\s+relevante område-', ', med relevante område-', cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r'\s*,\s*og\s+øvrige kontrollpunkter', ' og øvrige kontrollpunkter', cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r'\bkontrollere\s*,', 'kontrollere', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'kontrollere\s+fiskerikontroll\s*', 'føre kontroll med ', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'Patruljeformålet var å kontrollere', 'Formålet var å føre kontroll med', cleaned, flags=re.IGNORECASE)
+    cleaned = cleaned.replace('aktuelt fiskeri / redskap', 'aktuelt fiskeri og redskap')
     cleaned = re.sub(r'\s{2,}', ' ', cleaned).strip(' ,;')
     if cleaned and cleaned[0].islower():
         cleaned = cleaned[0].upper() + cleaned[1:]
@@ -162,7 +165,9 @@ def api_text_polish(request: Request, payload: TextPolishRequest):
             'formålet ',
         )
         if not cleaned.lower().startswith(sentence_starters):
-            cleaned = f"{opening} {cleaned.rstrip('.')}".strip()
+            cleaned = f"{opening}. {cleaned.rstrip('.')}".strip()
+        cleaned = re.sub(r'Formålet var å føre kontroll med føre kontroll med', 'Formålet var å føre kontroll med', cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r'avklare om redskap, merking, fangst/oppbevaring og relevante områdebestemmelser', 'avklare om redskap, merking, fangst/oppbevaring, posisjon og relevante områdebestemmelser', cleaned, flags=re.IGNORECASE)
         if location and location.lower() not in cleaned.lower():
             cleaned = cleaned.rstrip('.') + f' ved {location}.'
         else:

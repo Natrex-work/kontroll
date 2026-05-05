@@ -16,9 +16,9 @@ services:
       - key: KV_BRAND_ORG_NAME
         value: Minfiskerikontroll
       - key: KV_APP_VERSION
-        value: 1.8.24
+        value: 1.8.26
       - key: KV_APP_VERSION_LABEL
-        value: 1.8.24
+        value: 1.8.26
       - key: KV_STORAGE_ROOT
         value: /var/data/fiskerikontroll
       - key: KV_DATA_DIR
@@ -34,13 +34,17 @@ services:
       - key: KV_OPENAI_API_KEY
         sync: false
       - key: KV_OPENAI_VISION_MODEL
-        value: gpt-4.1-mini
+        value: gpt-4.1
       - key: KV_OPENAI_VISION_MAX_IMAGES
         value: '4'
       - key: KV_OPENAI_VISION_MAX_IMAGE_MB
         value: '16'
       - key: KV_OPENAI_VISION_MAX_SIDE
+        value: '4200'
+      - key: KV_OPENAI_VISION_MIN_LONG_SIDE
         value: '2600'
+      - key: KV_OPENAI_VISION_JPEG_QUALITY
+        value: '96'
       - key: KV_ZONE_CHECK_MAX_LIVE_LAYERS
         value: '14'
       - key: KV_MAP_BUNDLE_MAX_LAYERS

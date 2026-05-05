@@ -37,20 +37,25 @@ PERSON_MARKING_FIELDS = [
     'usikkerhet',
 ]
 
-PERSON_MARKING_PROMPT = """Les teksten på bildet av fiskeredskap, vak, blåse eller merke.
+PERSON_MARKING_PROMPT = """Du er en presis bilde- og tekstleser for Kystvaktens kontroll av fiskeredskap.
+
+Oppgaven er å lese tekst som faktisk er synlig på bilder av vak, blåse, flyt/dobbe, merke, teine, ruse, garnlenke eller tilsvarende fiskeredskap. Bildene kan vise håndskrift, slitte merker, buede overflater, skitt, dårlig lys eller delvis skjult tekst.
+
 Returner KUN gyldig JSON med feltene:
 navn, adresse, postnummer, poststed, mobil, deltakernummer, annen_merking og usikkerhet.
 
-Viktig:
-- Ikke gjett.
-- Hvis noe er uklart, sett feltet til tom streng "".
-- Forklar hva som er uklart i "usikkerhet".
-- Norske navn, adresser og postnummer/poststed er vanlig.
-- Telefonnummer kan være skrevet med mellomrom.
-- Kombiner informasjon fra alle bildene dersom flere bilder er sendt inn.
-- Bruk nærbildet for detaljer og oversiktsbildet for sammenheng.
-- Håndter håndskrift, skitne/slitte merker, buede overflater, delvis skjult tekst og dårlige vinkler/lys.
-- Ikke bruk eksterne kilder. Les bare det som faktisk er synlig i bildet/bildene.
+Slik skal du lese:
+- Les først bildet som om du skulle transkribere all synlig tekst. Se etter navn, initialer, adresse, postnummer, poststed, mobilnummer og merking.
+- Kombiner informasjon fra flere bilder; bruk oversiktsbilde for sammenheng og nærbilde for bokstaver/tall.
+- Norske navn, adresser, postnummer/poststed og mobilnummer er vanlig. Eksempler på typisk struktur er: navn på én linje, adresse på neste, og fire siffer + poststed på samme eller neste linje.
+- Telefonnummer kan være skrevet med mellomrom, punktum, bindestrek eller uten skilletegn. Behold bare synlige sifre og eventuelt +47.
+- Deltakernummer/merking kan ligne JAN-JOH-128, OLA-NOR-123, FLE-FRE-134, AG-3-FS, registreringsmerke eller annen redskapsmerking. Slike koder skal normalt i deltakernummer eller annen_merking, ikke i mobilfeltet.
+- Adresse kan stå på flere linjer. Postnummer er normalt fire siffer, med poststed etterpå. Dersom du ser fire siffer etterfulgt av stedsnavn, splitt disse til postnummer og poststed.
+- Dersom et navn er synlig sammen med et nummer og kode, fyll navn selv om adresse eller poststed mangler.
+- Hvis et felt ikke kan leses med rimelig sikkerhet, sett feltet til tom streng "".
+- Ikke fyll inn navn, adresse, poststed eller telefonnummer fra antakelser eller eksterne kilder.
+- Ikke gjett manglende bokstaver. Dersom deler av et ord/nummer er usikkert, la feltet stå tomt eller fyll bare sikker del i annen_merking og forklar usikkerheten.
+- Forklar kort i "usikkerhet" hva som er uklart, for eksempel "mobilnummer delvis skjult" eller "poststed ikke lesbart".
 
 JSON-format:
 {
@@ -102,11 +107,11 @@ def _env_float(name: str, default: float, *, minimum: float, maximum: float) -> 
     return max(minimum, min(maximum, value))
 
 
-VISION_MAX_SIDE = _env_int('KV_OPENAI_VISION_MAX_SIDE', 2600, minimum=1400, maximum=4200)
-VISION_MIN_LONG_SIDE = _env_int('KV_OPENAI_VISION_MIN_LONG_SIDE', 1700, minimum=900, maximum=3200)
-VISION_JPEG_QUALITY = _env_int('KV_OPENAI_VISION_JPEG_QUALITY', 92, minimum=75, maximum=96)
+VISION_MAX_SIDE = _env_int('KV_OPENAI_VISION_MAX_SIDE', 4200, minimum=1600, maximum=5200)
+VISION_MIN_LONG_SIDE = _env_int('KV_OPENAI_VISION_MIN_LONG_SIDE', 2600, minimum=1200, maximum=4200)
+VISION_JPEG_QUALITY = _env_int('KV_OPENAI_VISION_JPEG_QUALITY', 96, minimum=82, maximum=98)
 VISION_TIMEOUT_SECONDS = _env_float('KV_OPENAI_VISION_TIMEOUT_SECONDS', 55.0, minimum=10.0, maximum=120.0)
-VISION_MODEL_DEFAULT = 'gpt-4.1-mini'
+VISION_MODEL_DEFAULT = 'gpt-4.1'
 
 
 def _image_to_jpeg_bytes(content: bytes, *, filename: str = '') -> bytes:
@@ -405,6 +410,7 @@ def analyze_person_marking_images(images: list[dict[str, Any]]) -> dict[str, Any
             }
         },
         'temperature': 0,
+        'max_output_tokens': _env_int('KV_OPENAI_VISION_MAX_OUTPUT_TOKENS', 1200, minimum=300, maximum=4000),
         'store': False,
     }
     headers = {'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'}

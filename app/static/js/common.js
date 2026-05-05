@@ -6,7 +6,7 @@
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('/static/sw.js?v=1.8.24').catch(function () {});
+      navigator.serviceWorker.register('/static/sw.js?v=1.8.26').catch(function () {});
     });
   }
 
@@ -337,7 +337,7 @@
   }
 
 
-  var LAYER_PANEL_PREFS_VERSION = '1.8.24';
+  var LAYER_PANEL_PREFS_VERSION = '1.8.26';
 
   function layerPanelStorageKey(el, markerState) {
     return 'kv-temalag:' + LAYER_PANEL_PREFS_VERSION + ':' + String((markerState && markerState.layerPanelKey) || (el && el.id) || 'map');
@@ -818,7 +818,7 @@
         else if (legacyIds.length) meta.layerId = legacyIds[0];
         return meta;
       }
-      // 1.8.24: Ikke send Yggdrasil-lag til Fiskeridir_vern bare fordi de
+      // 1.8.26: Ikke send Yggdrasil-lag til Fiskeridir_vern bare fordi de
       // har gamle/legacy ID-er som tilfeldigvis finnes i vern-tjenesten. Det gjorde
       // at enkelte fiskerireguleringsområder forsvant visuelt i kartet. Bruk vern
       // bare når laget selv peker på vern-tjenesten.
