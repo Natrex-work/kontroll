@@ -322,7 +322,7 @@ def _overview_arcgis_export_overlay(case_row: Dict[str, Any], min_x: float, min_
     except Exception:
         timeout = 3.0
     try:
-        response = requests.get(base_url + '/export', params=params, timeout=timeout, headers={'User-Agent': 'KV-Kontroll/1.8.18'})
+        response = requests.get(base_url + '/export', params=params, timeout=timeout, headers={'User-Agent': 'KV-Kontroll/1.8.19'})
         response.raise_for_status()
         img = PILImage.open(io.BytesIO(response.content)).convert('RGBA')
         if img.size != (width, height):
@@ -3200,7 +3200,7 @@ def build_case_packet(case_row: Dict[str, Any], evidence_rows: Iterable[Dict[str
     packet['own_report'] = _build_own_report(case_row, findings)
     packet['interview_not_conducted'] = _interview_not_conducted(case_row)
     packet['interview_not_conducted_reason'] = _interview_not_conducted_reason(case_row)
-    packet['interview_guidance'] = ''  # 1.8.18: interne forslag skal ikke inn i anmeldelse/dokumentpakke
+    packet['interview_guidance'] = ''  # 1.8.19: interne forslag skal ikke inn i anmeldelse/dokumentpakke
     if _interview_not_conducted(case_row):
         packet['interview_report'] = ''
         docs = [dict(doc) for doc in packet.get('documents', []) if 'avhør' not in str(doc.get('title') or '').lower()]
@@ -4198,7 +4198,7 @@ def build_case_packet(case_row: Dict[str, Any], evidence_rows: Iterable[Dict[str
     packet['summary'] = build_summary(case_row, findings)
     packet['short_complaint'] = _build_short_complaint(case_row, findings, sources)
     packet['own_report'] = _build_own_report(case_row, findings)
-    packet['interview_guidance'] = ''  # 1.8.18: interne forslag skal ikke inn i anmeldelse/dokumentpakke
+    packet['interview_guidance'] = ''  # 1.8.19: interne forslag skal ikke inn i anmeldelse/dokumentpakke
     if _interview_not_conducted(case_row):
         packet['interview_report'] = ''
         packet['interview_not_conducted'] = True

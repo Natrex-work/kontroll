@@ -941,63 +941,93 @@
     return parts.filter(Boolean).join(' · ');
   }
 
-  function collectDeviationUnits(currentRow) {
+  function measurementOptionModeForItem(item) {
+    return itemSupportsMeasurements(item) ? 'measurement' : 'seizure';
+  }
+
+  function refLooksLikeMeasurement(ref) {
+    return /(?:måling|maaling|lengde)/i.test(String(ref || ''));
+  }
+
+  function collectDeviationUnits(currentRow, options) {
+    options = options || {};
+    var mode = String(options.mode || 'all');
     var unitsByRef = {};
-    function addUnit(row, fallbackKind) {
+    function allowedKind(kind) {
+      kind = String(kind || 'seizure');
+      if (mode === 'measurement') return kind === 'measurement';
+      if (mode === 'seizure') return kind !== 'measurement';
+      return true;
+    }
+    function addUnit(row, fallbackKind, unitKind, parentFinding) {
       var ref = String(row && (row.seizure_ref || row.reference || row.ref) || '').trim();
       if (!ref) return;
       if (currentRow && row === currentRow) return;
+      var kind = unitKind || (row && row.unit_kind) || (row && row.measurement_related ? 'measurement' : '') || (refLooksLikeMeasurement(ref) ? 'measurement' : 'seizure');
+      if (parentFinding && itemSupportsMeasurements(parentFinding)) kind = 'measurement';
+      if (!allowedKind(kind)) return;
       if (!unitsByRef[ref]) {
         unitsByRef[ref] = {
           seizure_ref: ref,
           gear_kind: String((row && (row.gear_kind || row.type)) || fallbackKind || '').trim(),
           gear_ref: String(row && row.gear_ref || '').trim(),
-          position: String(row && row.position || '').trim()
+          position: String(row && row.position || '').trim(),
+          unit_kind: kind,
+          source_finding_key: String(parentFinding && parentFinding.key || '')
         };
       }
       if (!unitsByRef[ref].gear_kind && row && (row.gear_kind || row.type)) unitsByRef[ref].gear_kind = String(row.gear_kind || row.type).trim();
       if (!unitsByRef[ref].gear_ref && row && row.gear_ref) unitsByRef[ref].gear_ref = String(row.gear_ref).trim();
       if (!unitsByRef[ref].position && row && row.position) unitsByRef[ref].position = String(row.position).trim();
+      if (kind === 'measurement') unitsByRef[ref].unit_kind = 'measurement';
     }
     findingsState.forEach(function (finding) {
-      ensureDeviationState(finding).forEach(function (row) { addUnit(row, defaultDeviationGearKind()); });
-      ensureMeasurementState(finding).forEach(function (row) { addUnit(row, 'Måling'); });
+      var measurementFinding = itemSupportsMeasurements(finding);
+      ensureDeviationState(finding).forEach(function (row) {
+        addUnit(row, measurementFinding ? 'Måling' : defaultDeviationGearKind(), measurementFinding ? 'measurement' : 'seizure', finding);
+      });
+      ensureMeasurementState(finding).forEach(function (row) { addUnit(row, 'Måling', 'measurement', finding); });
     });
-    (Array.isArray(seizureReportsState) ? seizureReportsState : []).forEach(function (row) { addUnit(row, row && row.type ? row.type : 'Beslag'); });
+    (Array.isArray(seizureReportsState) ? seizureReportsState : []).forEach(function (row) { addUnit(row, row && row.type ? row.type : 'Beslag', 'seizure', null); });
     if (currentRow && currentRow.linked_seizure_ref) {
       var currentRef = String(currentRow.linked_seizure_ref || '').trim();
-      if (currentRef && !unitsByRef[currentRef]) {
-        unitsByRef[currentRef] = { seizure_ref: currentRef, gear_kind: String(currentRow.gear_kind || '').trim(), gear_ref: String(currentRow.gear_ref || '').trim(), position: String(currentRow.position || '').trim() };
+      var currentKind = options.mode === 'measurement' || currentRow.measurement_related || refLooksLikeMeasurement(currentRef) ? 'measurement' : 'seizure';
+      if (currentRef && !unitsByRef[currentRef] && allowedKind(currentKind)) {
+        unitsByRef[currentRef] = { seizure_ref: currentRef, gear_kind: String(currentRow.gear_kind || (currentKind === 'measurement' ? 'Måling' : '')).trim(), gear_ref: String(currentRow.gear_ref || '').trim(), position: String(currentRow.position || '').trim(), unit_kind: currentKind };
       }
     }
     return Object.keys(unitsByRef).sort().map(function (key) { return unitsByRef[key]; });
   }
 
 
-  function findDeviationUnitByRef(ref, currentRow) {
+  function findDeviationUnitByRef(ref, currentRow, options) {
     ref = String(ref || '').trim();
     if (!ref) return null;
-    var units = collectDeviationUnits(currentRow);
+    var units = collectDeviationUnits(currentRow, options || {});
     for (var i = 0; i < units.length; i += 1) {
       if (String(units[i].seizure_ref || '') === ref) return units[i];
     }
     if (currentRow && String(currentRow.seizure_ref || '').trim() === ref) {
-      return { seizure_ref: ref, gear_kind: String(currentRow.gear_kind || '').trim(), gear_ref: String(currentRow.gear_ref || '').trim(), position: String(currentRow.position || '').trim() };
+      var kind = options && options.mode === 'measurement' ? 'measurement' : (currentRow.measurement_related || refLooksLikeMeasurement(ref) ? 'measurement' : 'seizure');
+      return { seizure_ref: ref, gear_kind: String(currentRow.gear_kind || (kind === 'measurement' ? 'Måling' : '')).trim(), gear_ref: String(currentRow.gear_ref || '').trim(), position: String(currentRow.position || '').trim(), unit_kind: kind };
     }
     return null;
   }
 
-  function deviationExistingGearOptionsHtml(row) {
+  function deviationExistingGearOptionsHtml(row, item, mode) {
+    var optionMode = mode || measurementOptionModeForItem(item);
     var selectedRef = String(row && row.linked_seizure_ref || '').trim();
-    var units = collectDeviationUnits(row);
-    var options = ['<option value="">Nytt redskap (automatisk beslag nr.)</option>'];
+    var units = collectDeviationUnits(row, { mode: optionMode });
+    var newLabel = optionMode === 'measurement' ? 'Ny måling (automatisk målingsnr.)' : 'Nytt redskap (automatisk beslag nr.)';
+    var emptyLabel = optionMode === 'measurement' ? 'Tidligere lengdemålingsbeslag' : 'Tidligere registrert redskap';
+    var options = ['<option value="">' + escapeHtml(newLabel) + '</option>'];
     units.forEach(function (unit) {
-      var label = deviationUnitLabel(unit) || unit.seizure_ref || 'Tidligere registrert redskap';
+      var label = deviationUnitLabel(unit) || unit.seizure_ref || emptyLabel;
       options.push('<option value="' + escapeHtml(unit.seizure_ref) + '" ' + (selectedRef === unit.seizure_ref ? 'selected' : '') + '>' + escapeHtml(label) + '</option>');
     });
     if (selectedRef && !units.some(function (unit) { return String(unit.seizure_ref || '') === selectedRef; })) {
-      var fallback = findDeviationUnitByRef(selectedRef, row) || { seizure_ref: selectedRef, gear_kind: row && row.gear_kind || '', gear_ref: row && row.gear_ref || '' };
-      options.push('<option value="' + escapeHtml(selectedRef) + '" selected>' + escapeHtml(deviationUnitLabel(fallback) || selectedRef) + '</option>');
+      var fallback = findDeviationUnitByRef(selectedRef, row, { mode: optionMode });
+      if (fallback) options.push('<option value="' + escapeHtml(selectedRef) + '" selected>' + escapeHtml(deviationUnitLabel(fallback) || selectedRef) + '</option>');
     }
     return options.join('');
   }
@@ -1024,17 +1054,24 @@
   function syncDeviationDefaults(item) {
     ensureDeviationState(item).forEach(function (row) {
       row.linked_seizure_ref = String(row.linked_seizure_ref || '').trim();
-      if (!row.gear_kind) row.gear_kind = defaultDeviationGearKind();
-      else row.gear_kind = normalizeDeviationGearKind(row.gear_kind);
+      row.measurement_related = itemSupportsMeasurements(item) || row.measurement_related === true;
+      if (!row.gear_kind) row.gear_kind = itemSupportsMeasurements(item) ? 'Måling' : defaultDeviationGearKind();
+      else if (!itemSupportsMeasurements(item)) row.gear_kind = normalizeDeviationGearKind(row.gear_kind);
       if (!row.quantity) row.quantity = '1';
       if (!row.violation) row.violation = suggestedDeviationText(item);
       if (row.linked_seizure_ref) {
-        var linked = findDeviationUnitByRef(row.linked_seizure_ref, row);
-        row.seizure_ref = row.linked_seizure_ref;
-        if (linked && linked.gear_kind) row.gear_kind = normalizeDeviationGearKind(linked.gear_kind);
-        if (linked && linked.gear_ref && !row.gear_ref) row.gear_ref = linked.gear_ref;
-      } else if (!row.seizure_ref) {
-        row.seizure_ref = formatSeizureRef(nextSeizureSequence());
+        var linked = findDeviationUnitByRef(row.linked_seizure_ref, row, { mode: measurementOptionModeForItem(item) });
+        if (linked) {
+          row.seizure_ref = row.linked_seizure_ref;
+          if (linked && linked.gear_kind && linked.unit_kind !== 'measurement') row.gear_kind = normalizeDeviationGearKind(linked.gear_kind);
+          if (linked && linked.gear_ref && !row.gear_ref) row.gear_ref = linked.gear_ref;
+        } else {
+          row.linked_seizure_ref = '';
+          row.seizure_ref = '';
+        }
+      }
+      if (!row.seizure_ref) {
+        row.seizure_ref = itemSupportsMeasurements(item) ? formatMeasurementSeizureRef(nextSeizureSequence()) : formatSeizureRef(nextSeizureSequence());
       }
       if (!row.position && currentCoordText()) row.position = currentCoordText();
       var rowLinks = ensureDeviationLinks(row);
@@ -1081,17 +1118,18 @@
       return '<div class="small muted">\u2022 ' + escapeHtml(entry.caption || entry.original_filename || 'Bildebevis') + '</div>';
     }).join('') : '<div class="small muted">Ingen bilder koblet.</div>';
     var feedback = activeRow && selectedInlineTargetMatches(item, activeRow) && inlineEvidenceFeedback ? '<div class="small deviation-upload-status">' + escapeHtml(inlineEvidenceFeedback) + '</div>' : '';
-    var knownUnits = collectDeviationUnits(null);
-    var knownSummary = knownUnits.length ? knownUnits.slice(0, 6).map(function (row) { return deviationUnitLabel(row); }).join(', ') + (knownUnits.length > 6 ? ' ...' : '') : 'Ingen tidligere beslag.';
+    var unitMode = measurementOptionModeForItem(item);
+    var knownUnits = collectDeviationUnits(null, { mode: unitMode });
+    var knownSummary = knownUnits.length ? knownUnits.slice(0, 6).map(function (row) { return deviationUnitLabel(row); }).join(', ') + (knownUnits.length > 6 ? ' ...' : '') : (unitMode === 'measurement' ? 'Ingen tidligere lengdemålingsbeslag.' : 'Ingen tidligere beslag.');
     return [
       '<div class="callout deviation-info-box">',
       '<strong>Redskap/beslag</strong>',
       '<div class="small muted">Beslagsnr. settes automatisk. Velg tidligere beslag for flere avvik p\u00e5 samme redskap.</div>',
       '<div class="small muted">Tidligere: ' + escapeHtml(knownSummary) + '</div>',
-      '<div class="small" style="margin-top:8px"><strong>Bilde:</strong> ' + escapeHtml(deviationTargetSummary(item, activeRow)) + '</div>',
+      '<div class="small" style="margin-top:8px"><strong>Valgt rad:</strong> ' + escapeHtml(deviationTargetSummary(item, activeRow)) + '</div>',
       '<div class="small muted">Bilder: ' + escapeHtml(String(linked.length)) + '</div>',
       linkedPreview,
-      '<div class="actions-row wrap margin-top-s"><button type="button" class="btn btn-secondary btn-small inline-evidence-camera">Kamera</button><button type="button" class="btn btn-secondary btn-small inline-evidence-file">Bilde</button></div>',
+      '<div class="actions-row wrap margin-top-s"><button type="button" class="btn btn-secondary btn-small inline-evidence-camera">Kamera</button><button type="button" class="btn btn-secondary btn-small inline-evidence-file">Legg til bilde</button></div>',
       feedback,
       '</div>'
     ].join('');
@@ -1141,7 +1179,7 @@
         return [
           '<div class="measurement-row" data-measure-index="' + mIndex + '" data-measure-state="' + escapeHtml(row.measurement_state || '') + '">',
           '<label class="measurement-field measurement-ref-field"><span>Måling/beslag</span><input class="measurement-reference" placeholder="Måling / beslag" value="' + escapeHtml(row.reference || '') + '" readonly /></label>',
-          '<label class="measurement-field measurement-link-field"><span>Tidligere beslag</span><select class="measurement-existing-gear" title="Knytt måling til tidligere beslag/redskap">' + deviationExistingGearOptionsHtml(row).replace('Nytt redskap (automatisk beslag nr.)', 'Ny måling (automatisk målingsnr.)') + '</select></label>',
+          '<label class="measurement-field measurement-link-field"><span>Tidligere lengdemålingsbeslag</span><select class="measurement-existing-gear" title="Knytt måling til tidligere beslag/redskap">' + deviationExistingGearOptionsHtml(row, item, 'measurement') + '</select></label>',
           '<label class="measurement-field measurement-length-field"><span>Lengdemålt (cm)</span><input class="measurement-length" type="text" inputmode="decimal" placeholder="f.eks. 24,9" value="' + escapeHtml(row.length_cm || '') + '" /></label>',
           '<label class="measurement-field"><span>Gjeldende minstemål</span><input class="measurement-min-limit" type="text" inputmode="decimal" placeholder="' + escapeHtml(measurementLimitPlaceholder(item, 'min')) + '" value="' + escapeHtml(measurementLimitDisplayValue(item, row, 'min')) + '" /></label>',
           '<label class="measurement-field"><span>Gjeldende maksimumsmål</span><input class="measurement-max-limit" type="text" inputmode="decimal" placeholder="' + escapeHtml(measurementLimitPlaceholder(item, 'max')) + '" value="' + escapeHtml(measurementLimitDisplayValue(item, row, 'max')) + '" /></label>',
@@ -1212,7 +1250,7 @@
           '<div class="deviation-row-head"><strong>Lenke ' + (rowGroup + 1) + ' · Beslag ' + (dIndex + 1) + '</strong><span class="muted small">' + escapeHtml(row.seizure_ref || 'Beslag opprettes') + '</span></div>',
           '<div class="deviation-row-fields">',
           '<label><span>Beslagsnummer</span><input class="deviation-seizure-ref" placeholder="LBHN 26001-001" title="Beslagsnummer" value="' + escapeHtml(row.seizure_ref || '') + '" readonly /></label>',
-          '<label><span>Tidligere beslag</span><select class="deviation-existing-gear" title="Tidligere beslag/redskap i saken">' + deviationExistingGearOptionsHtml(row) + '</select></label>',
+          '<label><span>' + (itemSupportsMeasurements(item) ? 'Tidligere lengdemålingsbeslag' : 'Tidligere beslag') + '</span><select class="deviation-existing-gear" title="Tidligere beslag/redskap i saken">' + deviationExistingGearOptionsHtml(row, item, measurementOptionModeForItem(item)) + '</select></label>',
           '<label><span>Type beslag</span><select class="deviation-gear-kind" title="Type beslag" ' + (linkedMode ? 'disabled' : '') + '>' + deviationGearOptions().map(function (opt) { return '<option value="' + escapeHtml(opt) + '" ' + (String(row.gear_kind || '') === opt ? 'selected' : '') + '>' + escapeHtml(opt) + '</option>'; }).join('') + '</select></label>',
           '<label><span>Antall</span><input class="deviation-quantity" type="number" min="1" placeholder="1" value="' + escapeHtml(row.quantity || '') + '" /></label>',
           '<label><span>Posisjon</span><input class="deviation-position" placeholder="Posisjon" value="' + escapeHtml(row.position || '') + '" /></label>',
@@ -1220,7 +1258,7 @@
           '<label><span>Avvik</span><input class="deviation-violation" placeholder="Kort lov-/forskriftsbrudd" value="' + escapeHtml(row.violation || '') + '" /></label>',
           '<label><span>Merknad</span><input class="deviation-note" placeholder="Fritekst" value="' + escapeHtml(row.note || '') + '" /></label>',
           '<label class="span-2"><span>Beslagsrapporttekst</span><textarea class="deviation-report-draft" rows="3" readonly title="Autogenerert tekst til beslagsrapport">' + escapeHtml(deviationReportDraftText(item, row)) + '</textarea></label>',
-          '<button type="button" class="btn btn-secondary btn-small deviation-evidence-link">' + (linkedCount ? ('Bilde (' + linkedCount + ')') : 'Bilde') + '</button>',
+          linkedCount ? '<span class="small muted deviation-linked-count">Bilder: ' + escapeHtml(String(linkedCount)) + '</span>' : '',
           '<button type="button" class="btn btn-secondary btn-small deviation-camera">Kamera</button>',
           '<button type="button" class="btn btn-secondary btn-small deviation-file">Legg til bilde</button>',
           '<button type="button" class="btn btn-danger btn-small deviation-remove">Fjern</button>',
@@ -1712,7 +1750,7 @@
       var fisherySel = currentFisherySelection();
       var controlSel = currentControlSelection();
       var gearSel = currentGearSelection();
-      // 1.8.18: Yggdrasil/Fiskerireguleringer MapServer IDs, tilpasset
+      // 1.8.19: Yggdrasil/Fiskerireguleringer MapServer IDs, tilpasset
       // kontrolltype + art + redskap slik at ny kontroll viser de samme
       // verne-/reguleringsområdene som Fritidsfiske-kartet, men uten tapt redskap.
       var fritidGenerell = [0, 7, 11, 13, 31, 37, 38];
@@ -1782,7 +1820,7 @@
       if (/(breivikfjorden|borgundfjorden|henningsvaer|lofotfiske)/.test(restrictionText) && !/(torsk|skrei|kommersiell|yrkes)/.test([currentFisherySelection(), currentControlSelection(), restrictionText].join(' '))) return false;
       var status = String(layer.status || '').trim().toLowerCase();
       if (Object.prototype.hasOwnProperty.call(activeLayerStatuses, status) && !activeLayerStatuses[status]) return false;
-      // 1.8.18: Temakartet kan vise bredt uten valg, men under kontroll
+      // 1.8.19: Temakartet kan vise bredt uten valg, men under kontroll
       // skal kartet bare vise lovregulerte lag som passer valgt kontrolltype,
       // art/fiskeri og redskap.
       if (!hasMapSelection()) return true;
@@ -2618,7 +2656,7 @@
       storedPositionMode = '';
     }
     if (storedPositionMode !== 'manual' && storedPositionMode !== 'auto') storedPositionMode = '';
-    var zoneOverlayStorageKey = 'kv-case-zone-overlay-1.8.18:' + root.dataset.caseId;
+    var zoneOverlayStorageKey = 'kv-case-zone-overlay-1.8.19:' + root.dataset.caseId;
     var zoneOverlayEnabled = true;
     // Treffende verne-/reguleringsområder skal alltid tegnes i kartet.
     // Tidligere lagret 'skjul'-valg fra eldre PWA-versjoner ignoreres.
@@ -2855,7 +2893,7 @@
     var topPrevStep = document.getElementById('top-prev-step');
     var topNextStep = document.getElementById('top-next-step');
     var topStepLabel = document.getElementById('top-step-label');
-    var stepStorageKey = 'kv-case-step-1.8.18:' + root.dataset.caseId;
+    var stepStorageKey = 'kv-case-step-1.8.19:' + root.dataset.caseId;
     var PERSON_STEP = 3;
     var MAP_STEP = 4;
     var FINDINGS_STEP = 5;
@@ -4463,7 +4501,7 @@
         title: 'Kontrollpunkter' + (speciesVal || gearVal ? ' for ' + [controlVal, speciesVal, gearVal].filter(Boolean).join(' / ') : ''),
         description: reason || 'Lokal kontrollpunktliste brukes slik at punktene vises også ved tregt eller tomt regeloppslag.',
         items: items,
-        sources: [{ name: 'Lokal kontrollpunktliste', ref: '1.8.18 fallback', url: '' }]
+        sources: [{ name: 'Lokal kontrollpunktliste', ref: '1.8.19 fallback', url: '' }]
       };
     }
 
@@ -5656,9 +5694,10 @@
       var allLayerIds = displayLayers.map(function (layer) { return Number(layer && layer.id); }).filter(function (value) { return isFinite(value); });
       var fisheryPortalService = root.dataset.portalMapserver || (caseMap && caseMap.dataset ? (caseMap.dataset.portalMapserver || '') : '') || 'https://gis.fiskeridir.no/server/rest/services/Yggdrasil/Fiskerireguleringer/MapServer';
       var vernPortalService = root.dataset.portalVernMapserver || (caseMap && caseMap.dataset ? (caseMap.dataset.portalVernMapserver || '') : '') || 'https://portal.fiskeridir.no/server/rest/services/Fiskeridir_vern/MapServer';
-      // 1.8.18: aktuelle verneområder/reguleringer skal vises direkte i kartet
-      // når posisjonssjekken har gitt treff. Uten treff beholdes rask rastervisning.
-      mapState.fetchFeatureDetails = options.fetchFeatureDetails === true || mapState.requestFeatureDetails === true || zoneLayerIds.length > 0 || featureDetailIds.length > 0;
+      // 1.8.19: rasterlaget skal holde områdene visuelt stabile på alle zoomnivå.
+      // Detalj-/vektorhenting brukes bare ved konkrete områdetreff eller når brukeren
+      // eksplisitt ber om detaljer, slik at kartet ikke blinker/forsvinner ved innzoom.
+      mapState.fetchFeatureDetails = options.fetchFeatureDetails === true || mapState.requestFeatureDetails === true || zoneLayerIds.length > 0;
       mapState.featureDetailLayerIds = featureDetailIds;
       mapState.defaultVisibleLayerIds = defaultVisibleIds;
       mapState.highlightLayerIds = zoneLayerIds.slice();
@@ -5667,7 +5706,7 @@
       mapState.showLegend = false;
       mapState.showLayerPanel = !!mapLayerPanelHost;
       mapState.layerPanelDefaultOpen = false;
-      mapState.layerPanelKey = 'case-map-1-8-18';
+      mapState.layerPanelKey = 'case-map-1-8-19';
       mapState.layerPanelTargetSelector = mapLayerPanelHost ? '#case-map-layer-panel-host' : '';
       mapState.rasterLayerIds = allLayerIds;
       mapState.identifyLayerIds = allLayerIds;
@@ -5788,8 +5827,8 @@
       return rows;
     }
 
-    var zoneResultStoragePrefix = 'kv-zone-result-1.8.18:';
-    var nearestPlaceStoragePrefix = 'kv-nearest-place-1.8.18:';
+    var zoneResultStoragePrefix = 'kv-zone-result-1.8.19:';
+    var nearestPlaceStoragePrefix = 'kv-nearest-place-1.8.19:';
     var nearestPlaceController = null;
     var nearestPlaceSequence = 0;
     var nearestPlaceTimer = null;
@@ -6089,7 +6128,7 @@
       scheduleAutosave('Manuell posisjon aktivert');
     }
 
-    var devicePositionStorageKey = 'kv-device-position-1.8.18';
+    var devicePositionStorageKey = 'kv-device-position-1.8.19';
     function readCachedDevicePosition() {
       if (!window.localStorage) return null;
       try {
@@ -7335,7 +7374,7 @@ function renderHummerStatus(result) {
         var selectedMeasurementRef = String(event.target.value || '').trim();
         mRowChange.linked_seizure_ref = selectedMeasurementRef;
         if (selectedMeasurementRef) {
-          var measurementLinked = findDeviationUnitByRef(selectedMeasurementRef, mRowChange);
+          var measurementLinked = findDeviationUnitByRef(selectedMeasurementRef, mRowChange, { mode: 'measurement' });
           mRowChange.seizure_ref = selectedMeasurementRef;
           mRowChange.reference = selectedMeasurementRef;
           if (measurementLinked && measurementLinked.position && !mRowChange.position) mRowChange.position = measurementLinked.position;
@@ -7372,7 +7411,7 @@ function renderHummerStatus(result) {
           var selectedRef = String(event.target.value || '').trim();
           rowChange.linked_seizure_ref = selectedRef;
           if (selectedRef) {
-            var linkedUnit = findDeviationUnitByRef(selectedRef, rowChange);
+            var linkedUnit = findDeviationUnitByRef(selectedRef, rowChange, { mode: measurementOptionModeForItem(item) });
             rowChange.seizure_ref = selectedRef;
             if (linkedUnit && linkedUnit.gear_kind) rowChange.gear_kind = normalizeDeviationGearKind(linkedUnit.gear_kind);
             if (linkedUnit && linkedUnit.gear_ref) rowChange.gear_ref = linkedUnit.gear_ref;

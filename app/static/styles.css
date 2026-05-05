@@ -4155,7 +4155,7 @@ body.case-map-focus-mode { overflow: hidden; }
   color: var(--muted);
 }
 
-/* ===== v1.8.18 Person/Fartøy bildeanalyse ===== */
+/* ===== v1.8.19 Person/Fartøy bildeanalyse ===== */
 .person-image-preview-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -4214,4 +4214,12 @@ body.case-map-focus-mode { overflow: hidden; }
   .person-image-preview-card img {
     height: 128px;
   }
+}
+
+/* 1.8.19: bildeantall under redskap/beslag er kun status, ikke egen knapp */
+.deviation-linked-count {
+  align-self: center;
+  display: inline-flex;
+  min-height: 2.2rem;
+  align-items: center;
 }

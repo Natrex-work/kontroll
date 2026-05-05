@@ -234,15 +234,33 @@ def _sanitize_result(parsed: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+def _first_configured_api_key() -> tuple[str, str]:
+    for name in ('OPENAI_API_KEY', 'KV_OPENAI_API_KEY', 'OPENAI_KEY'):
+        value = str(os.getenv(name) or '').strip()
+        if value:
+            return value, name
+    for name in ('OPENAI_API_KEY_FILE', 'KV_OPENAI_API_KEY_FILE'):
+        path = str(os.getenv(name) or '').strip()
+        if not path:
+            continue
+        try:
+            value = open(path, 'r', encoding='utf-8').read().strip()
+        except Exception:
+            value = ''
+        if value:
+            return value, name
+    return '', ''
+
+
 def analyze_person_marking_images(images: list[dict[str, Any]]) -> dict[str, Any]:
     """Analyze one or more gear/marker photos with OpenAI vision.
 
     images: list of {'content': bytes, 'filename': str}
     Returns exactly the fields expected by the Person/Fartøy frontend.
     """
-    api_key = str(os.getenv('OPENAI_API_KEY') or os.getenv('KV_OPENAI_API_KEY') or '').strip()
+    api_key, api_key_source = _first_configured_api_key()
     if not api_key:
-        raise VisionConfigError('Bildeanalyse er ikke aktivert på serveren. Sett OPENAI_API_KEY eller KV_OPENAI_API_KEY.')
+        raise VisionConfigError('Bildeanalyse er ikke aktivert på serveren. Legg inn OPENAI_API_KEY eller KV_OPENAI_API_KEY i Render → Environment, og deploy på nytt.')
     if not images:
         raise ValueError('Legg ved minst ett bilde.')
     max_images = _env_int('KV_OPENAI_VISION_MAX_IMAGES', 4, minimum=1, maximum=8)

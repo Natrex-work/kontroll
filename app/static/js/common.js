@@ -6,7 +6,7 @@
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('/static/sw.js?v=1.8.18').catch(function () {});
+      navigator.serviceWorker.register('/static/sw.js?v=1.8.19').catch(function () {});
     });
   }
 
@@ -337,7 +337,7 @@
   }
 
 
-  var LAYER_PANEL_PREFS_VERSION = '1.8.18';
+  var LAYER_PANEL_PREFS_VERSION = '1.8.19';
 
   function layerPanelStorageKey(el, markerState) {
     return 'kv-temalag:' + LAYER_PANEL_PREFS_VERSION + ':' + String((markerState && markerState.layerPanelKey) || (el && el.id) || 'map');
@@ -752,8 +752,10 @@
             opacity: 0.78,
             updateWhenIdle: true,
             updateWhenZooming: false,
-            keepBuffer: 3,
-            className: 'kv-arcgis-export-layer'
+            updateInterval: 450,
+            keepBuffer: 6,
+            className: 'kv-arcgis-export-layer',
+            crossOrigin: true
           }, options || {}));
         },
         getTileUrl: function (coords) {
@@ -816,11 +818,10 @@
         else if (legacyIds.length) meta.layerId = legacyIds[0];
         return meta;
       }
-      if (legacyIds.some(function (value) { return knownVernIds[String(value)]; })) {
-        meta.url = normalizedServiceUrl(vernServiceUrl);
-        meta.layerId = legacyIds.filter(function (value) { return knownVernIds[String(value)]; })[0];
-        return meta;
-      }
+      // 1.8.19: Ikke send Yggdrasil-lag til Fiskeridir_vern bare fordi de
+      // har gamle/legacy ID-er som tilfeldigvis finnes i vern-tjenesten. Det gjorde
+      // at enkelte fiskerireguleringsområder forsvant visuelt i kartet. Bruk vern
+      // bare når laget selv peker på vern-tjenesten.
       meta.url = normalizedServiceUrl(fisheryServiceUrl || serviceUrl);
       if (isFinite(rawId)) meta.layerId = rawId;
       return meta;
@@ -978,13 +979,28 @@
     });
     rasterServices.forEach(function (svc) {
       activeRasterKeys[svc.key] = true;
+      var layerDefsKey = uniqueLayerIds(svc.layerIds || []).join(',');
       if (!state.rasterOverlays[svc.key]) {
         var overlay = createArcGisExportLayer(svc.url, { layerDefs: svc.layerIds.slice(), opacity: svc.opacity });
-        if (overlay) { overlay.addTo(map); state.rasterOverlays[svc.key] = overlay; }
+        if (overlay) {
+          overlay._kvLayerDefsKey = layerDefsKey;
+          overlay._kvOpacity = svc.opacity;
+          overlay.addTo(map);
+          state.rasterOverlays[svc.key] = overlay;
+        }
       } else {
-        state.rasterOverlays[svc.key].options.layerDefs = svc.layerIds.slice();
-        if (state.rasterOverlays[svc.key].setOpacity) state.rasterOverlays[svc.key].setOpacity(svc.opacity);
-        if (state.rasterOverlays[svc.key].redraw) state.rasterOverlays[svc.key].redraw();
+        var existingOverlay = state.rasterOverlays[svc.key];
+        var changedLayers = existingOverlay._kvLayerDefsKey !== layerDefsKey;
+        var changedOpacity = Math.abs(Number(existingOverlay._kvOpacity || 0) - Number(svc.opacity || 0)) > 0.001;
+        if (changedLayers) {
+          existingOverlay.options.layerDefs = svc.layerIds.slice();
+          existingOverlay._kvLayerDefsKey = layerDefsKey;
+        }
+        if (changedOpacity && existingOverlay.setOpacity) {
+          existingOverlay.setOpacity(svc.opacity);
+          existingOverlay._kvOpacity = svc.opacity;
+        }
+        if ((changedLayers || changedOpacity) && existingOverlay.redraw) existingOverlay.redraw();
       }
     });
     Object.keys(state.rasterOverlays).forEach(function (key) {
@@ -1038,13 +1054,15 @@
         featurePromise = fetchPortalBundle(bundleViewKey, bundleUrl, bundleLayerIds, bbox).then(function (data) {
           data = normalizeFeatureCollection(data);
           data.layers = Array.isArray(data.layers) ? data.layers : [];
-          clearFeatureOverlays(state, map);
-          clearBundleOverlay();
-          state.featureSummariesByLayer = {};
           if (!data.features.length) {
+            // Behold forrige detaljoverlay ved tomt/treigt svar; rasterlaget viser
+            // fortsatt riktige reguleringsområder, og kartet unngår blink ved zoom.
             state.bundleViewKey = bundleViewKey;
             return;
           }
+          clearFeatureOverlays(state, map);
+          clearBundleOverlay();
+          state.featureSummariesByLayer = {};
           var featureSummaries = [];
           var geo = L.geoJSON(data, {
             interactive: false,
@@ -1105,7 +1123,8 @@
           state.bundleViewKey = bundleViewKey;
           state.featureSummariesByLayer.__bundle = featureSummaries;
         }).catch(function () {
-          clearBundleOverlay();
+          // Nettverksfeil skal ikke fjerne allerede synlige områder. Rasterlaget
+          // og eventuell forrige detaljvisning beholdes til ny henting lykkes.
         });
       }
     }
