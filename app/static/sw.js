@@ -5,6 +5,7 @@ const API_CACHE_PREFIXES = ['/api/map/catalog', '/api/map/bundle', '/api/map/off
 const NETWORK_ONLY_PREFIXES = ['/api/rules', '/api/zones/check', '/api/person-fartoy/analyze-image'];
 const ASSETS = [
   '/static/styles.css?v=1.8.26',
+  '/static/styles-pro.css?v=1.8.26',
   '/static/js/local-media.js?v=1.8.26',
   '/static/js/local-cases.js?v=1.8.26',
   '/static/js/local-map.js?v=1.8.26',
