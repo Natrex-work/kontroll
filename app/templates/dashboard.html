@@ -8,12 +8,12 @@
     <div class="stack gap-s">
       <span class="home-kicker">{{ display_app_name }}</span>
       <h1>Rask tilgang til kontroll, kart og regelverk</h1>
-      <p class="home-lead">Startsiden er bygget om med store handlingsflater, tydelig mobilnavigasjon og direkte vei til ny kontroll, saker, kart og regler.</p>
+      <p class="home-lead">Startsiden gir tydelig mobilnavigasjon og direkte vei til ny kontroll, saker, kart og regler.</p>
     </div>
-    <div class="home-header-stats">
-      <div class="home-mini-stat"><strong>{{ cases|length }}</strong><span>Saker</span></div>
-      <div class="home-mini-stat"><strong>{{ cases|selectattr('status', 'equalto', 'Pågår')|list|length }}</strong><span>Pågår</span></div>
-      <div class="home-mini-stat"><strong>{{ cases[:6]|length }}</strong><span>Sist oppdatert</span></div>
+    <div class="home-header-stats" role="list">
+      <div class="home-mini-stat" role="listitem"><strong>{{ counts.total }}</strong><span>Totalt</span></div>
+      <div class="home-mini-stat" role="listitem"><strong>{{ counts.draft }}</strong><span>Utkast</span></div>
+      <div class="home-mini-stat" role="listitem"><strong>{{ counts.ready + counts.exported }}</strong><span>Anmeldt</span></div>
     </div>
   </div>
 
@@ -95,7 +95,7 @@
         <p>Lagringer som ligger på enheten og kan åpnes videre i felt.</p>
       </div>
     </div>
-    <div class="home-list" id="offline-drafts-list">
+    <div class="home-list" id="offline-drafts-list" aria-live="polite">
       <div class="home-list-empty">Ingen lokale kladder funnet på denne enheten.</div>
     </div>
   </section>
@@ -106,18 +106,27 @@
         <h2>Siste saker</h2>
         <p>Nylig oppdaterte saker og hurtiglenker tilbake til arbeidet.</p>
       </div>
+      {% if cases %}
+      <a class="home-panel-link" href="/kontroller">Se alle saker</a>
+      {% endif %}
     </div>
     <div class="home-list">
       {% for case in cases[:6] %}
       <a class="home-case-row" href="/cases/{{ case.id }}/edit">
         <div class="home-case-copy">
           <strong>{{ case.case_number }}</strong>
-          <span>{{ case.control_type or '-' }} · {{ case.species or case.fishery_type or '-' }} · {{ case.gear_type or '-' }}</span>
+          <span>{{ case.control_type or '—' }} · {{ case.species or case.fishery_type or '—' }} · {{ case.gear_type or '—' }}</span>
         </div>
         <span class="home-case-status">{{ case.status }}</span>
       </a>
       {% else %}
-      <div class="home-list-empty">Ingen saker ennå.</div>
+      <div class="home-list-empty">
+        <p>Ingen saker ennå.</p>
+        <form method="post" action="/cases/new" class="inline-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+          <button class="btn btn-primary btn-small" type="submit">Opprett din første kontroll</button>
+        </form>
+      </div>
       {% endfor %}
     </div>
   </section>

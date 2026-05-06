@@ -4239,3 +4239,349 @@ body.case-map-focus-mode { overflow: hidden; }
 .deviation-linked-count {
   align-self: center;
 }
+
+/* =====================================================================
+   v1.8.27 — UI polish, accessibility, empty states, responsive tables
+   Appended cleanly at the end so existing rules are not disturbed.
+   Each block here is additive or strengthens a previously-weak pattern.
+   ===================================================================== */
+
+/* ---- Accessibility: skip link, focus rings, reduced motion ---- */
+.skip-link {
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  padding: 10px 16px;
+  background: #ffffff;
+  color: var(--primary, #10273d);
+  font-weight: 700;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(4, 18, 36, 0.25);
+  transform: translateY(-150%);
+  transition: transform 0.18s ease;
+  z-index: 1000;
+  text-decoration: none;
+}
+.skip-link:focus,
+.skip-link:focus-visible {
+  transform: translateY(0);
+  outline: 2px solid #2b80d6;
+  outline-offset: 2px;
+}
+
+/* Make `tabindex="-1"` main not show a focus ring when programmatically focused */
+#main-content:focus { outline: none; }
+
+/* Consistent, visible focus rings for all interactive controls.
+   Uses :focus-visible so mouse clicks don't show the ring. */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid #2b80d6;
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+/* Inputs already have a border; tighten the ring so it doesn't overlap awkwardly */
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline-color: #2b80d6;
+  outline-offset: 1px;
+  border-color: #2b80d6;
+}
+
+/* Honor user motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---- Empty state pattern (used by lists/tables when no rows) ---- */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+  padding: 36px 20px;
+  color: var(--text, #12202f);
+}
+.empty-state h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  letter-spacing: -0.01em;
+}
+.empty-state p {
+  margin: 0;
+  max-width: 46ch;
+  line-height: 1.5;
+}
+.empty-state-icon {
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #eef4fb;
+  color: #24527b;
+}
+.empty-state-icon svg {
+  width: 32px;
+  height: 32px;
+  stroke: currentColor;
+}
+.empty-state .inline-form,
+.empty-state form {
+  margin-top: 4px;
+}
+
+/* Empty state inside the dashboard "Siste saker" panel — looks tidier */
+.home-list-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+.home-list-empty p {
+  margin: 0;
+  color: rgba(231, 243, 255, 0.78);
+}
+
+/* ---- Dashboard panel link (e.g. "Se alle saker") ---- */
+.home-panel-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #bfe9ff;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 0.95rem;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  transition: background 0.15s ease;
+  white-space: nowrap;
+}
+.home-panel-link:hover { background: rgba(255, 255, 255, 0.14); }
+.home-panel-link::after {
+  content: "›";
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+/* ---- Responsive data tables: card layout on small screens ---- */
+/* Only applied to tables wrapped in .responsive-table-wrap, so the
+   complex case-form tables and others are not affected. */
+@media (max-width: 720px) {
+  .responsive-table-wrap { overflow-x: visible; }
+  .responsive-table-wrap .data-table,
+  .responsive-table-wrap .data-table thead,
+  .responsive-table-wrap .data-table tbody,
+  .responsive-table-wrap .data-table tr,
+  .responsive-table-wrap .data-table th,
+  .responsive-table-wrap .data-table td {
+    display: block;
+    width: 100%;
+  }
+  .responsive-table-wrap .data-table thead {
+    /* Visually hide but keep accessible to assistive tech */
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  .responsive-table-wrap .data-table tr {
+    background: #ffffff;
+    border: 1px solid var(--line, #d5dfeb);
+    border-radius: 16px;
+    padding: 14px;
+    margin-bottom: 12px;
+    box-shadow: 0 4px 12px rgba(15, 39, 64, 0.04);
+  }
+  .responsive-table-wrap .data-table td {
+    border: none;
+    padding: 6px 0;
+    display: grid;
+    grid-template-columns: minmax(110px, 38%) 1fr;
+    gap: 12px;
+    align-items: start;
+  }
+  .responsive-table-wrap .data-table td::before {
+    content: attr(data-label);
+    color: var(--muted, #5f6f81);
+    font-weight: 700;
+    font-size: 0.85rem;
+  }
+  .responsive-table-wrap .data-table td:not([data-label])::before {
+    content: "";
+  }
+  /* Action cells (td that contains the row's buttons) get full width.
+     We mark them by data-label="Handlinger"/"Handling" to keep a stable
+     selector; :has() would be cleaner but isn't on every browser yet. */
+  .responsive-table-wrap .data-table td[data-label="Handlinger"],
+  .responsive-table-wrap .data-table td[data-label="Handling"] {
+    display: block;
+    margin-top: 8px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--line, #d5dfeb);
+  }
+  .responsive-table-wrap .data-table td[data-label="Handlinger"]::before,
+  .responsive-table-wrap .data-table td[data-label="Handling"]::before {
+    display: block;
+    margin-bottom: 6px;
+  }
+  .responsive-table-wrap .data-table td[data-label="Handlinger"] .actions-row,
+  .responsive-table-wrap .data-table td[data-label="Handling"] .actions-row {
+    width: 100%;
+  }
+}
+
+/* ---- Subtle button polish (additive, doesn't change palette/weight) ---- */
+.btn {
+  letter-spacing: -0.005em;
+  transition: background-color 0.15s ease, transform 0.05s ease, box-shadow 0.15s ease;
+  min-height: 44px; /* WCAG 2.5.5 target size on touch */
+}
+.btn:active { transform: translateY(1px); }
+.btn[disabled],
+.btn[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+.btn-small { min-height: 36px; }
+
+/* ---- Alert role styling: make alerts stand out without screaming ---- */
+.alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  line-height: 1.45;
+}
+
+/* ---- Make placeholder text legible (often too pale by default) ---- */
+input::placeholder,
+textarea::placeholder {
+  color: #8a9aae;
+  opacity: 1;
+}
+
+/* ---- Selection color matches brand ---- */
+::selection {
+  background: rgba(43, 128, 214, 0.25);
+  color: var(--primary, #10273d);
+}
+
+/* ---- Print: hide chrome so PDFs of the preview page are clean ---- */
+@media print {
+  .sidebar,
+  .mobile-dock,
+  .preview-sticky-bar,
+  .preview-bottom-bar,
+  .skip-link,
+  .topbar-actions,
+  .home-panel-link {
+    display: none !important;
+  }
+  body, .page-shell {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  .main { padding: 0 !important; }
+  .card { box-shadow: none !important; border: 1px solid #cccccc !important; }
+}
+
+/* ---- Long JSON in audit log: wrap and stay readable on mobile ---- */
+.audit-details {
+  display: block;
+  max-width: 100%;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: #f4f7fb;
+  border: 1px solid var(--line, #d5dfeb);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: #2a3b50;
+}
+
+/* ---- Login card: ensure labels and inner brand badge are readable ---- */
+/* The page-login background sets `color: #f8fbff` for the hero copy,
+   but the form labels live inside a white card and would inherit white-on-white. */
+.page-login .login-card,
+.page-login .login-card label,
+.page-login .login-card label > span,
+.page-login .login-card h2 {
+  color: var(--primary, #10273d);
+}
+.page-login .login-card label > span {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #2a3b50;
+}
+/* Inner brand badge inside the white login card needs a visible fill */
+.page-login .login-card .brand-badge,
+.login-card-head .brand-badge {
+  background: var(--primary, #10273d);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* ---- Screen-reader-only utility ---- */
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+/* ---- Brand badge with logo image ----
+   The logo PNG already has its own dark navy rounded-square background.
+   When the badge contains the logo (via .brand-badge-logo) we drop the
+   container's translucent fill, padding and letter-spacing so the logo
+   visually replaces the text "MK" without doubling backgrounds. */
+.brand-badge-logo {
+  background: transparent !important;
+  border: 0 !important;
+  padding: 0 !important;
+  letter-spacing: 0 !important;
+  overflow: hidden;
+}
+.brand-badge-logo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  /* keep the logo crisp at any rendered size */
+  image-rendering: -webkit-optimize-contrast;
+}
+/* The login-card override that fills .brand-badge with var(--primary)
+   should NOT apply when the badge contains the logo image. */
+.page-login .login-card .brand-badge.brand-badge-logo,
+.login-card-head .brand-badge.brand-badge-logo {
+  background: transparent !important;
+  border: 0 !important;
+}

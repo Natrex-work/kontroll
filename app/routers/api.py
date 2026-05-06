@@ -101,7 +101,7 @@ def _basis_opening_phrase(case_basis: str, source_name: str = '') -> str:
         return f'Kontrollen ble gjennomført på bakgrunn av tips/opplysninger fra {raw_source}'
     if basis == 'tips':
         return 'Kontrollen ble gjennomført på bakgrunn av tips/opplysninger'
-    return 'Patruljen gjennomførte fiskerioppsyn som ledd i planlagt patrulje/oppsyn'
+    return 'Patruljen gjennomførte fiskerioppsyn som ledd i planlagt kontrollvirksomhet'
 
 
 @router.post('/api/text/polish')
@@ -168,6 +168,8 @@ def api_text_polish(request: Request, payload: TextPolishRequest):
             cleaned = f"{opening}. {cleaned.rstrip('.')}".strip()
         cleaned = re.sub(r'Formålet var å føre kontroll med føre kontroll med', 'Formålet var å føre kontroll med', cleaned, flags=re.IGNORECASE)
         cleaned = re.sub(r'avklare om redskap, merking, fangst/oppbevaring og relevante områdebestemmelser', 'avklare om redskap, merking, fangst/oppbevaring, posisjon og relevante områdebestemmelser', cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r'kontrollere\s+fiskerikontroll\s*', 'føre kontroll med ', cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r'Patruljeformålet var å kontrollere', 'Formålet var å føre kontroll med', cleaned, flags=re.IGNORECASE)
         if location and location.lower() not in cleaned.lower():
             cleaned = cleaned.rstrip('.') + f' ved {location}.'
         else:

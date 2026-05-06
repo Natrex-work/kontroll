@@ -1718,7 +1718,7 @@
       var fisherySel = currentFisherySelection();
       var controlSel = currentControlSelection();
       var gearSel = currentGearSelection();
-      // 1.8.26: Yggdrasil/Fiskerireguleringer MapServer IDs, tilpasset
+      // 1.8.27: Yggdrasil/Fiskerireguleringer MapServer IDs, tilpasset
       // kontrolltype + art + redskap slik at ny kontroll viser de samme
       // verne-/reguleringsområdene som Fritidsfiske-kartet, men uten tapt redskap.
       var fritidGenerell = [0, 7, 11, 13, 31, 37, 38];
@@ -1788,7 +1788,7 @@
       if (/(breivikfjorden|borgundfjorden|henningsvaer|lofotfiske)/.test(restrictionText) && !/(torsk|skrei|kommersiell|yrkes)/.test([currentFisherySelection(), currentControlSelection(), restrictionText].join(' '))) return false;
       var status = String(layer.status || '').trim().toLowerCase();
       if (Object.prototype.hasOwnProperty.call(activeLayerStatuses, status) && !activeLayerStatuses[status]) return false;
-      // 1.8.26: Temakartet kan vise bredt uten valg, men under kontroll
+      // 1.8.27: Temakartet kan vise bredt uten valg, men under kontroll
       // skal kartet bare vise lovregulerte lag som passer valgt kontrolltype,
       // art/fiskeri og redskap.
       if (!hasMapSelection()) return true;
@@ -2624,7 +2624,7 @@
       storedPositionMode = '';
     }
     if (storedPositionMode !== 'manual' && storedPositionMode !== 'auto') storedPositionMode = '';
-    var zoneOverlayStorageKey = 'kv-case-zone-overlay-1.8.26:' + root.dataset.caseId;
+    var zoneOverlayStorageKey = 'kv-case-zone-overlay-1.8.27:' + root.dataset.caseId;
     var zoneOverlayEnabled = true;
     // Treffende verne-/reguleringsområder skal alltid tegnes i kartet.
     // Tidligere lagret 'skjul'-valg fra eldre PWA-versjoner ignoreres.
@@ -2861,7 +2861,7 @@
     var topPrevStep = document.getElementById('top-prev-step');
     var topNextStep = document.getElementById('top-next-step');
     var topStepLabel = document.getElementById('top-step-label');
-    var stepStorageKey = 'kv-case-step-1.8.26:' + root.dataset.caseId;
+    var stepStorageKey = 'kv-case-step-1.8.27:' + root.dataset.caseId;
     var PERSON_STEP = 3;
     var MAP_STEP = 4;
     var FINDINGS_STEP = 5;
@@ -4470,7 +4470,7 @@
         title: 'Kontrollpunkter' + (speciesVal || gearVal ? ' for ' + [controlVal, speciesVal, gearVal].filter(Boolean).join(' / ') : ''),
         description: reason || 'Lokal kontrollpunktliste brukes slik at punktene vises også ved tregt eller tomt regeloppslag.',
         items: items,
-        sources: [{ name: 'Lokal kontrollpunktliste', ref: '1.8.26 fallback', url: '' }]
+        sources: [{ name: 'Lokal kontrollpunktliste', ref: '1.8.27 fallback', url: '' }]
       };
     }
 
@@ -5666,7 +5666,7 @@
       var allLayerIds = displayLayers.map(function (layer) { return Number(layer && layer.id); }).filter(function (value) { return isFinite(value); });
       var fisheryPortalService = root.dataset.portalMapserver || (caseMap && caseMap.dataset ? (caseMap.dataset.portalMapserver || '') : '') || 'https://gis.fiskeridir.no/server/rest/services/Yggdrasil/Fiskerireguleringer/MapServer';
       var vernPortalService = root.dataset.portalVernMapserver || (caseMap && caseMap.dataset ? (caseMap.dataset.portalVernMapserver || '') : '') || 'https://portal.fiskeridir.no/server/rest/services/Fiskeridir_vern/MapServer';
-      // 1.8.26: rasterlaget skal holde områdene visuelt stabile på alle zoomnivå.
+      // 1.8.27: rasterlaget skal holde områdene visuelt stabile på alle zoomnivå.
       // Detalj-/vektorhenting brukes bare ved konkrete områdetreff eller når brukeren
       // eksplisitt ber om detaljer, slik at kartet ikke blinker/forsvinner ved innzoom.
       mapState.fetchFeatureDetails = options.fetchFeatureDetails === true || mapState.requestFeatureDetails === true || zoneLayerIds.length > 0;
@@ -5678,7 +5678,7 @@
       mapState.showLegend = false;
       mapState.showLayerPanel = !!mapLayerPanelHost;
       mapState.layerPanelDefaultOpen = false;
-      mapState.layerPanelKey = 'case-map-1-8-26';
+      mapState.layerPanelKey = 'case-map-1-8-27';
       mapState.layerPanelTargetSelector = mapLayerPanelHost ? '#case-map-layer-panel-host' : '';
       mapState.rasterLayerIds = allLayerIds;
       mapState.identifyLayerIds = allLayerIds;
@@ -5799,8 +5799,8 @@
       return rows;
     }
 
-    var zoneResultStoragePrefix = 'kv-zone-result-1.8.26:';
-    var nearestPlaceStoragePrefix = 'kv-nearest-place-1.8.26:';
+    var zoneResultStoragePrefix = 'kv-zone-result-1.8.27:';
+    var nearestPlaceStoragePrefix = 'kv-nearest-place-1.8.27:';
     var nearestPlaceController = null;
     var nearestPlaceSequence = 0;
     var nearestPlaceTimer = null;
@@ -6100,7 +6100,7 @@
       scheduleAutosave('Manuell posisjon aktivert');
     }
 
-    var devicePositionStorageKey = 'kv-device-position-1.8.26';
+    var devicePositionStorageKey = 'kv-device-position-1.8.27';
     function readCachedDevicePosition() {
       if (!window.localStorage) return null;
       try {
@@ -6912,7 +6912,7 @@ function renderHummerStatus(result) {
         notes: '',
         summary: summaryText,
         complaint_preview: summaryText,
-        source_label: 'lokal IKV-mal 1.8.26'
+        source_label: 'lokal IKV-mal 1.8.27'
       };
     }
 
@@ -7014,12 +7014,30 @@ function renderHummerStatus(result) {
 
       var topicText = naturalTopic();
 
+      function purposeFocusText() {
+        var gearLower = gearLabel.toLowerCase();
+        var speciesLower = speciesLabel.toLowerCase();
+        if (speciesLower.indexOf('hummer') !== -1) {
+          return 'deltakelse/deltakernummer, merking av vak/blåse og redskap, antall teiner, fluktåpninger/rømningshull, fangst/oppbevaring, lengdemål og relevante periode- eller områdebestemmelser';
+        }
+        if (gearLower.indexOf('samleteine') !== -1 || gearLower.indexOf('sanketeine') !== -1) {
+          return 'merking, plassering, ansvarlig bruker/eier, lengdemål og oppbevaring i sjø';
+        }
+        if (gearLower.indexOf('garn') !== -1 || gearLower.indexOf('lenke') !== -1 || gearLower.indexOf('line') !== -1) {
+          return 'start- og sluttposisjon, merking, ansvarlig bruker/eier og redskapets plassering';
+        }
+        if (gearLower.indexOf('teine') !== -1 || gearLower.indexOf('ruse') !== -1) {
+          return 'merking av vak/blåse og redskap, redskapets utforming, plassering, røktingsforhold, fangst/oppbevaring og ansvarlig bruker/eier';
+        }
+        return 'redskap, merking, fangst/oppbevaring, posisjon og relevante områdebestemmelser';
+      }
+
       function autoPreset() {
         var gearLower = gearLabel.toLowerCase();
         var speciesLower = speciesLabel.toLowerCase();
         if (speciesLower.indexOf('hummer') !== -1) return 'patrol-hummer';
         if (gearLower.indexOf('samleteine') !== -1 || gearLower.indexOf('sanketeine') !== -1) return 'patrol-samleteine';
-        if (gearLower.indexOf('garn') !== -1 || gearLower.indexOf('lenke') !== -1) return 'patrol-garnlenke';
+        if (gearLower.indexOf('garn') !== -1 || gearLower.indexOf('lenke') !== -1 || gearLower.indexOf('line') !== -1) return 'patrol-garnlenke';
         if (gearLower.indexOf('teine') !== -1 || gearLower.indexOf('ruse') !== -1) return 'patrol-fixed';
         return 'patrol-general';
       }
@@ -7027,15 +7045,16 @@ function renderHummerStatus(result) {
       if (preset === 'auto') preset = autoPreset();
       var opening = 'Den ' + dateLabel + ' gjennomførte patruljen fiskerioppsyn ' + placeLabel + '.';
       var controlArea = area ? (' Kontrollstedet ble samtidig vurdert opp mot registrert områdestatus: ' + area + '.') : '';
-      var generalPurpose = ' Formålet var å føre kontroll med ' + topicText + ' og avklare om observasjoner, redskap, merking, fangst/oppbevaring, posisjon og relevante områdebestemmelser var i samsvar med gjeldende regelverk.';
+      var focusText = purposeFocusText();
+      var generalPurpose = ' Formålet var å føre kontroll med ' + topicText + ' og avklare om ' + focusText + ' var i samsvar med gjeldende regelverk.';
       if (basis === 'tips') {
         var sourceText = sourceName ? (' fra ' + sourceName) : '';
         generalPurpose = ' Kontrollen ble gjennomført på bakgrunn av tips/opplysninger' + sourceText + '. Tipsopplysningene ga grunnlag for å kontrollere ' + topicText + '. De forhold som omtales i rapporten bygger på patruljens egne observasjoner, kontroll av redskapet og dokumentasjon sikret på stedet.';
       }
       var texts = {
         'patrol-general': opening + generalPurpose + controlArea,
-        'patrol-fixed': opening + ' Formålet var å føre kontroll med faststående redskap og avklare om vak/blåse, redskapets merking, utforming, plassering, røktingsforhold, fangst/oppbevaring og ansvarlig bruker/eier var i samsvar med gjeldende regelverk.' + controlArea,
-        'patrol-hummer': opening + ' Formålet var å føre kontroll med hummerfiske og avklare om deltakelse/deltakernummer, merking av vak og redskap, antall teiner, fluktåpninger/rømningshull, lengdemål, fangst/oppbevaring og relevante område- eller tidsbestemmelser var i samsvar med gjeldende regelverk.' + controlArea,
+        'patrol-fixed': opening + ' Formålet var å føre kontroll med faststående redskap og avklare om merking av vak/blåse og redskap, redskapets utforming, plassering, røktingsforhold, fangst/oppbevaring og ansvarlig bruker/eier var i samsvar med gjeldende regelverk.' + controlArea,
+        'patrol-hummer': opening + ' Formålet var å føre kontroll med hummerfiske og avklare om deltakelse/deltakernummer, merking av vak/blåse og redskap, antall teiner, fluktåpninger/rømningshull, fangst/oppbevaring, lengdemål og relevante periode- eller områdebestemmelser var i samsvar med gjeldende regelverk.' + controlArea,
         'patrol-samleteine': opening + ' Formålet var å føre kontroll med sanke-/samleteiner for hummer og avklare om merking, plassering, ansvarlig bruker/eier, lengdemål og oppbevaring i sjø var i samsvar med gjeldende regelverk.' + controlArea,
         'patrol-garnlenke': opening + ' Formålet var å føre kontroll med garn-/lenkeredskap og avklare om start- og sluttposisjon, merking, ansvarlig bruker/eier og redskapets plassering var i samsvar med gjeldende område- og redskapsbestemmelser.' + controlArea
       };

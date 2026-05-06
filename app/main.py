@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse, Response
@@ -17,6 +19,15 @@ configure_logging(settings.log_level)
 settings.ensure_runtime_dirs()
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    initialize_application_data()
+    start_background_rule_refresh()
+    yield
+    # Shutdown (nothing to clean up explicitly today)
+
+
 def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.app_name,
@@ -24,6 +35,7 @@ def create_app() -> FastAPI:
         docs_url=None,
         redoc_url=None,
         openapi_url=None,
+        lifespan=lifespan,
     )
     if settings.allowed_hosts and '*' not in settings.allowed_hosts:
         app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(settings.allowed_hosts))
@@ -39,11 +51,6 @@ def create_app() -> FastAPI:
     app.add_middleware(SecurityHeadersMiddleware)
     app.mount('/static', StaticFiles(directory=str(settings.static_dir)), name='static')
 
-    @app.on_event('startup')
-    def startup() -> None:
-        initialize_application_data()
-        start_background_rule_refresh()
-
     @app.exception_handler(HTTPException)
     async def friendly_http_exception(request: Request, exc: HTTPException):
         detail = exc.detail
@@ -51,7 +58,7 @@ def create_app() -> FastAPI:
         accept = str(request.headers.get('accept') or '')
         wants_html = request.method in {'GET', 'HEAD'} and ('text/html' in accept or '*/*' in accept or not accept)
         if exc.status_code == 404 and detail_text.startswith('Fant ikke saken') and wants_html:
-            html = '<!doctype html><html lang="nb"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Saken ble ikke funnet</title><style>body{font-family:system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;background:#eef4f8;color:#10273d;margin:0;padding:24px}.card{max-width:720px;margin:10vh auto;background:#fff;border:1px solid #d7e3ee;border-radius:22px;padding:24px;box-shadow:0 18px 42px rgba(16,39,61,.12)}a{display:inline-flex;margin-top:14px;padding:12px 16px;border-radius:999px;background:#123b5d;color:#fff;text-decoration:none;font-weight:700}.muted{color:#5f7186;line-height:1.45}</style></head><body><main class="card"><h1>Saken ble ikke funnet</h1><p class="muted">Saken finnes ikke på serveren. Dette skjer oftest etter deploy/restart hvis databasen ikke ligger på persistent lagring, eller hvis en lokal kladd ikke ble synket.</p><p class="muted">Gå tilbake til kontrolloversikten og opprett/åpne saken på nytt. Nye versjoner forsøker å lagre og synke før forhåndsvisning og eksport.</p><a href="/dashboard">Til kontrolloversikten</a></main></body></html>'
+            html = '<!doctype html><html lang="nb"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Saken ble ikke funnet</title><style>body{font-family:system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;background:#eef4f8;color:#10273d;margin:0;padding:24px}.card{max-width:720px;margin:10vh auto;background:#fff;border:1px solid #d7e3ee;border-radius:22px;padding:24px;box-shadow:0 18px 42px rgba(16,39,61,.12)}a{display:inline-flex;margin-top:14px;padding:12px 16px;border-radius:999px;background:#123b5d;color:#fff;text-decoration:none;font-weight:700}a:focus-visible{outline:2px solid #2b80d6;outline-offset:2px}.muted{color:#5f7186;line-height:1.45}</style></head><body><main class="card"><h1>Saken ble ikke funnet</h1><p class="muted">Saken finnes ikke på serveren. Dette skjer oftest etter deploy/restart hvis databasen ikke ligger på persistent lagring, eller hvis en lokal kladd ikke ble synket.</p><p class="muted">Gå tilbake til kontrolloversikten og opprett/åpne saken på nytt. Nye versjoner forsøker å lagre og synke før forhåndsvisning og eksport.</p><a href="/dashboard">Til kontrolloversikten</a></main></body></html>'
             return HTMLResponse(html, status_code=404)
         return JSONResponse({'detail': detail}, status_code=exc.status_code, headers=getattr(exc, 'headers', None))
 

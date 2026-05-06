@@ -3,57 +3,41 @@
 {% block body_class %}page-login{% endblock %}
 {% block main_class %}main-login{% endblock %}
 {% block content %}
-<section class="login-wrap login-wrap-brand">
+<section class="login-wrap login-wrap-brand" aria-labelledby="login-heading">
   <div class="login-hero-copy">
     <div class="login-brand-row">
-      <span class="login-brand-badge">MK</span>
+      <span class="login-brand-badge brand-badge-logo" aria-hidden="true"><img src="/static/logo.png?v=1.8.27p" alt="" width="66" height="66" /></span>
       <div>
         <div class="login-brand-org">{{ brand_org_name }}</div>
         <div class="login-brand-app">{{ display_app_name }}</div>
       </div>
     </div>
-    <h1>Logg inn for å åpne kontrollflaten</h1>
+    <h1 id="login-heading">Logg inn for å åpne kontrollflaten</h1>
     <p>Mobiltilpasset arbeidsflate for kontroll, kart, regelverk, dokumentasjon og videre oppfølging i samme flyt.</p>
-    <div class="login-feature-list">
-      <div class="login-feature-item">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6l6-2 6 2 6-2v12l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg>
-        Kart og områdekontroll
-      </div>
-      <div class="login-feature-item">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 9l6 6M15 9l-6 6"/></svg>
-        OCR-bildeanalyse
-      </div>
-      <div class="login-feature-item">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.5h8l4 4V20a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/><path d="M14 3.5V8h4"/><path d="M8 12h8M8 16h5"/></svg>
-        PDF-dokumentpakke
-      </div>
-    </div>
   </div>
   <div class="login-card login-card-brand">
     <div class="login-card-head">
       <div class="brand center brand-login-card">
-        <div class="brand-badge">MK</div>
+        <div class="brand-badge brand-badge-logo" aria-hidden="true"><img src="/static/logo.png?v=1.8.27p" alt="" width="54" height="54" /></div>
         <div>
           <strong>{{ display_app_name }}</strong>
-          <div class="muted" style="color: #4c6174; font-size: 0.88rem; font-weight: 400;">Sikker innlogging til kontroll, kart og sak</div>
+          <div class="muted">Sikker innlogging til kontroll, kart og sak</div>
         </div>
       </div>
       <h2>Logg inn</h2>
     </div>
     {% if error %}
-      <div class="alert alert-error">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
-        {{ error }}
-      </div>
+      <div class="alert alert-error" role="alert">{{ error }}</div>
     {% endif %}
     <form method="post" action="/login" class="stack gap-m" novalidate>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
       <label>
         <span>E-post</span>
-        <input name="email" type="email" placeholder="navn@eksempel.no" autocomplete="username" required />
+        <input name="email" type="email" inputmode="email" placeholder="navn@eksempel.no" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" required aria-required="true" />
       </label>
       <label>
         <span>Passord</span>
-        <input name="password" type="password" placeholder="••••••••" autocomplete="current-password" required />
+        <input name="password" type="password" placeholder="••••••••" autocomplete="current-password" required aria-required="true" />
       </label>
       <button class="btn btn-primary btn-full login-submit" type="submit">Logg inn</button>
     </form>

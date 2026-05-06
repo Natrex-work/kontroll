@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}Forhåndsvisning · {{ case.case_number }}{% endblock %}
 {% block content %}
-<section class="preview-sticky-bar">
+<section class="preview-sticky-bar" aria-label="Hurtighandlinger">
   <a class="btn btn-primary" href="/cases/{{ case.id }}/edit">Tilbake til sak</a>
   <a class="btn btn-secondary" href="#doclist">Til toppen</a>
 </section>
@@ -16,22 +16,37 @@
   </summary>
   <div class="case-disclosure-body">
     <div>
-      <h1>Dokumentforhåndsvisning - {{ case.case_number }}</h1>
+      <h1>Dokumentforhåndsvisning – {{ case.case_number }}</h1>
       <p class="muted">Denne siden viser samme struktur som eksporten: dokumentliste, {{ packet.primary_document_title|lower }}, egenrapport{% if not packet.interview_not_conducted %}, avhør{% endif %}, beslag og illustrasjoner.</p>
     </div>
     <div class="actions-row wrap">
       <a class="btn btn-secondary" href="/cases/{{ case.id }}/edit">Tilbake til sak</a>
       <button class="btn btn-secondary" form="preview-edit-form" type="submit">Lagre tekstendringer</button>
-      {% if not packet.interview_not_conducted %}<form method="post" action="/cases/{{ case.id }}/interview-pdf" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-  <input type="hidden" name="case_version" value="{{ case.version or 1 }}" /><button class="btn btn-secondary" type="submit">Eksporter kun avhørsrapport</button></form>{% endif %}
-      <form method="post" action="/cases/{{ case.id }}/bundle" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><button class="btn btn-secondary" type="submit">Eksporter PDF og filer (ZIP)</button></form>
-      <form method="post" action="/cases/{{ case.id }}/email-package" class="inline-form email-package-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><input type="email" name="email_to" placeholder="mottaker@domene.no" aria-label="E-postmottaker" /><button class="btn btn-secondary" type="submit">Send med vedlegg</button></form>
-      <form method="post" action="/cases/{{ case.id }}/pdf" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><button class="btn btn-primary" type="submit">Eksporter PDF</button></form>
+      {% if not packet.interview_not_conducted %}
+      <form method="post" action="/cases/{{ case.id }}/interview-pdf" class="inline-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        <input type="hidden" name="case_version" value="{{ case.version or 1 }}" />
+        <button class="btn btn-secondary" type="submit">Eksporter kun avhørsrapport</button>
+      </form>
+      {% endif %}
+      <form method="post" action="/cases/{{ case.id }}/bundle" class="inline-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        <button class="btn btn-secondary" type="submit">Eksporter PDF og filer (ZIP)</button>
+      </form>
+      <form method="post" action="/cases/{{ case.id }}/email-package" class="inline-form email-package-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        <input type="email" name="email_to" placeholder="mottaker@domene.no" aria-label="E-postmottaker" autocomplete="email" autocapitalize="off" autocorrect="off" spellcheck="false" />
+        <button class="btn btn-secondary" type="submit">Send med vedlegg</button>
+      </form>
+      <form method="post" action="/cases/{{ case.id }}/pdf" class="inline-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        <button class="btn btn-primary" type="submit">Eksporter PDF</button>
+      </form>
     </div>
   </div>
 </details>
 
-{% if request.query_params.get('saved') %}<div class="alert alert-success">Forhåndsvisningstekst er lagret.</div>{% endif %}
+{% if request.query_params.get('saved') %}<div class="alert alert-success" role="status">Forhåndsvisningstekst er lagret.</div>{% endif %}
 <form id="preview-edit-form" method="post" action="/cases/{{ case.id }}/preview/save">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
   <input type="hidden" name="seizure_reports_json" value="{{ (case.seizure_reports_json or '[]')|e }}" />
@@ -41,7 +56,7 @@
   <input type="hidden" name="suspect_signature" value="{{ (case.suspect_signature or '')|e }}" />
 </form>
 
-<section class="card preview-nav-card margin-bottom-l">
+<nav class="card preview-nav-card margin-bottom-l" aria-label="Seksjoner i dokumentforhåndsvisning">
   <div class="preview-nav">
     <a href="#doclist" class="chip chip-active">Dokumentliste</a>
     <a href="#anmeldelse" class="chip">{{ packet.primary_document_title }}</a>
@@ -50,14 +65,14 @@
     <a href="#beslag" class="chip">Beslag</a>
     <a href="#illustrasjoner" class="chip">Illustrasjoner</a>
   </div>
-</section>
+</nav>
 
 <section id="doclist" class="card preview-section">
   <div class="card-header"><h2>Dokumentliste</h2></div>
   <div class="table-wrap margin-bottom-m">
     <table class="data-table">
       <thead>
-        <tr><th>Dok.nr</th><th>Dokument</th></tr>
+        <tr><th scope="col">Dok.nr</th><th scope="col">Dokument</th></tr>
       </thead>
       <tbody>
         {% for doc in packet.documents %}
@@ -87,8 +102,10 @@
   </div>
 
   <div class="preview-block">
-    <h3>{% if packet.has_offences %}Beskrivelse av det anmeldte forhold{% else %}Beskrivelse av kontrollen{% endif %}</h3>
-    <textarea form="preview-edit-form" name="complaint_override" rows="14" class="preview-edit-textarea">{{ case.complaint_override or packet.short_complaint }}</textarea>
+    <label class="preview-edit-label" for="complaint-override-input">
+      <h3>{% if packet.has_offences %}Beskrivelse av det anmeldte forhold{% else %}Beskrivelse av kontrollen{% endif %}</h3>
+    </label>
+    <textarea id="complaint-override-input" form="preview-edit-form" name="complaint_override" rows="14" class="preview-edit-textarea">{{ case.complaint_override or packet.short_complaint }}</textarea>
   </div>
 
   <div class="preview-block">
@@ -96,7 +113,7 @@
     {% if packet.legal_refs %}
       <div class="source-list">
         {% for item in packet.legal_refs %}
-        <div class="source-chip"><strong>Hjemmel</strong><span>{% if item.name or item.ref %}{{ item.name }}{% if item.ref %} - {{ item.ref }}{% endif %}{% else %}{{ item }}{% endif %}{% if item.excerpt or item.law_text %}<br><small>Utdrag: {{ item.excerpt or item.law_text }}</small>{% endif %}</span></div>
+        <div class="source-chip"><strong>Hjemmel</strong><span>{% if item.name or item.ref %}{{ item.name }}{% if item.ref %} – {{ item.ref }}{% endif %}{% else %}{{ item }}{% endif %}{% if item.excerpt or item.law_text %}<br><small>Utdrag: {{ item.excerpt or item.law_text }}</small>{% endif %}</span></div>
         {% endfor %}
       </div>
     {% else %}
@@ -110,14 +127,14 @@
     <div class="table-wrap">
       <table class="data-table">
         <thead>
-          <tr><th>Punkt</th><th>Status</th><th>Notat / rettskilde</th></tr>
+          <tr><th scope="col">Punkt</th><th scope="col">Status</th><th scope="col">Notat / rettskilde</th></tr>
         </thead>
         <tbody>
           {% for item in packet.findings %}
           <tr>
             <td>{{ item.label or item.key }}</td>
             <td><span class="pill {% if item.status == 'avvik' %}pill-danger{% elif item.status == 'godkjent' %}pill-success{% endif %}">{{ item.status }}</span></td>
-            <td>{{ item.display_notes or item.notes or item.source_ref or item.source_name or '-' }}</td>
+            <td>{{ item.display_notes or item.notes or item.source_ref or item.source_name or '—' }}</td>
           </tr>
           {% endfor %}
         </tbody>
@@ -131,7 +148,8 @@
 
 <section id="rapport" class="card preview-section">
   <div class="card-header"><h2>Egenrapport</h2></div>
-  <textarea form="preview-edit-form" name="own_report_override" rows="16" class="preview-edit-textarea">{{ case.own_report_override or packet.own_report }}</textarea>
+  <label class="preview-edit-label sr-only" for="own-report-override-input">Egenrapport</label>
+  <textarea id="own-report-override-input" form="preview-edit-form" name="own_report_override" rows="16" class="preview-edit-textarea">{{ case.own_report_override or packet.own_report }}</textarea>
 </section>
 
 {% if packet.interview_not_conducted %}
@@ -142,7 +160,8 @@
 {% else %}
 <section id="avhor" class="card preview-section">
   <div class="card-header"><h2>Avhør / forklaring</h2></div>
-  <textarea form="preview-edit-form" name="interview_report_override" rows="16" class="preview-edit-textarea">{{ case.interview_report_override or packet.interview_report }}</textarea>
+  <label class="preview-edit-label sr-only" for="interview-report-override-input">Avhørsrapport</label>
+  <textarea id="interview-report-override-input" form="preview-edit-form" name="interview_report_override" rows="16" class="preview-edit-textarea">{{ case.interview_report_override or packet.interview_report }}</textarea>
 
   <div class="signature-grid margin-top-s">
     <div class="signature-widget"><strong>Etterforsker</strong><span>{{ case.investigator_name or 'Ikke angitt' }}</span><span class="muted small">Signeres eller endres i saksregistreringen.</span></div>
@@ -154,7 +173,8 @@
 
 <section id="beslag" class="card preview-section">
   <div class="card-header"><h2>Rapport om ransaking / beslag</h2></div>
-  <textarea form="preview-edit-form" name="seizure_report_override" rows="10" class="preview-edit-textarea">{{ case.seizure_report_override or packet.seizure_report }}</textarea>
+  <label class="preview-edit-label sr-only" for="seizure-report-override-input">Rapport om ransaking og beslag</label>
+  <textarea id="seizure-report-override-input" form="preview-edit-form" name="seizure_report_override" rows="10" class="preview-edit-textarea">{{ case.seizure_report_override or packet.seizure_report }}</textarea>
 </section>
 
 <section id="illustrasjoner" class="card preview-section">
@@ -163,7 +183,7 @@
   <div class="evidence-grid">
     {% for item in packet.evidence %}
     <article class="evidence-card">
-      <img src="{{ item.preview_url }}" alt="{{ item.caption or item.original_filename }}" />
+      <img src="{{ item.preview_url }}" alt="{{ item.caption or item.original_filename }}" loading="lazy" />
       <div class="evidence-body">
         <strong>{{ packet.illustration_texts[loop.index0] }}</strong>
         <div class="muted small">{{ item.created_at }}</div>
@@ -199,8 +219,12 @@
   </div>
 </section>
 
-<section class="preview-bottom-bar">
+<section class="preview-bottom-bar" aria-label="Avslutt forhåndsvisning">
   <a class="btn btn-primary btn-full" href="/cases/{{ case.id }}/edit">Tilbake til sak</a>
-  <form method="post" action="/cases/{{ case.id }}/email-package" class="inline-form email-package-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><input type="email" name="email_to" placeholder="mottaker@domene.no" aria-label="E-postmottaker" /><button class="btn btn-secondary" type="submit">Send med vedlegg</button></form>
+  <form method="post" action="/cases/{{ case.id }}/email-package" class="inline-form email-package-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+    <input type="email" name="email_to" placeholder="mottaker@domene.no" aria-label="E-postmottaker" autocomplete="email" autocapitalize="off" autocorrect="off" spellcheck="false" />
+    <button class="btn btn-secondary" type="submit">Send med vedlegg</button>
+  </form>
 </section>
 {% endblock %}

@@ -3,21 +3,22 @@
 {% block content %}
 <section class="page-header">
   <div>
-    <h1>Admin - brukerstyring</h1>
-    <p class="muted">Admin kan legge til, oppdatere og fjerne brukere. Tilganger styres per modul. Admin-brukere får full tilgang til kontroll, kart, regelverk og adminmoduler.</p>
+    <h1>Brukerstyring</h1>
+    <p class="muted">Som admin kan du legge til, oppdatere og fjerne brukere. Tilganger styres per modul. Admin-brukere får full tilgang til kontroll, kart, regelverk og adminmoduler.</p>
   </div>
 </section>
 
-{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
-{% if request.query_params.get('created') %}<div class="alert alert-success">Brukeren er opprettet.</div>{% endif %}
-{% if request.query_params.get('updated') %}<div class="alert alert-success">Brukeren er oppdatert.</div>{% endif %}
-{% if request.query_params.get('password') %}<div class="alert alert-success">Passordet er oppdatert.</div>{% endif %}
-{% if request.query_params.get('removed') %}<div class="alert alert-success">Brukeren er fjernet fra aktiv bruk og kan ikke lenger logge inn.</div>{% endif %}
+{% if error %}<div class="alert alert-error" role="alert">{{ error }}</div>{% endif %}
+{% if request.query_params.get('created') %}<div class="alert alert-success" role="status">Brukeren er opprettet.</div>{% endif %}
+{% if request.query_params.get('updated') %}<div class="alert alert-success" role="status">Brukeren er oppdatert.</div>{% endif %}
+{% if request.query_params.get('password') %}<div class="alert alert-success" role="status">Passordet er oppdatert.</div>{% endif %}
+{% if request.query_params.get('removed') %}<div class="alert alert-success" role="status">Brukeren er fjernet fra aktiv bruk og kan ikke lenger logge inn.</div>{% endif %}
 
 <div class="grid-two admin-grid">
   <section class="card">
     <div class="card-header"><h2>Ny bruker</h2></div>
     <form method="post" action="/admin/users" class="stack gap-m">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
       <div class="grid-two">
         <label>
           <span>Fullt navn</span>
@@ -99,6 +100,7 @@
         </div>
 
         <form method="post" action="/admin/users/{{ user.id }}/update" class="stack gap-s margin-bottom-m">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
           <div class="grid-two">
             <label>
               <span>Navn</span>
@@ -160,7 +162,8 @@
         </form>
 
         <form method="post" action="/admin/users/{{ user.id }}/reset-password" class="inline-input-group wide-group">
-          <input name="password" type="password" autocomplete="new-password" placeholder="Nytt passord" required />
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+          <input name="password" type="password" autocomplete="new-password" placeholder="Nytt passord" aria-label="Nytt passord for {{ user.full_name }}" required />
           <button class="btn btn-secondary btn-small" type="submit">Nullstill passord</button>
         </form>
 
@@ -175,4 +178,4 @@
   </section>
 </div>
 {% endblock %}
-{% block page_scripts %}<script src="/static/js/admin-users.js?v=1.8.26"></script>{% endblock %}
+{% block page_scripts %}<script src="/static/js/admin-users.js?v=1.8.27"></script>{% endblock %}

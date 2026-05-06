@@ -14,30 +14,36 @@
 <section class="card">
   <div class="card-header"><h2>Hendelser</h2></div>
   {% if not audit_rows %}
-    <p class="muted">Ingen hendelser logget ennå.</p>
+    <div class="empty-state">
+      <div class="empty-state-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l3 2"></path><circle cx="12" cy="12" r="9"></circle></svg>
+      </div>
+      <h2>Ingen hendelser ennå</h2>
+      <p class="muted">Hendelser logges automatisk når brukere logger inn, lagrer saker eller eksporterer dokumenter.</p>
+    </div>
   {% else %}
-  <div class="table-wrap">
+  <div class="table-wrap responsive-table-wrap">
     <table class="data-table">
       <thead>
         <tr>
-          <th>Tid</th>
-          <th>Aktør</th>
-          <th>Handling</th>
-          <th>Entitet</th>
-          <th>Detaljer</th>
+          <th scope="col">Tid</th>
+          <th scope="col">Aktør</th>
+          <th scope="col">Handling</th>
+          <th scope="col">Entitet</th>
+          <th scope="col">Detaljer</th>
         </tr>
       </thead>
       <tbody>
         {% for row in audit_rows %}
         <tr>
-          <td>{{ row.created_at }}</td>
-          <td>
-            {{ row.actor_name or '-' }}
-            <div class="muted small">{{ row.actor_email or '-' }}</div>
+          <td data-label="Tid">{{ row.created_at }}</td>
+          <td data-label="Aktør">
+            {{ row.actor_name or '—' }}
+            <div class="muted small">{{ row.actor_email or '—' }}</div>
           </td>
-          <td>{{ row.action }}</td>
-          <td>{{ row.entity_type }}{% if row.entity_id %} / {{ row.entity_id }}{% endif %}</td>
-          <td><code class="small">{{ row.details_json }}</code></td>
+          <td data-label="Handling">{{ row.action }}</td>
+          <td data-label="Entitet">{{ row.entity_type }}{% if row.entity_id %} / {{ row.entity_id }}{% endif %}</td>
+          <td data-label="Detaljer"><code class="audit-details small">{{ row.details_json }}</code></td>
         </tr>
         {% endfor %}
       </tbody>

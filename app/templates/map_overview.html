@@ -1,9 +1,9 @@
 {% extends 'base.html' %}
-{% block title %}Kart og Område · {{ brand_org_name }}{% endblock %}
+{% block title %}Kart og områder · {{ brand_org_name }}{% endblock %}
 {% block content %}
 <section class="page-header page-header-soft sea-hero">
   <div>
-    <h1>Kart og Område</h1>
+    <h1>Kart og områder</h1>
     <p class="muted">Fiskeridirektoratets reguleringskart brukes som hovedkart. Appen beholder egen rask punktkontroll og offline-lagring av relevante reguleringsområder.</p>
   </div>
   <div class="actions-row wrap">
@@ -38,14 +38,14 @@
       </summary>
       <div id="overview-map-layer-panel-host" class="map-layer-panel-host margin-top-s"></div>
     </details>
-    <div id="overview-map" class="leaflet-map compact-map" data-portal-catalog='{{ portal_layers|tojson }}' data-portal-url="{{ portal_map_url }}" data-portal-mapserver="{{ portal_mapserver_url }}" data-portal-vern-mapserver="{{ portal_vern_mapserver_url }}"></div>
-    <div id="overview-map-status" class="callout margin-top-s">Bruk min posisjon for rask punktsjekk og lokal lagring av relevante reguleringsområder.</div>
+    <div id="overview-map" class="leaflet-map compact-map" role="application" aria-label="Interaktivt kart for punktkontroll" data-portal-catalog='{{ portal_layers|tojson }}' data-portal-url="{{ portal_map_url }}" data-portal-mapserver="{{ portal_mapserver_url }}" data-portal-vern-mapserver="{{ portal_vern_mapserver_url }}"></div>
+    <div id="overview-map-status" class="callout margin-top-s" role="status" aria-live="polite">Bruk min posisjon for rask punktsjekk og lokal lagring av relevante reguleringsområder.</div>
     <details class="map-relevant-panel margin-top-s" open>
       <summary class="map-relevant-head">
         <strong>Aktuelle reguleringsområder</strong>
         <span class="muted small">Fra punktkontrollen.</span>
       </summary>
-      <div class="map-relevant-list" id="overview-relevant-areas-list"><div class="muted small">Treff vises her etter posisjonssjekk.</div></div>
+      <div class="map-relevant-list" id="overview-relevant-areas-list" aria-live="polite"><div class="muted small">Treff vises her etter posisjonssjekk.</div></div>
     </details>
     <div class="offline-packages-panel margin-top-s">
       <div class="offline-packages-head">
@@ -55,11 +55,11 @@
         </div>
         <button class="btn btn-secondary btn-small" type="button" id="btn-overview-refresh-packages">Oppdater lagrede pakker</button>
       </div>
-      <div class="callout margin-top-s" id="overview-offline-packages-summary">Ingen offline-reguleringer er lagret på denne enheten ennå.</div>
+      <div class="callout margin-top-s" id="overview-offline-packages-summary" aria-live="polite">Ingen offline-reguleringer er lagret på denne enheten ennå.</div>
       <div class="offline-packages-list" id="overview-offline-packages-list"></div>
     </div>
   </article>
 </section>
 {% endblock %}
 
-{% block page_scripts %}<script src="/static/js/map-overview.js?v=1.8.26"></script>{% endblock %}
+{% block page_scripts %}<script src="/static/js/map-overview.js?v=1.8.27"></script>{% endblock %}
