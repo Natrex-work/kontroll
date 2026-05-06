@@ -23,22 +23,24 @@
       <a class="btn btn-secondary" href="/cases/{{ case.id }}/edit">Tilbake til sak</a>
       <button class="btn btn-secondary" form="preview-edit-form" type="submit">Lagre tekstendringer</button>
       {% if not packet.interview_not_conducted %}
-      <form method="post" action="/cases/{{ case.id }}/interview-pdf" class="inline-form">
+      <form method="post" action="/cases/{{ case.id }}/interview-pdf" target="_blank" rel="noopener" class="inline-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
         <input type="hidden" name="case_version" value="{{ case.version or 1 }}" />
         <button class="btn btn-secondary" type="submit">Eksporter kun avhørsrapport</button>
       </form>
       {% endif %}
-      <form method="post" action="/cases/{{ case.id }}/bundle" class="inline-form">
+      <form method="post" action="/cases/{{ case.id }}/bundle" target="_blank" rel="noopener" class="inline-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
         <button class="btn btn-secondary" type="submit">Eksporter PDF og filer (ZIP)</button>
       </form>
+      <a class="btn btn-secondary" href="/cases/{{ case.id }}/edit?step=9">Tilbake til sak</a>
+      <span class="muted small export-return-hint">PDF/ZIP åpnes i ny fane, slik at forhåndsvisningen og saken ikke forsvinner.</span>
       <form method="post" action="/cases/{{ case.id }}/email-package" class="inline-form email-package-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
         <input type="email" name="email_to" placeholder="mottaker@domene.no" aria-label="E-postmottaker" autocomplete="email" autocapitalize="off" autocorrect="off" spellcheck="false" />
         <button class="btn btn-secondary" type="submit">Send med vedlegg</button>
       </form>
-      <form method="post" action="/cases/{{ case.id }}/pdf" class="inline-form">
+      <form method="post" action="/cases/{{ case.id }}/pdf" target="_blank" rel="noopener" class="inline-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
         <button class="btn btn-primary" type="submit">Eksporter PDF</button>
       </form>
