@@ -267,19 +267,6 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_evidence_case_id_created_at ON evidence(case_id, created_at);
             CREATE INDEX IF NOT EXISTS idx_audit_log_created_at ON audit_log(created_at);
             CREATE INDEX IF NOT EXISTS idx_case_counters_prefix_year ON case_counters(prefix, year);
-
-            CREATE TABLE IF NOT EXISTS otp_sessions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                token TEXT NOT NULL UNIQUE,
-                phone TEXT NOT NULL,
-                code_hash TEXT NOT NULL,
-                attempts INTEGER NOT NULL DEFAULT 0,
-                expires_at TEXT NOT NULL,
-                used_at TEXT,
-                created_at TEXT NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_otp_sessions_token ON otp_sessions(token);
-            CREATE INDEX IF NOT EXISTS idx_otp_sessions_phone_expires ON otp_sessions(phone, expires_at);
             '''
         )
 
@@ -1111,72 +1098,3 @@ def related_gear_summary(phone: str = '', name: str = '', address: str = '', spe
             'status': row.get('status'),
         })
     return {'count_total': total, 'matches': cases}
-
-
-# ---------------------------------------------------------------------------
-# OTP sessions
-# ---------------------------------------------------------------------------
-
-def create_otp_session(phone: str, token: str, code_hash: str, expires_at: str) -> int:
-    now = utcnow_iso()
-    with get_conn() as conn:
-        cur = conn.execute(
-            "INSERT INTO otp_sessions(token, phone, code_hash, attempts, expires_at, created_at) VALUES (?,?,?,0,?,?)",
-            (token, phone, code_hash, expires_at, now),
-        )
-        conn.commit()
-        return int(cur.lastrowid)
-
-
-def get_otp_session(token: str) -> Optional[Dict[str, Any]]:
-    with get_conn() as conn:
-        row = conn.execute(
-            "SELECT * FROM otp_sessions WHERE token = ? AND used_at IS NULL",
-            (token,),
-        ).fetchone()
-        return dict(row) if row else None
-
-
-def increment_otp_attempts(session_id: int) -> int:
-    with get_conn() as conn:
-        conn.execute("UPDATE otp_sessions SET attempts = attempts + 1 WHERE id = ?", (session_id,))
-        conn.commit()
-        row = conn.execute("SELECT attempts FROM otp_sessions WHERE id = ?", (session_id,)).fetchone()
-        return int(row["attempts"]) if row else 99
-
-
-def mark_otp_used(session_id: int) -> None:
-    with get_conn() as conn:
-        conn.execute(
-            "UPDATE otp_sessions SET used_at = ? WHERE id = ?",
-            (utcnow_iso(), session_id),
-        )
-        conn.commit()
-
-
-def purge_expired_otp_sessions() -> None:
-    with get_conn() as conn:
-        conn.execute("DELETE FROM otp_sessions WHERE expires_at < ?", (utcnow_iso(),))
-        conn.commit()
-
-
-def get_user_by_phone(phone: str) -> Optional[Dict[str, Any]]:
-    """Look up an active user by their normalised phone number."""
-    clean = phone.strip()
-    # Try exact match first, then without leading +47 vs 47 differences
-    with get_conn() as conn:
-        row = conn.execute(
-            "SELECT * FROM users WHERE active = 1 AND replace(COALESCE(phone,''),' ','') = ?",
-            (clean.replace(" ", ""),),
-        ).fetchone()
-        if row:
-            return dict(row)
-        # Also try matching just the 8 local digits (phone stored as 8 digits)
-        local8 = clean[-8:] if len(clean) >= 8 else ""
-        if local8:
-            row = conn.execute(
-                "SELECT * FROM users WHERE active = 1 AND length(replace(COALESCE(phone,''),' ','')) >= 8 AND substr(replace(COALESCE(phone,''),' ',''),-8) = ?",
-                (local8,),
-            ).fetchone()
-            return dict(row) if row else None
-        return None

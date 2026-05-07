@@ -27,6 +27,9 @@ class SummarySuggestRequest(BaseModel):
     area_name: str = Field(default='', max_length=200)
     area_status: str = Field(default='', max_length=200)
     suspect_name: str = Field(default='', max_length=200)
+    vessel_name: str = Field(default='', max_length=200)
+    investigator_name: str = Field(default='', max_length=200)
+    basis_source_name: str = Field(default='', max_length=200)
     basis_details: str = Field(default='', max_length=8000)
     start_time: str = Field(default='', max_length=50)
     latitude: float | None = None

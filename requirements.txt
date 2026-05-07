@@ -35,5 +35,3 @@ typing-inspection==0.4.2
 typing_extensions==4.15.0
 urllib3==2.6.3
 uvicorn==0.43.0
-# SMS/OTP - valgfri; kreves kun hvis KV_SMS_PROVIDER=twilio
-# twilio==9.4.0

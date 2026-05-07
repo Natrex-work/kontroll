@@ -1718,7 +1718,7 @@
       var fisherySel = currentFisherySelection();
       var controlSel = currentControlSelection();
       var gearSel = currentGearSelection();
-      // 1.8.28: Yggdrasil/Fiskerireguleringer MapServer IDs, tilpasset
+      // 1.8.29: Yggdrasil/Fiskerireguleringer MapServer IDs, tilpasset
       // kontrolltype + art + redskap slik at ny kontroll viser de samme
       // verne-/reguleringsområdene som Fritidsfiske-kartet, men uten tapt redskap.
       var fritidGenerell = [0, 7, 11, 13, 31, 37, 38];
@@ -1788,7 +1788,7 @@
       if (/(breivikfjorden|borgundfjorden|henningsvaer|lofotfiske)/.test(restrictionText) && !/(torsk|skrei|kommersiell|yrkes)/.test([currentFisherySelection(), currentControlSelection(), restrictionText].join(' '))) return false;
       var status = String(layer.status || '').trim().toLowerCase();
       if (Object.prototype.hasOwnProperty.call(activeLayerStatuses, status) && !activeLayerStatuses[status]) return false;
-      // 1.8.28: Temakartet kan vise bredt uten valg, men under kontroll
+      // 1.8.29: Temakartet kan vise bredt uten valg, men under kontroll
       // skal kartet bare vise lovregulerte lag som passer valgt kontrolltype,
       // art/fiskeri og redskap.
       if (!hasMapSelection()) return true;
@@ -2624,7 +2624,7 @@
       storedPositionMode = '';
     }
     if (storedPositionMode !== 'manual' && storedPositionMode !== 'auto') storedPositionMode = '';
-    var zoneOverlayStorageKey = 'kv-case-zone-overlay-1.8.28:' + root.dataset.caseId;
+    var zoneOverlayStorageKey = 'kv-case-zone-overlay-1.8.29:' + root.dataset.caseId;
     var zoneOverlayEnabled = true;
     // Treffende verne-/reguleringsområder skal alltid tegnes i kartet.
     // Tidligere lagret 'skjul'-valg fra eldre PWA-versjoner ignoreres.
@@ -2861,7 +2861,7 @@
     var topPrevStep = document.getElementById('top-prev-step');
     var topNextStep = document.getElementById('top-next-step');
     var topStepLabel = document.getElementById('top-step-label');
-    var stepStorageKey = 'kv-case-step-1.8.28:' + root.dataset.caseId;
+    var stepStorageKey = 'kv-case-step-1.8.29:' + root.dataset.caseId;
     var PERSON_STEP = 3;
     var MAP_STEP = 4;
     var FINDINGS_STEP = 5;
@@ -4470,7 +4470,7 @@
         title: 'Kontrollpunkter' + (speciesVal || gearVal ? ' for ' + [controlVal, speciesVal, gearVal].filter(Boolean).join(' / ') : ''),
         description: reason || 'Lokal kontrollpunktliste brukes slik at punktene vises også ved tregt eller tomt regeloppslag.',
         items: items,
-        sources: [{ name: 'Lokal kontrollpunktliste', ref: '1.8.28 fallback', url: '' }]
+        sources: [{ name: 'Lokal kontrollpunktliste', ref: '1.8.29 fallback', url: '' }]
       };
     }
 
@@ -5666,7 +5666,7 @@
       var allLayerIds = displayLayers.map(function (layer) { return Number(layer && layer.id); }).filter(function (value) { return isFinite(value); });
       var fisheryPortalService = root.dataset.portalMapserver || (caseMap && caseMap.dataset ? (caseMap.dataset.portalMapserver || '') : '') || 'https://gis.fiskeridir.no/server/rest/services/Yggdrasil/Fiskerireguleringer/MapServer';
       var vernPortalService = root.dataset.portalVernMapserver || (caseMap && caseMap.dataset ? (caseMap.dataset.portalVernMapserver || '') : '') || 'https://portal.fiskeridir.no/server/rest/services/Fiskeridir_vern/MapServer';
-      // 1.8.28: rasterlaget skal holde områdene visuelt stabile på alle zoomnivå.
+      // 1.8.29: rasterlaget skal holde områdene visuelt stabile på alle zoomnivå.
       // Detalj-/vektorhenting brukes bare ved konkrete områdetreff eller når brukeren
       // eksplisitt ber om detaljer, slik at kartet ikke blinker/forsvinner ved innzoom.
       mapState.fetchFeatureDetails = options.fetchFeatureDetails === true || mapState.requestFeatureDetails === true || zoneLayerIds.length > 0;
@@ -5678,7 +5678,7 @@
       mapState.showLegend = false;
       mapState.showLayerPanel = !!mapLayerPanelHost;
       mapState.layerPanelDefaultOpen = false;
-      mapState.layerPanelKey = 'case-map-1-8-28';
+      mapState.layerPanelKey = 'case-map-1-8-29';
       mapState.layerPanelTargetSelector = mapLayerPanelHost ? '#case-map-layer-panel-host' : '';
       mapState.rasterLayerIds = allLayerIds;
       mapState.identifyLayerIds = allLayerIds;
@@ -5799,8 +5799,8 @@
       return rows;
     }
 
-    var zoneResultStoragePrefix = 'kv-zone-result-1.8.28:';
-    var nearestPlaceStoragePrefix = 'kv-nearest-place-1.8.28:';
+    var zoneResultStoragePrefix = 'kv-zone-result-1.8.29:';
+    var nearestPlaceStoragePrefix = 'kv-nearest-place-1.8.29:';
     var nearestPlaceController = null;
     var nearestPlaceSequence = 0;
     var nearestPlaceTimer = null;
@@ -6100,7 +6100,7 @@
       scheduleAutosave('Manuell posisjon aktivert');
     }
 
-    var devicePositionStorageKey = 'kv-device-position-1.8.28';
+    var devicePositionStorageKey = 'kv-device-position-1.8.29';
     function readCachedDevicePosition() {
       if (!window.localStorage) return null;
       try {
@@ -6797,6 +6797,9 @@ function renderHummerStatus(result) {
         area_name: areaName.value,
         area_status: areaStatus.value,
         suspect_name: suspectName.value || suspectNameCommercial.value,
+        vessel_name: vesselName ? vesselName.value : '',
+        investigator_name: (document.getElementById('investigator_name') || {}).value || '',
+        basis_source_name: basisSourceName ? basisSourceName.value : '',
         basis_details: basisDetails.value,
         start_time: startTime.value,
         latitude: latitude.value,
@@ -6839,27 +6842,34 @@ function renderHummerStatus(result) {
       if (place.indexOf(' - ') !== -1) place = place.split(' - ')[0].trim() || place;
       var areaNameText = String(payload && payload.area_name || '').trim();
       var areaStatusText = String(payload && payload.area_status || '').trim();
-      function cleanSummaryTopicPart(value) {
+      var basisType = String(payload && payload.case_basis || '').toLowerCase();
+      var sourceName = String(payload && payload.basis_source_name || '').trim();
+      var unit = 'Kystvakten';
+      var investigator = String(payload && payload.investigator_name || '').trim() || 'rapportskriver';
+      function cleanTopicPart(value) {
         var text = String(value || '').trim();
         var low = text.toLowerCase();
         if (!text) return '';
         if (low === 'fiskerikontroll' || low === 'kontroll' || low === 'aktuelt fiskeri' || low === 'fiskeri' || low === 'redskap' || low === 'annet') return '';
         return text;
       }
-      var gearText = cleanSummaryTopicPart(payload && payload.gear_type);
-      var speciesText = cleanSummaryTopicPart(payload && (payload.species || payload.fishery_type));
-      var controlText = cleanSummaryTopicPart(payload && payload.control_type);
-      var subject = String(payload && (payload.suspect_name || payload.vessel_name) || '').trim() || 'kontrollobjektet';
-      var subjectLine = subject.toLowerCase() === 'kontrollobjektet' ? 'Kontrollobjekt er ikke særskilt identifisert i person-/fartøyfeltene.' : ('Kontrollobjekt: ' + subject + '.');
+      var gearText = cleanTopicPart(payload && payload.gear_type);
+      var speciesText = cleanTopicPart(payload && (payload.species || payload.fishery_type));
+      var controlText = cleanTopicPart(payload && payload.control_type);
+      var subject = String(payload && (payload.suspect_name || payload.vessel_name) || '').trim() || '';
+      var subjectLine = subject ? ('Kontrollobjekt/ansvarlig registrert i saken: ' + subject + '.') : 'Kontrollobjekt/ansvarlig er ikke særskilt identifisert i person-/fartøyfeltene.';
       var when = String(payload && payload.start_time || '').trim().replace('T', ' ').slice(0, 16) || currentControlDateLabel();
       var topicParts = [];
       if (controlText) topicParts.push(controlText.toLowerCase());
       if (speciesText) topicParts.push((controlText && controlText.toLowerCase().indexOf('fiske') !== -1 ? 'etter ' : '') + speciesText.toLowerCase());
       if (gearText) topicParts.push('med ' + gearText.toLowerCase());
-      var topic = topicParts.join(' ').replace(/\s+/g, ' ').trim() || 'aktuelle redskaps- og fiskeribestemmelser';
+      var topic = topicParts.join(' ').replace(/\s+/g, ' ').trim() || 'aktuelle fiskeri- og redskapsbestemmelser';
 
       function sentenceize(text) {
         var clean = String(text || '').trim().replace(/\s+/g, ' ');
+        clean = clean.replace(/kontrollere\s+fiskerikontroll/ig, 'føre kontroll med');
+        clean = clean.replace(/kontrollere\s+kontroll/ig, 'føre kontroll med');
+        clean = clean.replace(/gjennomføre\s+kontroll\s+av\s+kontroll/ig, 'gjennomføre kontroll med');
         clean = clean.replace(/\bi aktuelt kontrollområde\b/ig, 'ved ' + place);
         clean = clean.replace(/\bved kontrollposisjonen\b/ig, 'ved ' + place);
         clean = clean.replace(/\bved kontrollposisjon\b/ig, 'ved ' + place);
@@ -6870,49 +6880,85 @@ function renderHummerStatus(result) {
         return clean;
       }
 
-      function findingLine(item, idx) {
-        var label = String(item && (item.label || item.key) || ('Avvik ' + idx)).trim();
-        var note = String(item && (item.notes || item.auto_note || item.summary_text || '') || '').trim();
+      function focusText() {
+        var low = (speciesText + ' ' + gearText + ' ' + avvik.map(function (i) { return (i.label || i.key || ''); }).join(' ')).toLowerCase();
+        if (low.indexOf('hummer') !== -1) return 'deltakelse/deltakernummer, merking av vak/blåse og redskap, teinenes antall og utforming, fangst/oppbevaring, lengdemål og relevante periode- og områdebestemmelser';
+        if (/teine|ruse|garn|lenke|line/.test(low)) return 'merking av vak/blåse og redskap, redskapets utforming og plassering, fangst/oppbevaring, ansvarlig bruker/eier og relevante områdebestemmelser';
+        return 'redskap, merking, fangst/oppbevaring, posisjon og relevante områdebestemmelser';
+      }
+
+      function findingTitle(item, idx) {
+        var dev = item && item.deviation && typeof item.deviation === 'object' ? item.deviation : {};
+        return String(dev.title || item.label || item.title || item.key || ('Avvik ' + idx)).trim();
+      }
+
+      function cleanFindingNote(value, title) {
+        var note = String(value || '').trim().replace(/\s+/g, ' ');
         note = note.replace(/\s*Kontrollposisjon:\s*[^.]+\./ig, '').trim();
-        return String(idx) + '. ' + sentenceize(label + (note ? ': ' + note : ''));
+        note = note.replace(/\bposisjon\s+[NØEWA-Z0-9°'" .,:;-]+/ig, '').trim();
+        if (title) note = note.replace(new RegExp('^' + title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '[:.\\s-]*', 'i'), '').trim();
+        return note.replace(/\s+/g, ' ').replace(/[;,.\s-]+$/g, '');
+      }
+
+      function findingLine(item, idx) {
+        var title = findingTitle(item, idx);
+        var dev = item && item.deviation && typeof item.deviation === 'object' ? item.deviation : {};
+        var note = cleanFindingNote(item.notes || item.auto_note || item.summary_text || dev.details || '', title);
+        return String(idx) + '. ' + sentenceize(title + (note ? ': ' + note : ''));
       }
 
       var basis = String(payload && payload.basis_details || '').trim();
       if (!basis) {
-        basis = 'Den ' + when + ' gjennomførte patruljen fiskerioppsyn ved ' + place + '. Formålet var å føre kontroll med ' + topic.toLowerCase() + ' og avklare om redskap, merking, fangst/oppbevaring, posisjon og relevante områdebestemmelser var i samsvar med gjeldende regelverk.';
+        if (basisType === 'tips') {
+          basis = unit + ' gjennomførte den ' + when + ' fiskerioppsyn ved ' + place + ' på bakgrunn av mottatte tips/opplysninger' + (sourceName ? ' fra ' + sourceName : '') + '. Tipsopplysningene ga grunnlag for å kontrollere ' + topic + '. De forhold som omtales i rapporten bygger på patruljens egne observasjoner og dokumentasjon sikret under kontrollen.';
+        } else {
+          basis = unit + ' gjennomførte den ' + when + ' fiskerioppsyn ved ' + place + '. Formålet var å føre kontroll med ' + topic + ' og avklare om ' + focusText() + ' var i samsvar med gjeldende regelverk.';
+        }
       } else {
         basis = sentenceize(basis);
       }
 
-      var lines = [
-        'Rapportgrunnlag',
-        '',
-        'Tid og sted',
-        'Den ' + when + ' ble det gjennomført kontroll ved ' + place + '. Kontrolltema var ' + topic.toLowerCase() + '.',
-      ];
+      var reportLines = [];
+      reportLines.push('Den ' + when + ' gjennomførte ' + unit + ' fiskerioppsyn ved ' + place + '. Jeg, ' + investigator + ', deltok i kontrollen. Kontrolltema var ' + topic + '.');
+      reportLines.push(basis.replace(/^.*?gjennomførte[^.]*?fiskerioppsyn[^.]*\.\s*/i, '') || basis);
+      reportLines.push('Kontrollen ble gjennomført opp mot registrerte kontrollpunkter for ' + topic + '.');
       if (areaNameText || (areaStatusText && areaStatusText.toLowerCase() !== 'ingen treff')) {
-        lines.push('Kontrollstedet er vurdert mot registrert områdestatus/verneområde: ' + [areaNameText, areaStatusText].filter(Boolean).join(' - ') + '.');
+        reportLines.push('Kontrollstedet ble vurdert opp mot registrerte områdebestemmelser: ' + [areaNameText, areaStatusText].filter(Boolean).join(' - ') + '.');
       }
-      lines = lines.concat([subjectLine, '', 'Bakgrunn', basis, '', 'Registrerte avvik']);
+      reportLines.push(subjectLine);
       if (!avvik.length) {
-        lines.push('Det er ikke registrert avvik i kontrollpunktene på tidspunktet for tekstutkastet.');
+        reportLines.push('Det er ikke registrert avvik i kontrollpunktene på tidspunktet for tekstutkastet.');
       } else {
-        avvik.forEach(function (item, idx) { lines.push(findingLine(item, idx + 1)); });
+        reportLines.push('Kontrollør registrerte følgende avvik:\n' + avvik.map(function (item, idx) { return findingLine(item, idx + 1); }).join('\n'));
       }
-      lines = lines.concat(['', 'Dokumentasjon']);
       if (payload && payload.seizure_reports && payload.seizure_reports.length) {
-        lines.push('Beslag er ført i beslagsrapport. Bilder og kart fremgår av illustrasjonsmappe/fotomappe.');
+        reportLines.push('Redskap/beslag er ført i egen beslagsrapport. Posisjon for det enkelte beslag fremgår der. Relevante fotografier og kartutsnitt fremgår av illustrasjonsmappe/fotomappe.');
       } else {
-        lines.push('Bilder og kart fremgår av illustrasjonsmappe/fotomappe der dette er registrert.');
+        reportLines.push('Relevante fotografier og kartutsnitt fremgår av illustrasjonsmappe/fotomappe der dette er registrert.');
       }
-      lines.push('Endelig vurdering av skyld og reaksjon ligger til påtalemyndigheten.');
-      var summaryText = lines.join('\n').trim();
+
+      var complaintLines = [];
+      if (!avvik.length) {
+        complaintLines.push('Det ble gjennomført fiskerikontroll ' + when + ' ved ' + place + '. Det er ikke registrert avvik som danner grunnlag for anmeldelse i kontrollpunktene på tidspunktet for utkastet.');
+      } else {
+        complaintLines.push('Med dette anmeldes ' + (subject || 'ukjent gjerningsperson') + ' for følgende forhold avdekket ' + when + ' ved ' + place + ':');
+        avvik.forEach(function (item, idx) { complaintLines.push(String(idx + 1) + '. ' + findingTitle(item, idx + 1) + '.'); });
+        complaintLines.push('');
+        complaintLines.push('Forholdene ble avdekket da ' + unit + ' gjennomførte fiskerioppsyn/kontroll med ' + topic + '.');
+        complaintLines.push('');
+        complaintLines.push('Kort faktumbeskrivelse:');
+        avvik.forEach(function (item, idx) { complaintLines.push(findingLine(item, idx + 1)); });
+        complaintLines.push('');
+        complaintLines.push((avvik.length > 1 ? 'Forholdene kan etter sin art være relevante' : 'Forholdet kan etter sin art være relevant') + ' for vurdering etter registrerte lov-/forskriftshenvisninger knyttet til avvikene. Endelig rettslig vurdering tilligger påtalemyndigheten.');
+        complaintLines.push('For nærmere detaljer om faktiske observasjoner, redskap/beslag og sikret bildedokumentasjon vises det til sakens egenrapport, beslagsrapport og illustrasjonsmappe/fotomappe.');
+      }
+      var summaryText = reportLines.join('\n\n').trim();
       return {
         basis_details: basis,
         notes: '',
         summary: summaryText,
-        complaint_preview: summaryText,
-        source_label: 'lokal IKV-mal 1.8.28'
+        complaint_preview: complaintLines.join('\n').trim(),
+        source_label: 'lokal politifaglig IKV-mal 1.8.29'
       };
     }
 
