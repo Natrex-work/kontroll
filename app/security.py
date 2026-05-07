@@ -23,6 +23,7 @@ SESSION_NONCE_KEY = 'session_nonce'
 
 _rate_lock = threading.Lock()
 _login_attempts: dict[str, deque[float]] = defaultdict(deque)
+_otp_send_attempts: dict[str, deque[float]] = defaultdict(deque)
 
 
 def client_ip(request: Request) -> str:
@@ -167,6 +168,25 @@ def clear_login_failures(request: Request, email: str) -> None:
     key = f'{client_ip(request)}|{str(email or "").strip().lower()}'
     with _rate_lock:
         _login_attempts.pop(key, None)
+
+
+
+def check_otp_send_rate_limit(request: Request, user_id: int) -> None:
+    key = f'{client_ip(request)}|otp|{int(user_id)}'
+    with _rate_lock:
+        queue = _otp_send_attempts[key]
+        _prune_attempts(queue, window_seconds=settings.otp_send_rate_limit_window_seconds)
+        if len(queue) >= settings.otp_send_rate_limit_attempts:
+            audit_security_event('otp_send_rate_limited', request, {'user_id': int(user_id)})
+            raise HTTPException(status_code=429, detail='For mange kodeutsendinger. Vent litt og prøv igjen.')
+
+
+def record_otp_send_attempt(request: Request, user_id: int) -> None:
+    key = f'{client_ip(request)}|otp|{int(user_id)}'
+    with _rate_lock:
+        queue = _otp_send_attempts[key]
+        queue.append(time.time())
+        _prune_attempts(queue, window_seconds=settings.otp_send_rate_limit_window_seconds)
 
 
 def audit_security_event(action: str, request: Request, details: dict[str, Any] | None = None) -> None:

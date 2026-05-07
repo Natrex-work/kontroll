@@ -43,3 +43,11 @@ def controls_overview(request: Request, status_filter: str = 'all'):
 def go_to_default(request: Request):
     user = require_user(request)
     return RedirectResponse(first_allowed_path(user) or '/login', status_code=HTTP_303_SEE_OTHER)
+
+
+@router.get('/synk', response_class=HTMLResponse)
+def sync_inspector(request: Request):
+    """Synkstatus-side: lar brukeren se alle ventende/feilede vedlegg på enheten
+    og prøve på nytt. All logikk kjøres klientsiden mot IndexedDB."""
+    require_user(request)
+    return render_template(request, 'sync_inspector.html')

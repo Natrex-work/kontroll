@@ -32,6 +32,30 @@ def validate_email(value: str | None) -> str:
     return email
 
 
+
+def normalize_norwegian_mobile(value: str | None) -> str:
+    raw = str(value or '').strip()
+    if not raw:
+        return ''
+    digits = ''.join(ch for ch in raw if ch.isdigit())
+    if digits.startswith('0047') and len(digits) >= 12:
+        digits = digits[4:]
+    elif digits.startswith('47') and len(digits) == 10:
+        digits = digits[2:]
+    if len(digits) != 8 or digits.startswith('0'):
+        raise HTTPException(status_code=400, detail='Bruk gyldig norsk mobilnummer, f.eks. 900 00 000.')
+    return '+47' + digits
+
+
+def validate_login_mobile(value: str | None, *, required: bool = True) -> str | None:
+    raw = str(value or '').strip()
+    if not raw:
+        if required:
+            raise HTTPException(status_code=400, detail='Telefonnummer er påkrevd for brukere som skal logge inn med 2-trinnskode.')
+        return None
+    return normalize_norwegian_mobile(raw)
+
+
 def validate_password(value: str | None, minimum_length: int | None = None) -> str:
     password = str(value or '')
     required_length = max(settings.min_password_length, int(minimum_length or settings.min_password_length))

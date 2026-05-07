@@ -149,6 +149,7 @@ def init_db() -> None:
                 last_witness_name TEXT,
                 case_prefix TEXT,
                 active INTEGER NOT NULL DEFAULT 1,
+                two_factor_required INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
@@ -261,12 +262,29 @@ def init_db() -> None:
                 PRIMARY KEY(prefix, year)
             );
 
+
+            CREATE TABLE IF NOT EXISTS login_otp_challenges (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                phone TEXT NOT NULL,
+                code_hash TEXT NOT NULL,
+                attempts INTEGER NOT NULL DEFAULT 0,
+                max_attempts INTEGER NOT NULL DEFAULT 5,
+                expires_at TEXT NOT NULL,
+                consumed_at TEXT,
+                ip_address TEXT,
+                user_agent TEXT,
+                created_at TEXT NOT NULL
+            );
+
             CREATE INDEX IF NOT EXISTS idx_cases_created_by_deleted_updated ON cases(created_by, deleted_at, updated_at);
             CREATE INDEX IF NOT EXISTS idx_cases_deleted_updated ON cases(deleted_at, updated_at);
             CREATE INDEX IF NOT EXISTS idx_cases_status_updated ON cases(status, updated_at);
             CREATE INDEX IF NOT EXISTS idx_evidence_case_id_created_at ON evidence(case_id, created_at);
             CREATE INDEX IF NOT EXISTS idx_audit_log_created_at ON audit_log(created_at);
             CREATE INDEX IF NOT EXISTS idx_case_counters_prefix_year ON case_counters(prefix, year);
+            CREATE INDEX IF NOT EXISTS idx_login_otp_user_created ON login_otp_challenges(user_id, created_at);
+            CREATE INDEX IF NOT EXISTS idx_login_otp_expires ON login_otp_challenges(expires_at);
             '''
         )
 
@@ -277,6 +295,7 @@ def init_db() -> None:
         _ensure_column(conn, 'users', 'vessel_affiliation', 'vessel_affiliation TEXT')
         _ensure_column(conn, 'users', 'permissions_json', "permissions_json TEXT NOT NULL DEFAULT '[]'")
         _ensure_column(conn, 'users', 'updated_at', "updated_at TEXT NOT NULL DEFAULT '1970-01-01T00:00:00Z'")
+        _ensure_column(conn, 'users', 'two_factor_required', 'two_factor_required INTEGER NOT NULL DEFAULT 0')
 
         _ensure_column(conn, 'cases', 'case_basis', "case_basis TEXT NOT NULL DEFAULT 'patruljeobservasjon'")
         _ensure_column(conn, 'cases', 'basis_source_name', 'basis_source_name TEXT')
@@ -333,6 +352,7 @@ def init_db() -> None:
 
         now = utcnow_iso()
         conn.execute("UPDATE users SET active = 1 WHERE active IS NULL")
+        conn.execute("UPDATE users SET two_factor_required = CASE WHEN role = 'admin' THEN 0 ELSE 1 END WHERE two_factor_required IS NULL OR two_factor_required NOT IN (0, 1)")
         conn.execute("UPDATE users SET case_prefix = 'LBHN' WHERE case_prefix IS NULL OR trim(case_prefix) = ''")
         conn.execute(
             "UPDATE users SET updated_at = COALESCE(NULLIF(updated_at, ''), created_at, ?) WHERE updated_at IS NULL OR updated_at = '' OR updated_at = '1970-01-01T00:00:00Z'",
@@ -407,14 +427,17 @@ def create_user(
     last_witness_name: Optional[str] = None,
     case_prefix: Optional[str] = None,
     active: bool = True,
+    two_factor_required: bool | None = None,
 ) -> int:
     now = utcnow_iso()
     permissions_json = permissions_to_json(role, permissions)
+    if two_factor_required is None:
+        two_factor_required = str(role or '').strip() != 'admin'
     with get_conn() as conn:
         cur = conn.execute(
             '''
-            INSERT INTO users(email, full_name, password_hash, role, address, phone, vessel_affiliation, permissions_json, active, last_complainant_name, last_witness_name, case_prefix, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO users(email, full_name, password_hash, role, address, phone, vessel_affiliation, permissions_json, active, two_factor_required, last_complainant_name, last_witness_name, case_prefix, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''',
             (
                 email.strip().lower(),
@@ -426,6 +449,7 @@ def create_user(
                 (vessel_affiliation or '').strip() or None,
                 permissions_json,
                 1 if active else 0,
+                1 if two_factor_required else 0,
                 last_complainant_name,
                 last_witness_name,
                 (case_prefix or '').strip().upper() or None,
@@ -449,12 +473,15 @@ def update_user(
     last_complainant_name: str | None,
     last_witness_name: str | None,
     case_prefix: str | None,
+    two_factor_required: bool | None = None,
 ) -> None:
+    if two_factor_required is None:
+        two_factor_required = str(role or '').strip() != 'admin'
     with get_conn() as conn:
         conn.execute(
             '''
             UPDATE users
-            SET full_name = ?, role = ?, active = ?, address = ?, phone = ?, vessel_affiliation = ?, permissions_json = ?, last_complainant_name = ?, last_witness_name = ?, case_prefix = ?, updated_at = ?
+            SET full_name = ?, role = ?, active = ?, address = ?, phone = ?, vessel_affiliation = ?, permissions_json = ?, two_factor_required = ?, last_complainant_name = ?, last_witness_name = ?, case_prefix = ?, updated_at = ?
             WHERE id = ?
             ''',
             (
@@ -465,6 +492,7 @@ def update_user(
                 (phone or '').strip() or None,
                 (vessel_affiliation or '').strip() or None,
                 permissions_to_json(role, permissions),
+                1 if two_factor_required else 0,
                 (last_complainant_name or '').strip() or None,
                 (last_witness_name or '').strip() or None,
                 (case_prefix or '').strip().upper() or None,
@@ -507,6 +535,58 @@ def list_users() -> list[Dict[str, Any]]:
     for row in rows:
         row['permissions'] = get_user_permissions(row)
     return rows
+
+
+
+def create_login_otp_challenge(
+    *,
+    user_id: int,
+    phone: str,
+    code_hash: str,
+    expires_at: str,
+    max_attempts: int,
+    ip_address: str | None = None,
+    user_agent: str | None = None,
+) -> int:
+    now = utcnow_iso()
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE login_otp_challenges SET consumed_at = ? WHERE user_id = ? AND consumed_at IS NULL",
+            (now, user_id),
+        )
+        cur = conn.execute(
+            '''
+            INSERT INTO login_otp_challenges(user_id, phone, code_hash, attempts, max_attempts, expires_at, consumed_at, ip_address, user_agent, created_at)
+            VALUES (?, ?, ?, 0, ?, ?, NULL, ?, ?, ?)
+            ''',
+            (user_id, phone, code_hash, max_attempts, expires_at, ip_address, user_agent, now),
+        )
+        return int(cur.lastrowid)
+
+
+def get_login_otp_challenge(challenge_id: int) -> Optional[Dict[str, Any]]:
+    with get_conn() as conn:
+        cur = conn.execute('SELECT * FROM login_otp_challenges WHERE id = ?', (challenge_id,))
+        return cur.fetchone()
+
+
+def record_login_otp_attempt(challenge_id: int) -> int:
+    with get_conn() as conn:
+        conn.execute('UPDATE login_otp_challenges SET attempts = attempts + 1 WHERE id = ?', (challenge_id,))
+        cur = conn.execute('SELECT attempts FROM login_otp_challenges WHERE id = ?', (challenge_id,))
+        row = cur.fetchone() or {}
+        return int(row.get('attempts') or 0)
+
+
+def consume_login_otp_challenge(challenge_id: int) -> None:
+    with get_conn() as conn:
+        conn.execute('UPDATE login_otp_challenges SET consumed_at = ? WHERE id = ?', (utcnow_iso(), challenge_id))
+
+
+def prune_login_otp_challenges() -> None:
+    with get_conn() as conn:
+        conn.execute("DELETE FROM login_otp_challenges WHERE consumed_at IS NOT NULL AND created_at < datetime('now', '-7 days')")
+        conn.execute("DELETE FROM login_otp_challenges WHERE expires_at < datetime('now', '-7 days')")
 
 
 def update_user_last_names(user_id: int, complainant_name: str | None, witness_name: str | None) -> None:

@@ -1,83 +1,174 @@
 {% extends 'base.html' %}
-{% block title %}Brukere · {{ app_name }}{% endblock %}
+{% block title %}Brukerstyring · {{ app_name }}{% endblock %}
 {% block content %}
 <section class="page-header">
   <div>
     <h1>Brukerstyring</h1>
-    <p class="muted">Som admin kan du legge til, oppdatere og fjerne brukere. Tilganger styres per modul. Admin-brukere får full tilgang til kontroll, kart, regelverk og adminmoduler.</p>
+    <p class="muted">Opprett og administrer brukere. Ikke-admin må logge inn med passord + SMS-kode.</p>
   </div>
 </section>
 
 {% if error %}<div class="alert alert-error" role="alert">{{ error }}</div>{% endif %}
-{% if request.query_params.get('created') %}<div class="alert alert-success" role="status">Brukeren er opprettet.</div>{% endif %}
 {% if request.query_params.get('updated') %}<div class="alert alert-success" role="status">Brukeren er oppdatert.</div>{% endif %}
 {% if request.query_params.get('password') %}<div class="alert alert-success" role="status">Passordet er oppdatert.</div>{% endif %}
 {% if request.query_params.get('removed') %}<div class="alert alert-success" role="status">Brukeren er fjernet fra aktiv bruk og kan ikke lenger logge inn.</div>{% endif %}
 
 <div class="grid-two admin-grid">
-  <section class="card">
-    <div class="card-header"><h2>Ny bruker</h2></div>
-    <form method="post" action="/admin/users" class="stack gap-m">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-      <div class="grid-two">
-        <label>
-          <span>Fullt navn</span>
-          <input name="full_name" autocomplete="name" required />
-        </label>
-        <label>
-          <span>E-post</span>
-          <input name="email" type="email" autocomplete="email" required />
-        </label>
-        <label>
-          <span>Telefonnummer</span>
-          <input name="phone" placeholder="F.eks. 900 00 000" autocomplete="tel" />
-        </label>
-        <label>
-          <span>Adresse</span>
-          <input name="address" placeholder="Gate, postnummer og sted" autocomplete="street-address" />
-        </label>
-        <label>
-          <span>Fartøystilhørighet</span>
-          <input name="vessel_affiliation" placeholder="F.eks. KV Nornen" />
-        </label>
-        <label>
-          <span>Anmeldelsesnummer / prefix</span>
-          <input name="case_prefix" value="LBHN" placeholder="F.eks. LBHN" />
-        </label>
-        <label>
-          <span>Standard anmelder</span>
-          <input name="last_complainant_name" placeholder="Navn på anmelder" />
-        </label>
-        <label>
-          <span>Standard vitne</span>
-          <input name="last_witness_name" placeholder="Navn på vitne" />
-        </label>
-        <label>
-          <span>Passord</span>
-          <input name="password" type="password" autocomplete="new-password" required />
-        </label>
-        <label>
-          <span>Rolle</span>
-          <select name="role" id="create-role-select">
-            {% for option in user_role_options %}
-            <option value="{{ option }}">{{ option }}</option>
-            {% endfor %}
-          </select>
-        </label>
+
+  <!-- ===================== Ny bruker ===================== -->
+  <section class="admin-create-card">
+    <header class="admin-create-head">
+      <span class="icon-circle" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="4"/><path d="M3 21v-1a6 6 0 0 1 6-6h0a6 6 0 0 1 6 6v1"/><path d="M19 8v6"/><path d="M22 11h-6"/></svg>
+      </span>
+      <div>
+        <h2>Ny bruker</h2>
+        <p>Fyll ut det nødvendige – resten kan legges til senere.</p>
       </div>
-      <div class="permission-panel" data-role-select-id="create-role-select">
-        <div class="muted small">Velg hvilke moduler brukeren skal ha tilgang til.</div>
-        <div class="permission-options margin-top-s">
+    </header>
+
+    <form method="post" action="/admin/users" id="admin-create-form" class="stack gap-m" novalidate>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+
+      <!-- Rolle som segmentert kontroll -->
+      <div class="admin-field">
+        <span class="admin-field-label">
+          <span>Rolle <span class="req" aria-hidden="true">*</span></span>
+        </span>
+        <div class="admin-role-segmented" id="create-role-segmented" role="radiogroup" aria-label="Rolle">
+          <label data-role="investigator" class="is-selected">
+            <input type="radio" name="role" value="investigator" checked />
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6"/><path d="M23 11h-6"/></svg>
+            <span>Etterforsker</span>
+          </label>
+          <label data-role="admin">
+            <input type="radio" name="role" value="admin" />
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <span>Admin</span>
+          </label>
+        </div>
+        <span class="admin-field-hint" id="role-hint">Etterforsker logger inn med passord + SMS-kode. Admin er unntatt 2-trinn.</span>
+      </div>
+
+      <!-- Hurtig: navn + epost + telefon + passord -->
+      <div class="admin-quick-grid">
+        <div class="admin-field">
+          <label class="admin-field-label" for="create-full-name">
+            <span>Fullt navn <span class="req" aria-hidden="true">*</span></span>
+          </label>
+          <input id="create-full-name" name="full_name" autocomplete="name" required placeholder="F.eks. Anders Hansen" />
+        </div>
+
+        <div class="admin-field">
+          <label class="admin-field-label" for="create-email">
+            <span>E-post <span class="req" aria-hidden="true">*</span></span>
+          </label>
+          <input id="create-email" name="email" type="email" autocomplete="email" required placeholder="navn@eksempel.no" />
+        </div>
+
+        <div class="admin-field">
+          <label class="admin-field-label" for="create-phone">
+            <span>Mobilnummer <span class="req" id="phone-req" aria-hidden="true">*</span></span>
+          </label>
+          <div class="admin-phone-input">
+            <span class="prefix" aria-hidden="true">🇳🇴 +47</span>
+            <input id="create-phone" name="phone" type="tel" inputmode="numeric" autocomplete="tel"
+              maxlength="14" placeholder="900 00 000"
+              data-phone-input-for-role-select="create-role-hidden" />
+          </div>
+          <span class="admin-field-hint" id="phone-hint">Norsk mobilnummer (8 siffer). SMS-kode sendes hit ved innlogging.</span>
+        </div>
+
+        <div class="admin-field">
+          <label class="admin-field-label" for="create-password">
+            <span>Passord <span class="req" aria-hidden="true">*</span></span>
+            <button type="button" class="opt" id="generate-password-btn" style="cursor:pointer; background:transparent; border:0; color:#2b80d6; font-weight:600; letter-spacing:0; text-transform:none;">
+              Generer sterkt
+            </button>
+          </label>
+          <div class="admin-password-field">
+            <input id="create-password" name="password" type="password" autocomplete="new-password" required minlength="14" placeholder="Minst 14 tegn" />
+            <div class="admin-password-actions">
+              <button type="button" id="toggle-password" aria-label="Vis passord" title="Vis passord">
+                <svg id="eye-show" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                <svg id="eye-hide" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/><path d="m1 1 22 22"/></svg>
+              </button>
+              <button type="button" id="copy-password" aria-label="Kopier passord" title="Kopier">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              </button>
+            </div>
+          </div>
+          <span class="admin-field-hint">Minst 14 tegn. Kombinasjon av små/store bokstaver, tall og spesialtegn (eller bare lengde over 16).</span>
+        </div>
+      </div>
+
+      <!-- Tilganger (kun for ikke-admin) -->
+      <div class="admin-field" id="permissions-wrap">
+        <span class="admin-field-label"><span>Tilgang til moduler</span></span>
+        <div class="admin-permissions" id="create-permissions">
           {% for option in investigator_permission_options %}
-          <label class="permission-option"><input type="checkbox" name="permissions" value="{{ option.value }}" {% if option.value == 'kv_kontroll' %}checked{% endif %} /> <span>{{ option.label }}</span></label>
+          <label>
+            <input type="checkbox" name="permissions" value="{{ option.value }}" {% if option.value == 'kv_kontroll' %}checked{% endif %} />
+            <span>{{ option.label }}</span>
+          </label>
           {% endfor %}
         </div>
-        <div class="callout margin-top-s admin-fixed-permissions hidden">Admin-bruker får automatisk full tilgang til alle moduler.</div>
+        <div class="admin-fixed-permissions-box hidden" id="admin-permissions-info">
+          Admin-bruker får automatisk full tilgang til alle moduler.
+        </div>
       </div>
-      <button class="btn btn-primary" type="submit">Opprett bruker</button>
+
+      <!-- Avansert -->
+      <details class="admin-advanced">
+        <summary class="admin-advanced-toggle">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+          Avanserte felter (kan fylles ut senere)
+        </summary>
+        <div>
+          <div class="admin-field">
+            <label class="admin-field-label" for="create-address"><span>Adresse <span class="opt">valgfritt</span></span></label>
+            <input id="create-address" name="address" autocomplete="street-address" placeholder="Gate, postnummer og sted" />
+          </div>
+          <div class="admin-field">
+            <label class="admin-field-label" for="create-vessel"><span>Fartøystilhørighet <span class="opt">valgfritt</span></span></label>
+            <input id="create-vessel" name="vessel_affiliation" placeholder="F.eks. KV Nornen" />
+          </div>
+          <div class="admin-field">
+            <label class="admin-field-label" for="create-prefix"><span>Saksprefix</span></label>
+            <input id="create-prefix" name="case_prefix" value="LBHN" placeholder="F.eks. LBHN" />
+          </div>
+          <div class="admin-field">
+            <label class="admin-field-label" for="create-complainant"><span>Standard anmelder <span class="opt">valgfritt</span></span></label>
+            <input id="create-complainant" name="last_complainant_name" placeholder="Navn på anmelder" />
+          </div>
+          <div class="admin-field">
+            <label class="admin-field-label" for="create-witness"><span>Standard vitne <span class="opt">valgfritt</span></span></label>
+            <input id="create-witness" name="last_witness_name" placeholder="Navn på vitne" />
+          </div>
+        </div>
+      </details>
+
+      <!-- Hidden role select for compatibility with existing JS -->
+      <select id="create-role-hidden" name="_role_legacy" hidden aria-hidden="true">
+        <option value="investigator" selected>investigator</option>
+        <option value="admin">admin</option>
+      </select>
+
+      <!-- Submit -->
+      <div class="admin-submit-row">
+        <label class="admin-invite-toggle">
+          <input type="checkbox" name="send_invitation_sms" value="1" id="send-invite-cb" />
+          <span>Send foreløpig passord på SMS til brukeren</span>
+        </label>
+        <button class="btn btn-primary" type="submit" id="create-user-submit">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:18px;height:18px;flex-shrink:0;margin-right:6px;vertical-align:-3px"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6"/><path d="M23 11h-6"/></svg>
+          Opprett bruker
+        </button>
+      </div>
     </form>
   </section>
 
+  <!-- ===================== Eksisterende brukere ===================== -->
   <section class="card">
     <div class="card-header"><h2>Eksisterende brukere</h2></div>
     <div class="user-card-list">
@@ -87,95 +178,151 @@
           <div>
             <strong>{{ user.full_name }}</strong>
             <div class="muted small">{{ user.email }}</div>
-            <div class="muted small">{{ user.phone or 'Ingen telefon registrert' }} · {{ user.address or 'Ingen adresse registrert' }}</div>
+            <div class="muted small">{{ user.phone or 'Ingen telefon registrert' }}{% if user.address %} · {{ user.address }}{% endif %}</div>
           </div>
           <div class="actions-row wrap compact-actions">
             <span class="pill">{{ user.role }}</span>
+            {% if user.role != 'admin' %}<span class="pill">2-trinn: SMS</span>{% else %}<span class="pill">2-trinn: unntatt</span>{% endif %}
             {% if user.active %}
               <span class="pill pill-success">aktiv</span>
             {% else %}
-              <span class="pill pill-danger">fjernet / deaktivert</span>
+              <span class="pill pill-danger">deaktivert</span>
             {% endif %}
           </div>
         </div>
 
-        <form method="post" action="/admin/users/{{ user.id }}/update" class="stack gap-s margin-bottom-m">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-          <div class="grid-two">
-            <label>
-              <span>Navn</span>
-              <input name="full_name" value="{{ user.full_name }}" required />
-            </label>
-            <label>
-              <span>Rolle</span>
-              <select name="role" id="role-select-{{ user.id }}">
-                {% for option in user_role_options %}
-                <option value="{{ option }}" {% if user.role == option %}selected{% endif %}>{{ option }}</option>
-                {% endfor %}
-              </select>
-            </label>
-            <label>
-              <span>Telefonnummer</span>
-              <input name="phone" value="{{ user.phone or '' }}" />
-            </label>
-            <label>
-              <span>Adresse</span>
-              <input name="address" value="{{ user.address or '' }}" />
-            </label>
-            <label>
-              <span>Fartøystilhørighet</span>
-              <input name="vessel_affiliation" value="{{ user.vessel_affiliation or '' }}" />
-            </label>
-            <label>
-              <span>Anmeldelsesnummer / prefix</span>
-              <input name="case_prefix" value="{{ user.case_prefix or 'LBHN' }}" />
-            </label>
-            <label>
-              <span>Anmelder</span>
-              <input name="last_complainant_name" value="{{ user.last_complainant_name or '' }}" />
-            </label>
-            <label>
-              <span>Vitne</span>
-              <input name="last_witness_name" value="{{ user.last_witness_name or '' }}" />
-            </label>
-          </div>
-          <label class="checkbox-row">
-            <input type="checkbox" name="active" value="1" {% if user.active %}checked{% endif %} {% if current_user.id == user.id %}disabled{% endif %} />
-            <span>Brukeren er aktiv</span>
-          </label>
-          {% if current_user.id == user.id %}<input type="hidden" name="active" value="1" />{% endif %}
-          <div class="permission-panel" data-role-select-id="role-select-{{ user.id }}">
-            <div class="muted small">Tilgang til moduler</div>
-            <div class="permission-options margin-top-s">
-              {% for option in investigator_permission_options %}
-              <label class="permission-option"><input type="checkbox" name="permissions" value="{{ option.value }}" {% if option.value in user.permissions %}checked{% endif %} /> <span>{{ option.label }}</span></label>
-              {% endfor %}
+        <details class="margin-top-s">
+          <summary class="admin-advanced-toggle">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+            Rediger bruker
+          </summary>
+
+          <form method="post" action="/admin/users/{{ user.id }}/update" class="stack gap-s margin-top-s">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+            <div class="grid-two">
+              <label>
+                <span>Navn</span>
+                <input name="full_name" value="{{ user.full_name }}" required />
+              </label>
+              <label>
+                <span>Rolle</span>
+                <select name="role" id="role-select-{{ user.id }}">
+                  {% for option in user_role_options %}
+                  <option value="{{ option }}" {% if user.role == option %}selected{% endif %}>{{ option }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+              <label>
+                <span>Mobilnummer</span>
+                <input name="phone" value="{{ user.phone or '' }}" data-phone-input-for-role-select="role-select-{{ user.id }}" />
+                <small class="muted">Påkrevd for ikke-admin.</small>
+              </label>
+              <label>
+                <span>Adresse</span>
+                <input name="address" value="{{ user.address or '' }}" />
+              </label>
+              <label>
+                <span>Fartøystilhørighet</span>
+                <input name="vessel_affiliation" value="{{ user.vessel_affiliation or '' }}" />
+              </label>
+              <label>
+                <span>Saksprefix</span>
+                <input name="case_prefix" value="{{ user.case_prefix or 'LBHN' }}" />
+              </label>
+              <label>
+                <span>Anmelder</span>
+                <input name="last_complainant_name" value="{{ user.last_complainant_name or '' }}" />
+              </label>
+              <label>
+                <span>Vitne</span>
+                <input name="last_witness_name" value="{{ user.last_witness_name or '' }}" />
+              </label>
             </div>
-            <div class="callout margin-top-s admin-fixed-permissions {% if user.role != 'admin' %}hidden{% endif %}">Admin-bruker får automatisk full tilgang til kontroll, kart, regelverk og adminmoduler.</div>
-          </div>
-          <div class="actions-row wrap">
-            <button class="btn btn-secondary" type="submit">Lagre bruker</button>
-            {% if current_user.id != user.id %}
-            <button class="btn btn-danger" type="submit" formaction="/admin/users/{{ user.id }}/remove" formmethod="post" data-confirm="Fjerne brukeren fra aktiv bruk?">Fjern bruker</button>
-            {% endif %}
-          </div>
-        </form>
+            <label class="checkbox-row">
+              <input type="checkbox" name="active" value="1" {% if user.active %}checked{% endif %} {% if current_user.id == user.id %}disabled{% endif %} />
+              <span>Brukeren er aktiv</span>
+            </label>
+            {% if current_user.id == user.id %}<input type="hidden" name="active" value="1" />{% endif %}
+            <div class="permission-panel" data-role-select-id="role-select-{{ user.id }}">
+              <div class="muted small">Tilgang til moduler</div>
+              <div class="permission-options margin-top-s">
+                {% for option in investigator_permission_options %}
+                <label class="permission-option"><input type="checkbox" name="permissions" value="{{ option.value }}" {% if option.value in user.permissions %}checked{% endif %} /> <span>{{ option.label }}</span></label>
+                {% endfor %}
+              </div>
+              <div class="callout margin-top-s admin-fixed-permissions {% if user.role != 'admin' %}hidden{% endif %}">Admin får automatisk full tilgang.</div>
+            </div>
+            <div class="actions-row wrap">
+              <button class="btn btn-secondary" type="submit">Lagre endringer</button>
+              {% if current_user.id != user.id %}
+              <button class="btn btn-danger" type="submit" formaction="/admin/users/{{ user.id }}/remove" formmethod="post" data-confirm="Fjerne brukeren fra aktiv bruk?">Fjern bruker</button>
+              {% endif %}
+            </div>
+          </form>
 
-        <form method="post" action="/admin/users/{{ user.id }}/reset-password" class="inline-input-group wide-group">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-          <input name="password" type="password" autocomplete="new-password" placeholder="Nytt passord" aria-label="Nytt passord for {{ user.full_name }}" required />
-          <button class="btn btn-secondary btn-small" type="submit">Nullstill passord</button>
-        </form>
+          <form method="post" action="/admin/users/{{ user.id }}/reset-password" class="inline-input-group wide-group margin-top-s">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+            <input name="password" type="password" autocomplete="new-password" placeholder="Nytt passord (minst 14 tegn)" aria-label="Nytt passord for {{ user.full_name }}" required />
+            <button class="btn btn-secondary btn-small" type="submit">Nullstill passord</button>
+          </form>
+        </details>
 
+        {% if user.permissions %}
         <div class="permission-chip-list margin-top-s">
           {% for permission in user.permissions %}
           <span class="pill">{{ permission_labels[permission] }}</span>
           {% endfor %}
         </div>
+        {% endif %}
       </article>
+      {% else %}
+      <div class="empty-state">
+        <p class="muted">Ingen brukere registrert ennå.</p>
+      </div>
       {% endfor %}
     </div>
   </section>
 </div>
+
+<!-- Success modal -->
+{% if request.query_params.get('created') %}
+<div class="admin-success-modal" id="created-modal" role="dialog" aria-modal="true" aria-labelledby="created-title">
+  <div class="admin-success-modal-card">
+    <div class="admin-success-modal-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>
+    </div>
+    <h3 id="created-title">Brukeren er opprettet</h3>
+    {% set invite = request.query_params.get('invite', '') %}
+    {% if invite == 'sent' %}
+    <p class="alert alert-success" style="padding:10px 12px; font-size:0.85rem; margin:0 0 14px;">📲 Foreløpig passord er sendt på SMS til brukeren.</p>
+    {% elif invite == 'failed' %}
+    <p class="alert alert-warning" style="padding:10px 12px; font-size:0.85rem; margin:0 0 14px;">⚠️ Bruker er opprettet, men SMS-invitasjonen feilet. Del passordet manuelt.</p>
+    {% endif %}
+    <p>Send følgende informasjon til brukeren slik at de kan logge inn første gang.</p>
+    <div class="admin-cred-list">
+      <div class="admin-cred-row">
+        <span class="admin-cred-label">E-post</span>
+        <span class="admin-cred-value" id="cred-email">{{ request.query_params.get('email', '') }}</span>
+        <button type="button" class="admin-cred-copy" data-copy-target="cred-email" aria-label="Kopier e-post">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        </button>
+      </div>
+      {% if request.query_params.get('phone') %}
+      <div class="admin-cred-row">
+        <span class="admin-cred-label">Mobilnummer</span>
+        <span class="admin-cred-value" id="cred-phone">{{ request.query_params.get('phone', '') }}</span>
+        <button type="button" class="admin-cred-copy" data-copy-target="cred-phone" aria-label="Kopier mobilnummer">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        </button>
+      </div>
+      {% endif %}
+    </div>
+    <p class="muted small" style="font-size:.78rem; margin:0 0 14px;">Av sikkerhetsgrunner vises ikke passordet i etterkant. Hvis du har glemt det, bruk «Nullstill passord» på brukerkortet.</p>
+    <div class="actions-row" style="justify-content:flex-end;">
+      <a href="/admin/users" class="btn btn-secondary btn-small">Lukk</a>
+    </div>
+  </div>
+</div>
+{% endif %}
 {% endblock %}
-{% block page_scripts %}<script src="/static/js/admin-users.js?v=1.8.29"></script>{% endblock %}
+{% block page_scripts %}<script src="/static/js/admin-users.js?v=1.8.33"></script>{% endblock %}

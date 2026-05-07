@@ -11,14 +11,16 @@ services:
       mountPath: /var/data
       sizeGB: 1
     envVars:
+      - key: KV_PRODUCTION_MODE
+        value: '1'
       - key: KV_APP_NAME
         value: Kontroll
       - key: KV_BRAND_ORG_NAME
         value: Minfiskerikontroll
       - key: KV_APP_VERSION
-        value: 1.8.29
+        value: 1.8.30
       - key: KV_APP_VERSION_LABEL
-        value: 1.8.29
+        value: 1.8.30
       - key: KV_STORAGE_ROOT
         value: /var/data/fiskerikontroll
       - key: KV_DATA_DIR
@@ -63,3 +65,25 @@ services:
         value: '3.0'
       - key: KV_ZONE_STATUS_CACHE_SECONDS
         value: '300'
+      - key: KV_OTP_ENABLED
+        value: '1'
+      - key: KV_OTP_LENGTH
+        value: '6'
+      - key: KV_OTP_TTL_SECONDS
+        value: '300'
+      - key: KV_OTP_MAX_ATTEMPTS
+        value: '5'
+      - key: KV_OTP_SEND_RATE_LIMIT_ATTEMPTS
+        value: '3'
+      - key: KV_OTP_SEND_RATE_LIMIT_WINDOW_SECONDS
+        value: '600'
+      - key: KV_SMS_PROVIDER
+        value: twilio
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_FROM_NUMBER
+        sync: false
+      - key: TWILIO_MESSAGING_SERVICE_SID
+        sync: false

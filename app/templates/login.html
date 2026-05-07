@@ -6,40 +6,45 @@
 <section class="login-wrap login-wrap-brand" aria-labelledby="login-heading">
   <div class="login-hero-copy">
     <div class="login-brand-row">
-      <span class="login-brand-badge brand-badge-logo" aria-hidden="true"><img src="/static/logo.png?v=1.8.29" alt="" width="66" height="66" /></span>
+      <span class="login-brand-badge brand-badge-logo" aria-hidden="true"><img src="/static/logo.png?v=1.8.33" alt="" width="72" height="72" /></span>
       <div>
         <div class="login-brand-org">{{ brand_org_name }}</div>
         <div class="login-brand-app">{{ display_app_name }}</div>
       </div>
     </div>
-    <h1 id="login-heading">Logg inn for å åpne kontrollflaten</h1>
-    <p>Mobiltilpasset arbeidsflate for kontroll, kart, regelverk, dokumentasjon og videre oppfølging i samme flyt.</p>
+    <h1 id="login-heading">Logg inn for å fortsette</h1>
+    <p>Kontroll, kart, regelverk og dokumentasjon i én flyt — tilrettelagt for feltbruk på iPhone og iPad.</p>
   </div>
   <div class="login-card login-card-brand">
-    <div class="login-card-head">
-      <div class="brand center brand-login-card">
-        <div class="brand-badge brand-badge-logo" aria-hidden="true"><img src="/static/logo.png?v=1.8.29" alt="" width="54" height="54" /></div>
+    <header class="login-card-head login-card-head-clean">
+      <div class="login-card-title">
+        <span class="brand-badge brand-badge-logo brand-badge-md" aria-hidden="true"><img src="/static/logo.png?v=1.8.33" alt="" width="44" height="44" /></span>
         <div>
           <strong>{{ display_app_name }}</strong>
-          <div class="muted">Sikker innlogging til kontroll, kart og sak</div>
+          <span class="muted small">Sikker innlogging</span>
         </div>
       </div>
-      <h2>Logg inn</h2>
-    </div>
+    </header>
+
     {% if error %}
       <div class="alert alert-error" role="alert">{{ error }}</div>
     {% endif %}
+
     <form method="post" action="/login" class="stack gap-m" novalidate>
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-      <label>
-        <span>E-post</span>
-        <input name="email" type="email" inputmode="email" placeholder="navn@eksempel.no" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" required aria-required="true" />
+      <label class="field">
+        <span class="field-label">E-post</span>
+        <input name="email" type="email" inputmode="email" placeholder="navn@eksempel.no"
+          autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false"
+          required aria-required="true" />
       </label>
-      <label>
-        <span>Passord</span>
-        <input name="password" type="password" placeholder="••••••••" autocomplete="current-password" required aria-required="true" />
+      <label class="field">
+        <span class="field-label">Passord</span>
+        <input name="password" type="password" placeholder="••••••••"
+          autocomplete="current-password" required aria-required="true" />
       </label>
       <button class="btn btn-primary btn-full login-submit" type="submit">Logg inn</button>
+      <p class="login-fineprint">Ikke-adminbrukere får tilsendt engangskode på SMS som steg 2.</p>
     </form>
   </div>
 </section>

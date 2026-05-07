@@ -1718,7 +1718,7 @@
       var fisherySel = currentFisherySelection();
       var controlSel = currentControlSelection();
       var gearSel = currentGearSelection();
-      // 1.8.29: Yggdrasil/Fiskerireguleringer MapServer IDs, tilpasset
+      // 1.8.30: Yggdrasil/Fiskerireguleringer MapServer IDs, tilpasset
       // kontrolltype + art + redskap slik at ny kontroll viser de samme
       // verne-/reguleringsområdene som Fritidsfiske-kartet, men uten tapt redskap.
       var fritidGenerell = [0, 7, 11, 13, 31, 37, 38];
@@ -1788,7 +1788,7 @@
       if (/(breivikfjorden|borgundfjorden|henningsvaer|lofotfiske)/.test(restrictionText) && !/(torsk|skrei|kommersiell|yrkes)/.test([currentFisherySelection(), currentControlSelection(), restrictionText].join(' '))) return false;
       var status = String(layer.status || '').trim().toLowerCase();
       if (Object.prototype.hasOwnProperty.call(activeLayerStatuses, status) && !activeLayerStatuses[status]) return false;
-      // 1.8.29: Temakartet kan vise bredt uten valg, men under kontroll
+      // 1.8.30: Temakartet kan vise bredt uten valg, men under kontroll
       // skal kartet bare vise lovregulerte lag som passer valgt kontrolltype,
       // art/fiskeri og redskap.
       if (!hasMapSelection()) return true;
@@ -2624,7 +2624,7 @@
       storedPositionMode = '';
     }
     if (storedPositionMode !== 'manual' && storedPositionMode !== 'auto') storedPositionMode = '';
-    var zoneOverlayStorageKey = 'kv-case-zone-overlay-1.8.29:' + root.dataset.caseId;
+    var zoneOverlayStorageKey = 'kv-case-zone-overlay-1.8.30:' + root.dataset.caseId;
     var zoneOverlayEnabled = true;
     // Treffende verne-/reguleringsområder skal alltid tegnes i kartet.
     // Tidligere lagret 'skjul'-valg fra eldre PWA-versjoner ignoreres.
@@ -2861,7 +2861,7 @@
     var topPrevStep = document.getElementById('top-prev-step');
     var topNextStep = document.getElementById('top-next-step');
     var topStepLabel = document.getElementById('top-step-label');
-    var stepStorageKey = 'kv-case-step-1.8.29:' + root.dataset.caseId;
+    var stepStorageKey = 'kv-case-step-1.8.30:' + root.dataset.caseId;
     var PERSON_STEP = 3;
     var MAP_STEP = 4;
     var FINDINGS_STEP = 5;
@@ -4470,7 +4470,7 @@
         title: 'Kontrollpunkter' + (speciesVal || gearVal ? ' for ' + [controlVal, speciesVal, gearVal].filter(Boolean).join(' / ') : ''),
         description: reason || 'Lokal kontrollpunktliste brukes slik at punktene vises også ved tregt eller tomt regeloppslag.',
         items: items,
-        sources: [{ name: 'Lokal kontrollpunktliste', ref: '1.8.29 fallback', url: '' }]
+        sources: [{ name: 'Lokal kontrollpunktliste', ref: '1.8.30 fallback', url: '' }]
       };
     }
 
@@ -5666,7 +5666,7 @@
       var allLayerIds = displayLayers.map(function (layer) { return Number(layer && layer.id); }).filter(function (value) { return isFinite(value); });
       var fisheryPortalService = root.dataset.portalMapserver || (caseMap && caseMap.dataset ? (caseMap.dataset.portalMapserver || '') : '') || 'https://gis.fiskeridir.no/server/rest/services/Yggdrasil/Fiskerireguleringer/MapServer';
       var vernPortalService = root.dataset.portalVernMapserver || (caseMap && caseMap.dataset ? (caseMap.dataset.portalVernMapserver || '') : '') || 'https://portal.fiskeridir.no/server/rest/services/Fiskeridir_vern/MapServer';
-      // 1.8.29: rasterlaget skal holde områdene visuelt stabile på alle zoomnivå.
+      // 1.8.30: rasterlaget skal holde områdene visuelt stabile på alle zoomnivå.
       // Detalj-/vektorhenting brukes bare ved konkrete områdetreff eller når brukeren
       // eksplisitt ber om detaljer, slik at kartet ikke blinker/forsvinner ved innzoom.
       mapState.fetchFeatureDetails = options.fetchFeatureDetails === true || mapState.requestFeatureDetails === true || zoneLayerIds.length > 0;
@@ -5678,7 +5678,7 @@
       mapState.showLegend = false;
       mapState.showLayerPanel = !!mapLayerPanelHost;
       mapState.layerPanelDefaultOpen = false;
-      mapState.layerPanelKey = 'case-map-1-8-29';
+      mapState.layerPanelKey = 'case-map-1-8-30';
       mapState.layerPanelTargetSelector = mapLayerPanelHost ? '#case-map-layer-panel-host' : '';
       mapState.rasterLayerIds = allLayerIds;
       mapState.identifyLayerIds = allLayerIds;
@@ -5799,8 +5799,8 @@
       return rows;
     }
 
-    var zoneResultStoragePrefix = 'kv-zone-result-1.8.29:';
-    var nearestPlaceStoragePrefix = 'kv-nearest-place-1.8.29:';
+    var zoneResultStoragePrefix = 'kv-zone-result-1.8.30:';
+    var nearestPlaceStoragePrefix = 'kv-nearest-place-1.8.30:';
     var nearestPlaceController = null;
     var nearestPlaceSequence = 0;
     var nearestPlaceTimer = null;
@@ -6100,7 +6100,7 @@
       scheduleAutosave('Manuell posisjon aktivert');
     }
 
-    var devicePositionStorageKey = 'kv-device-position-1.8.29';
+    var devicePositionStorageKey = 'kv-device-position-1.8.30';
     function readCachedDevicePosition() {
       if (!window.localStorage) return null;
       try {
@@ -6958,7 +6958,7 @@ function renderHummerStatus(result) {
         notes: '',
         summary: summaryText,
         complaint_preview: complaintLines.join('\n').trim(),
-        source_label: 'lokal politifaglig IKV-mal 1.8.29'
+        source_label: 'lokal politifaglig IKV-mal 1.8.30'
       };
     }
 

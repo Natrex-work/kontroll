@@ -4593,3 +4593,1540 @@ textarea::placeholder {
   max-width: 34rem;
   line-height: 1.35;
 }
+
+/* ========================================================================
+   1.8.31 — Polish-lag
+   --------------------------------------------------------------------------
+   Additivt sluttsjikt. Berører IKKE case_form.html eller case-app.js.
+   Mål: profesjonelt, ryddig, konsistent visuelt uttrykk; iPhone/iPad-vennlig.
+   ======================================================================== */
+
+:root {
+  /* Spacing scale (4px base) */
+  --mk-space-1: 4px;
+  --mk-space-2: 8px;
+  --mk-space-3: 12px;
+  --mk-space-4: 16px;
+  --mk-space-5: 20px;
+  --mk-space-6: 24px;
+  --mk-space-7: 32px;
+  --mk-space-8: 40px;
+  --mk-space-9: 56px;
+
+  /* Radius scale */
+  --mk-radius-xs: 8px;
+  --mk-radius-sm: 12px;
+  --mk-radius-md: 16px;
+  --mk-radius-lg: 22px;
+  --mk-radius-xl: 28px;
+  --mk-radius-pill: 999px;
+
+  /* Type scale */
+  --mk-text-xs: 0.75rem;
+  --mk-text-sm: 0.85rem;
+  --mk-text-base: 1rem;
+  --mk-text-md: 1.0625rem;   /* 17px – iOS comfortable */
+  --mk-text-lg: 1.25rem;
+  --mk-text-xl: 1.5rem;
+  --mk-text-2xl: 1.875rem;
+  --mk-text-3xl: 2.25rem;
+
+  /* Elevation */
+  --mk-shadow-sm: 0 1px 2px rgba(15,39,64,0.06), 0 1px 3px rgba(15,39,64,0.04);
+  --mk-shadow-md: 0 4px 12px rgba(15,39,64,0.07), 0 2px 4px rgba(15,39,64,0.05);
+  --mk-shadow-lg: 0 12px 30px rgba(15,39,64,0.10);
+  --mk-shadow-xl: 0 24px 48px rgba(4,18,36,0.22);
+
+  /* Status colors (semantic) */
+  --mk-status-draft-bg: #fff4d4;
+  --mk-status-draft-fg: #6b4e00;
+  --mk-status-draft-line: #f1d896;
+
+  --mk-status-ready-bg: #d8eef9;
+  --mk-status-ready-fg: #0d4974;
+  --mk-status-ready-line: #abd6ee;
+
+  --mk-status-sent-bg: #d6efe2;
+  --mk-status-sent-fg: #0e5a35;
+  --mk-status-sent-line: #a4d6bb;
+
+  --mk-status-warn-bg: #ffe2c8;
+  --mk-status-warn-fg: #7a3c05;
+  --mk-status-warn-line: #f5c08c;
+
+  --mk-status-none-bg: #e7eaf0;
+  --mk-status-none-fg: #3a4759;
+  --mk-status-none-line: #c8cfdb;
+
+  /* iOS safe area shorthands */
+  --mk-safe-top: env(safe-area-inset-top, 0px);
+  --mk-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --mk-safe-left: env(safe-area-inset-left, 0px);
+  --mk-safe-right: env(safe-area-inset-right, 0px);
+}
+
+/* ------------------------------------------------------------------------
+   Typografi — system font stack med SF Pro på iOS, finere kerning
+   ------------------------------------------------------------------------ */
+html, body {
+  font-family:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text",
+    "Inter", "Segoe UI", Roboto, Helvetica, Arial,
+    "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "ss01", "cv11";
+}
+html { -webkit-text-size-adjust: 100%; }
+body { font-size: var(--mk-text-md); line-height: 1.5; }
+
+h1, h2, h3, h4, h5 {
+  font-family:
+    -apple-system, BlinkMacSystemFont, "SF Pro Display",
+    "Inter", "Segoe UI", Roboto, sans-serif;
+  letter-spacing: -0.02em;
+  font-weight: 700;
+}
+h1 { font-size: clamp(1.6rem, 2.4vw, var(--mk-text-3xl)); line-height: 1.1; }
+h2 { font-size: clamp(1.25rem, 1.8vw, var(--mk-text-xl)); line-height: 1.2; }
+h3 { font-size: var(--mk-text-lg); line-height: 1.25; }
+
+/* Tabular numerics in stat displays */
+.home-mini-stat strong,
+.stat-card-inline strong,
+.home-case-status,
+.status-pill { font-variant-numeric: tabular-nums; }
+
+/* ------------------------------------------------------------------------
+   iOS / Safari hardening
+   ------------------------------------------------------------------------ */
+
+/* Don't auto-zoom on iOS when an input is focused (font must be ≥ 16px) */
+input, select, textarea {
+  font-size: max(16px, var(--mk-text-md));
+}
+
+/* Disable tap highlight (we use focus-visible instead) */
+a, button, input, select, textarea, [role="button"] {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Smooth momentum scrolling on iOS */
+.main, .sidebar, .home-screen, .table-wrap {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Respect safe-area on the main scroll container */
+@supports (padding: max(0px)) {
+  body { padding-bottom: var(--mk-safe-bottom); }
+}
+
+/* Prevent text-size adjustment from breaking layouts in landscape */
+.home-tile-text strong,
+.login-card h2,
+.page-header h1 {
+  -webkit-text-size-adjust: none;
+}
+
+/* ------------------------------------------------------------------------
+   Reduce flicker / repaints
+   ------------------------------------------------------------------------ */
+.home-tile,
+.home-tile-button,
+.card,
+.home-panel,
+.login-card,
+.home-case-row,
+.home-mini-stat {
+  contain: layout paint style;
+}
+.home-tile,
+.home-tile-button,
+.btn,
+.home-case-row,
+.login-tab {
+  transition:
+    transform 140ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 180ms ease,
+    background-color 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease;
+}
+
+/* ------------------------------------------------------------------------
+   Skip link (mer subtil enn standard)
+   ------------------------------------------------------------------------ */
+.skip-link {
+  position: absolute;
+  top: -100px;
+  left: 8px;
+  z-index: 9999;
+  padding: 10px 14px;
+  background: #10273d;
+  color: #fff !important;
+  border-radius: 10px;
+  font-weight: 600;
+  text-decoration: none;
+  box-shadow: var(--mk-shadow-lg);
+}
+.skip-link:focus,
+.skip-link:focus-visible {
+  top: calc(8px + var(--mk-safe-top));
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------------------
+   Forbedret fokus-ring (enhetlig)
+   ------------------------------------------------------------------------ */
+*:focus-visible {
+  outline: 2px solid #2b80d6;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+.btn:focus-visible,
+.home-tile:focus-visible,
+.home-tile-button:focus-visible,
+.home-case-row:focus-visible,
+.nav-link:focus-visible,
+.login-tab:focus-visible {
+  outline: 3px solid #7bdbe8;
+  outline-offset: 3px;
+  border-radius: inherit;
+}
+.history-btn:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------------------
+   Knapper — tightere, mer profesjonell weight
+   ------------------------------------------------------------------------ */
+.btn {
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  border-radius: var(--mk-radius-sm);
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease,
+    transform 140ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 180ms ease;
+}
+.btn:active { transform: scale(0.98); }
+
+.btn-primary {
+  box-shadow: 0 1px 0 rgba(255,255,255,0.18) inset, 0 6px 14px rgba(16,39,61,0.18);
+}
+.btn-primary:hover { box-shadow: 0 1px 0 rgba(255,255,255,0.18) inset, 0 8px 18px rgba(16,39,61,0.22); }
+
+.btn[disabled],
+.btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none !important; }
+
+/* ------------------------------------------------------------------------
+   Card refinements
+   ------------------------------------------------------------------------ */
+.card {
+  border-radius: var(--mk-radius-lg);
+  box-shadow: var(--mk-shadow-md);
+  border: 1px solid rgba(213, 223, 235, 0.7);
+}
+.home-panel {
+  border-radius: var(--mk-radius-lg);
+  box-shadow: var(--mk-shadow-md);
+  border: 1px solid rgba(213, 223, 235, 0.7);
+  background: #fff;
+}
+.home-panel-head { padding-bottom: 4px; }
+.home-panel-head h2 {
+  font-size: 1.0625rem;
+  letter-spacing: -0.01em;
+  font-weight: 700;
+}
+.home-panel-head p { color: var(--muted); font-size: 0.875rem; }
+.home-panel-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: var(--mk-radius-pill);
+  background: #f3f7fb;
+  color: var(--primary, #10273d);
+  font-weight: 600;
+  font-size: 0.85rem;
+  text-decoration: none;
+  border: 1px solid #e0e8f0;
+  transition: background-color 140ms ease, border-color 140ms ease;
+}
+.home-panel-link:hover { background: #e9f0f7; border-color: #cfdbe8; }
+.home-panel-link svg { stroke: currentColor; }
+
+/* ------------------------------------------------------------------------
+   Page headers — konsistent på tvers av sider
+   ------------------------------------------------------------------------ */
+.page-header { gap: 20px; align-items: end; }
+.page-header h1 { letter-spacing: -0.025em; }
+.page-header p,
+.page-header .muted {
+  font-size: 0.95rem;
+  line-height: 1.45;
+  max-width: 60ch;
+}
+
+/* Strammere actions-row inni page-header på desktop */
+.page-header .actions-row { flex-shrink: 0; }
+
+/* ------------------------------------------------------------------------
+   Status pills (konsistent fargekoding)
+   ------------------------------------------------------------------------ */
+.status-pill,
+.home-case-status,
+.pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 11px;
+  border-radius: var(--mk-radius-pill);
+  font-weight: 600;
+  font-size: 0.78rem;
+  letter-spacing: 0.005em;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+.status-utkast { background: var(--mk-status-draft-bg); color: var(--mk-status-draft-fg); border-color: var(--mk-status-draft-line); }
+.status-anmeldt { background: var(--mk-status-ready-bg); color: var(--mk-status-ready-fg); border-color: var(--mk-status-ready-line); }
+.status-anmeldt-og-sendt { background: var(--mk-status-sent-bg); color: var(--mk-status-sent-fg); border-color: var(--mk-status-sent-line); }
+.status-advarsel { background: var(--mk-status-warn-bg); color: var(--mk-status-warn-fg); border-color: var(--mk-status-warn-line); }
+.status-ingen-reaksjon { background: var(--mk-status-none-bg); color: var(--mk-status-none-fg); border-color: var(--mk-status-none-line); }
+
+/* Default fallback for .home-case-status without status-* modifier */
+.home-case-status:not([class*="status-"]) {
+  background: var(--mk-status-none-bg);
+  color: var(--mk-status-none-fg);
+  border-color: var(--mk-status-none-line);
+}
+
+/* ------------------------------------------------------------------------
+   Home / dashboard polish
+   ------------------------------------------------------------------------ */
+.home-screen { gap: var(--mk-space-6); }
+.home-screen-header {
+  align-items: flex-end;
+  padding: 4px 4px 0;
+  gap: var(--mk-space-7);
+}
+.home-screen-header h1 {
+  font-size: clamp(2rem, 4.5vw, 2.8rem);
+  letter-spacing: -0.035em;
+  line-height: 1.05;
+}
+.home-kicker {
+  padding: 6px 12px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  background: rgba(123, 200, 255, 0.14);
+  border: 1px solid rgba(145, 223, 255, 0.18);
+}
+.home-mini-stat {
+  border-radius: var(--mk-radius-md);
+  padding: 14px 16px;
+  background: rgba(7, 29, 57, 0.40);
+  border: 1px solid rgba(255,255,255,0.10);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.home-mini-stat strong { font-size: 1.5rem; line-height: 1; letter-spacing: -0.025em; }
+.home-mini-stat span { font-size: 0.8rem; letter-spacing: 0.01em; }
+
+/* Tiles — strammere proporsjoner, primary-tile får annen farge */
+.home-tile,
+.home-tile-button {
+  min-height: 192px;
+  padding: 22px 20px;
+  gap: 16px;
+  border-radius: var(--mk-radius-xl);
+  background: linear-gradient(180deg, rgba(11, 41, 78, 0.92), rgba(8, 32, 60, 0.90));
+  border: 1px solid rgba(255,255,255,0.07);
+}
+.home-tile-icon { width: 56px; height: 56px; }
+.home-tile-icon svg { width: 44px; height: 44px; }
+.home-tile-text strong {
+  font-size: clamp(1.25rem, 2vw, 1.55rem);
+  letter-spacing: -0.025em;
+}
+.home-tile-text span {
+  font-size: 0.88rem;
+  line-height: 1.4;
+  color: rgba(231,243,255,0.72);
+}
+
+.home-tile-primary {
+  background: linear-gradient(180deg, #2b80d6 0%, #1f63ad 100%) !important;
+  border-color: rgba(255,255,255,0.20) !important;
+  box-shadow:
+    0 18px 42px rgba(31, 99, 173, 0.32),
+    inset 0 1px 0 rgba(255,255,255,0.18) !important;
+}
+.home-tile-primary .home-tile-text span { color: rgba(255,255,255,0.86); }
+
+/* Tile hover/active */
+.home-tile:hover,
+.home-tile-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 22px 44px rgba(4,18,36,0.28), inset 0 1px 0 rgba(255,255,255,0.10);
+}
+.home-tile:active,
+.home-tile-button:active { transform: translateY(0); }
+
+/* Case row */
+.home-case-row {
+  padding: 14px 16px;
+  border-radius: var(--mk-radius-md);
+  border: 1px solid rgba(213,223,235,0.65);
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  text-decoration: none;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+.home-case-row:last-child { margin-bottom: 0; }
+.home-case-row:hover {
+  border-color: #b6c9dc;
+  background: #f7faff;
+  transform: translateX(2px);
+}
+.home-case-copy strong {
+  display: block;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--primary, #10273d);
+}
+.home-case-copy span {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+/* Empty states */
+.home-list-empty,
+.home-list-empty-cta {
+  text-align: center;
+  padding: 28px 16px;
+  color: var(--muted);
+}
+.home-list-empty-cta {
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+}
+.home-empty-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: #f3f7fb;
+  color: #6f8aa6;
+  display: grid;
+  place-items: center;
+  margin-bottom: 4px;
+}
+
+/* ------------------------------------------------------------------------
+   Login / 2FA polish
+   ------------------------------------------------------------------------ */
+.login-wrap {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: clamp(20px, 5vw, 56px) clamp(16px, 4vw, 32px);
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: clamp(28px, 6vw, 64px);
+  align-items: center;
+  min-height: 100dvh;
+}
+@media (max-width: 860px) {
+  .login-wrap {
+    grid-template-columns: 1fr;
+    gap: 24px;
+    min-height: auto;
+    padding-top: max(24px, calc(20px + var(--mk-safe-top)));
+    padding-bottom: max(24px, calc(20px + var(--mk-safe-bottom)));
+  }
+}
+
+.login-hero-copy h1 {
+  color: #fff;
+  font-size: clamp(1.8rem, 3.6vw, 2.5rem);
+  letter-spacing: -0.035em;
+  line-height: 1.08;
+  margin: 12px 0 8px;
+}
+.login-hero-copy p {
+  color: rgba(231,243,255,0.78);
+  font-size: 1rem;
+  line-height: 1.5;
+  max-width: 38ch;
+}
+.login-brand-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 4px;
+}
+.login-brand-org {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(231,243,255,0.65);
+}
+.login-brand-app {
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+
+.login-card,
+.login-card-brand {
+  background: #fff;
+  border-radius: var(--mk-radius-xl);
+  padding: clamp(20px, 4vw, 32px);
+  box-shadow: var(--mk-shadow-xl);
+  border: 1px solid rgba(213, 223, 235, 0.5);
+  display: grid;
+  gap: 18px;
+}
+.login-card-head-clean {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 14px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid #eef2f7;
+}
+.login-card-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.login-card-title strong {
+  display: block;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--primary, #10273d);
+}
+.login-card-title .muted { display: block; font-size: 0.8rem; }
+.brand-badge-md { width: 44px; height: 44px; border-radius: 12px; }
+
+/* Field/label layout in login forms */
+.login-card .field {
+  display: grid;
+  gap: 6px;
+}
+.login-card .field-label {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--text, #12202f);
+  letter-spacing: 0.01em;
+}
+.login-card .field-hint {
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-weight: 400;
+  margin-top: 2px;
+}
+.login-card input[type="email"],
+.login-card input[type="password"],
+.login-card input[type="tel"],
+.login-card input[type="text"] {
+  border-radius: var(--mk-radius-sm);
+  border: 1.5px solid #d5dfeb;
+  padding: 14px 16px;
+  background: #fbfcfe;
+  transition: border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease;
+}
+.login-card input:hover { border-color: #b6c9dc; background: #fff; }
+.login-card input:focus {
+  outline: none;
+  border-color: #2b80d6;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(43,128,214,0.14);
+}
+
+.login-fineprint {
+  margin: 4px 0 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+  text-align: center;
+  line-height: 1.5;
+}
+
+/* OTP step indicator */
+.login-step-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  justify-content: center;
+  margin: 0 auto;
+  width: 100%;
+  max-width: 200px;
+}
+.login-step {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #e2ecf5;
+  color: #5f7186;
+  font-weight: 700;
+  font-size: 0.875rem;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  transition: background-color 200ms ease, color 200ms ease;
+}
+.login-step-active {
+  background: #2b80d6;
+  color: #fff;
+  box-shadow: 0 0 0 4px rgba(43,128,214,0.18);
+}
+.login-step-done {
+  background: #0e6e46;
+  color: #fff;
+}
+.login-step-line {
+  flex: 1;
+  height: 2px;
+  background: #e2ecf5;
+  max-width: 56px;
+  transition: background-color 200ms ease;
+}
+.login-step-line-done { background: #0e6e46; }
+
+/* OTP input styling */
+.otp-input,
+input.otp-input {
+  font-size: clamp(1.6rem, 4vw, 2rem) !important;
+  letter-spacing: 0.32em !important;
+  text-align: center !important;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700 !important;
+  padding: 16px !important;
+  border-radius: var(--mk-radius-md) !important;
+  border: 2px solid #d5dfeb !important;
+  background: #fbfcfe !important;
+}
+.otp-input:focus {
+  border-color: #2b80d6 !important;
+  background: #fff !important;
+  box-shadow: 0 0 0 4px rgba(43,128,214,0.14) !important;
+}
+
+/* Login secondary actions (resend / cancel) */
+.login-secondary-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #eef2f7;
+  margin-top: 4px;
+}
+.login-link-btn {
+  display: inline-flex;
+  align-items: center;
+  background: transparent;
+  border: 0;
+  padding: 8px 4px;
+  color: var(--primary, #10273d);
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  text-decoration: none;
+  border-radius: 8px;
+}
+.login-link-btn:hover { text-decoration: underline; }
+.login-link-btn:focus-visible { outline: 2px solid #2b80d6; outline-offset: 2px; }
+
+/* Hide the old big H2 inside login cards if any template still has it */
+.login-card .login-card-head h2 { display: none; }
+
+/* ------------------------------------------------------------------------
+   Sidebar / navigasjon polish
+   ------------------------------------------------------------------------ */
+.sidebar {
+  background:
+    radial-gradient(circle at 20% 0%, rgba(123,219,232,0.06) 0%, transparent 50%),
+    linear-gradient(180deg, #0d2238 0%, #11365a 60%, #163d68 100%);
+  border-right: 1px solid rgba(255,255,255,0.04);
+}
+.nav-link {
+  font-weight: 600;
+  font-size: 0.95rem;
+  letter-spacing: -0.005em;
+  border-radius: var(--mk-radius-sm);
+  padding: 11px 14px;
+  color: rgba(255,255,255,0.85);
+}
+.nav-link.active {
+  background: rgba(255,255,255,0.10);
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05);
+}
+.nav-link:hover:not(.active) { background: rgba(255,255,255,0.06); }
+.nav-link-icon { display: inline-flex; opacity: 0.85; }
+.nav-link.active .nav-link-icon { opacity: 1; }
+
+.sidebar-user-card {
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--mk-radius-md);
+  padding: 14px 14px 12px;
+}
+.sidebar-user-card strong {
+  font-size: 0.95rem;
+  letter-spacing: -0.005em;
+  display: block;
+}
+.sidebar-user-card .muted {
+  font-size: 0.78rem;
+  color: rgba(255,255,255,0.6);
+}
+
+/* History buttons (back/forward) — finere på mobil */
+.history-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.10);
+  border: 1px solid rgba(255,255,255,0.10);
+  color: rgba(255,255,255,0.92);
+  display: grid;
+  place-items: center;
+  transition: background-color 140ms ease, transform 100ms ease;
+}
+.history-btn:hover { background: rgba(255,255,255,0.16); }
+.history-btn:active { transform: scale(0.95); }
+.history-btn svg { width: 18px; height: 18px; stroke: currentColor; }
+
+/* ------------------------------------------------------------------------
+   Brand-toggle / logo i topbar
+   ------------------------------------------------------------------------ */
+.brand-version {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  opacity: 0.55;
+  padding-left: 8px;
+}
+.brand-app-name { font-weight: 800; letter-spacing: -0.015em; }
+.brand-org-name {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.65;
+  display: block;
+}
+.sidebar-subtitle {
+  font-size: 0.78rem;
+  opacity: 0.7;
+  margin-top: 2px;
+}
+
+/* ------------------------------------------------------------------------
+   Compact-stats refinements (used on /kontroller)
+   ------------------------------------------------------------------------ */
+.stat-card-inline {
+  border-radius: var(--mk-radius-md) !important;
+  padding: 14px 16px !important;
+  display: grid;
+  gap: 4px;
+}
+.stat-card-inline strong {
+  font-size: 1.5rem;
+  letter-spacing: -0.025em;
+  line-height: 1;
+}
+.stat-card-inline span {
+  font-size: 0.78rem;
+  letter-spacing: 0.01em;
+}
+
+/* ------------------------------------------------------------------------
+   Form polish (gjelder hele appen utenom case_form scope)
+   ------------------------------------------------------------------------ */
+.card label > span:first-child,
+.page-header + .card label > span:first-child {
+  font-weight: 600;
+  font-size: 0.85rem;
+  letter-spacing: 0.005em;
+}
+input:not(.otp-input):not([type="checkbox"]):not([type="radio"]),
+select,
+textarea {
+  border-radius: var(--mk-radius-sm);
+  border: 1.5px solid #d5dfeb;
+  background: #fff;
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+input:not(.otp-input):hover,
+select:hover,
+textarea:hover {
+  border-color: #b6c9dc;
+}
+input:not(.otp-input):focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: #2b80d6;
+  box-shadow: 0 0 0 3px rgba(43,128,214,0.14);
+}
+
+/* Required-asterisk softening */
+label[for] span::after,
+label > span:first-child::after { content: ""; }
+
+/* ------------------------------------------------------------------------
+   Alerts — strammere
+   ------------------------------------------------------------------------ */
+.alert {
+  border-radius: var(--mk-radius-sm);
+  padding: 12px 16px;
+  font-size: 0.9rem;
+  border: 1px solid transparent;
+  font-weight: 500;
+  line-height: 1.45;
+}
+.alert-error {
+  background: #fdebec;
+  color: #911e1e;
+  border-color: #f4c5c5;
+}
+.alert-success {
+  background: #e2f5ea;
+  color: #0e5a35;
+  border-color: #b9e0c7;
+}
+.alert-warning {
+  background: #fff3d8;
+  color: #6b4e00;
+  border-color: #f1d896;
+}
+
+/* ------------------------------------------------------------------------
+   Tabeller (controls_overview, admin)
+   ------------------------------------------------------------------------ */
+.data-table thead th {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #5f7186;
+  background: #f3f7fb;
+  border-bottom: 1px solid #d5dfeb;
+  padding: 10px 14px;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.data-table tbody td {
+  padding: 12px 14px;
+  border-bottom: 1px solid #ecf1f6;
+  vertical-align: middle;
+}
+.data-table tbody tr:last-child td { border-bottom: 0; }
+.data-table tbody tr:hover { background: #fafcfe; }
+.data-table tbody td .small,
+.data-table tbody td .muted {
+  font-size: 0.78rem;
+  margin-top: 2px;
+}
+
+/* ------------------------------------------------------------------------
+   iPad/iPhone-spesifikke layout-justeringer
+   ------------------------------------------------------------------------ */
+@media (max-width: 960px) {
+  .main { padding: 16px 14px calc(28px + var(--mk-safe-bottom)); }
+  .sidebar {
+    padding-top: calc(10px + var(--mk-safe-top));
+    padding-left: calc(12px + var(--mk-safe-left));
+    padding-right: calc(12px + var(--mk-safe-right));
+  }
+  .home-screen { gap: 16px; }
+  .home-screen-header { flex-direction: column; align-items: stretch; gap: 18px; }
+  .home-tile-grid { gap: 14px; }
+  .home-tile, .home-tile-button {
+    min-height: 156px;
+    padding: 18px 16px;
+    gap: 12px;
+    border-radius: var(--mk-radius-lg);
+  }
+  .home-tile-icon { width: 48px; height: 48px; }
+  .home-tile-icon svg { width: 36px; height: 36px; }
+  .home-tile-text strong { font-size: 1.15rem; }
+  .home-tile-text span { font-size: 0.85rem; }
+  .login-wrap { padding: 24px 16px; }
+  .login-hero-copy { text-align: center; }
+  .login-hero-copy .login-brand-row { justify-content: center; }
+  .login-card,
+  .login-card-brand { padding: 20px; }
+}
+
+@media (max-width: 640px) {
+  .home-tile-grid { grid-template-columns: 1fr; }
+  .home-tile, .home-tile-button {
+    min-height: 0;
+    flex-direction: row;
+    justify-content: flex-start;
+    text-align: left;
+    padding: 16px 18px;
+    gap: 14px;
+  }
+  .home-tile-icon { flex: 0 0 auto; width: 44px; height: 44px; }
+  .home-tile-icon svg { width: 32px; height: 32px; }
+  .home-tile-text { flex: 1; gap: 4px; }
+  .home-tile-text strong { font-size: 1rem; }
+  .home-tile-text span { font-size: 0.8rem; }
+
+  .home-header-stats { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .home-mini-stat { padding: 10px 12px; }
+  .home-mini-stat strong { font-size: 1.2rem; }
+  .home-mini-stat span { font-size: 0.72rem; }
+
+  .page-header h1 { font-size: 1.5rem; }
+
+  .stat-card-inline strong { font-size: 1.25rem; }
+
+  .actions-row.wrap { gap: 8px; }
+  .btn { font-size: 0.92rem; }
+}
+
+/* iPhone landscape and small heights */
+@media (max-height: 520px) and (orientation: landscape) {
+  .login-wrap { min-height: auto; padding: 16px; }
+  .login-hero-copy h1 { font-size: 1.4rem; }
+  .login-hero-copy p { font-size: 0.85rem; }
+}
+
+/* ------------------------------------------------------------------------
+   Reduced motion
+   ------------------------------------------------------------------------ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+  .home-tile:hover,
+  .home-tile-button:hover,
+  .home-case-row:hover { transform: none; }
+}
+
+/* ------------------------------------------------------------------------
+   Print
+   ------------------------------------------------------------------------ */
+@media print {
+  body { background: #fff !important; color: #000 !important; }
+  .sidebar, .skip-link, .preview-sticky-bar, .actions-row { display: none !important; }
+  .main { padding: 0 !important; }
+  .card, .home-panel { box-shadow: none !important; border: 1px solid #ccc !important; }
+}
+
+/* ------------------------------------------------------------------------
+   Dark / OLED-friendly tune (bruker velger via systemet)
+   Vi bruker den eksisterende lyse paletten, men strammer kontrast for teksten.
+   ------------------------------------------------------------------------ */
+@media (prefers-color-scheme: dark) {
+  /* Ingen full dark-mode (innholdet er kvitne kort på navy bakgrunn — ser bra ut),
+     bare små justeringer for å beholde lesbarheten. */
+  .home-case-row { background: #fff; }
+}
+
+/* ========================================================================
+   1.8.32 — Bakgrunnssynk + admin-brukeropprettelse
+   ======================================================================== */
+
+/* ------------------------------------------------------------------------
+   Globalt synk-badge i toppbaren
+   ------------------------------------------------------------------------ */
+.mk-sync-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: var(--mk-radius-pill);
+  background: rgba(255,255,255,0.10);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.92);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease;
+  white-space: nowrap;
+}
+.mk-sync-badge:hover { background: rgba(255,255,255,0.16); }
+.mk-sync-badge:focus-visible {
+  outline: 2px solid #7bdbe8;
+  outline-offset: 2px;
+}
+.mk-sync-badge:active { transform: scale(0.97); }
+
+.mk-sync-badge .mk-sync-icon {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+.mk-sync-badge .mk-sync-icon svg { stroke: currentColor; }
+
+.mk-sync-badge .mk-sync-text {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.005em;
+}
+.mk-sync-badge .mk-sync-count {
+  display: inline-flex;
+  min-width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  border-radius: 9px;
+  background: rgba(255,255,255,0.92);
+  color: var(--primary, #10273d);
+  font-size: 0.7rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.mk-sync-badge .mk-sync-count:empty { display: none; }
+
+/* States */
+.mk-sync-badge-idle {
+  background: rgba(123,219,232,0.10);
+  border-color: rgba(123,219,232,0.18);
+  color: rgba(206,236,242,0.95);
+}
+.mk-sync-badge-idle .mk-sync-icon { color: #7bdbe8; }
+
+.mk-sync-badge-active {
+  background: rgba(123,200,255,0.18);
+  border-color: rgba(123,200,255,0.32);
+  color: #fff;
+}
+.mk-sync-badge-active .mk-sync-icon { color: #bfe9ff; animation: mk-spin 1.6s linear infinite; }
+
+.mk-sync-badge-failed {
+  background: rgba(255,140,140,0.16);
+  border-color: rgba(255,160,160,0.32);
+  color: #ffd9d9;
+}
+.mk-sync-badge-failed .mk-sync-icon { color: #ffa8a8; }
+.mk-sync-badge-failed .mk-sync-count {
+  background: #ffa8a8;
+  color: #5a0d0d;
+}
+
+@keyframes mk-spin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mk-sync-badge-active .mk-sync-icon { animation: none; }
+}
+
+/* På små skjermer (iPhone): skjul tekst, behold ikon + tall */
+@media (max-width: 640px) {
+  .mk-sync-badge { padding: 0 10px; height: 36px; }
+  .mk-sync-badge .mk-sync-text { display: none; }
+}
+
+/* I login-state har vi ingen sidebar — skjul badgen helt */
+body:not(.page-shell) .mk-sync-badge { display: none; }
+
+/* ------------------------------------------------------------------------
+   Admin: brukeradministrasjon — strammere hovedfokus
+   ------------------------------------------------------------------------ */
+.admin-create-card {
+  background: linear-gradient(180deg, #fff 0%, #f8fbfe 100%);
+  border-radius: var(--mk-radius-lg);
+  border: 1px solid rgba(213,223,235,0.7);
+  padding: clamp(20px, 3vw, 28px);
+  box-shadow: var(--mk-shadow-md);
+}
+.admin-create-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #eef2f7;
+}
+.admin-create-head .icon-circle {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(43,128,214,0.10);
+  color: #2b80d6;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.admin-create-head .icon-circle svg { width: 24px; height: 24px; stroke: currentColor; }
+.admin-create-head h2 {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--primary, #10273d);
+}
+.admin-create-head p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted, #5f6f81);
+}
+
+/* Hurtig vs avansert */
+.admin-quick-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+@media (max-width: 640px) {
+  .admin-quick-grid { grid-template-columns: 1fr; }
+}
+
+.admin-field { display: grid; gap: 6px; }
+.admin-field-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: var(--text);
+  letter-spacing: 0.005em;
+}
+.admin-field-label .req {
+  color: #ab2c2c;
+  font-weight: 700;
+}
+.admin-field-label .opt {
+  font-weight: 400;
+  font-size: 0.72rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.admin-field-hint {
+  font-size: 0.74rem;
+  color: var(--muted);
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+/* Phone input with prefix in admin */
+.admin-phone-input {
+  display: flex;
+  align-items: stretch;
+  border: 1.5px solid #d5dfeb;
+  border-radius: var(--mk-radius-sm);
+  overflow: hidden;
+  background: #fff;
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+.admin-phone-input:focus-within {
+  border-color: #2b80d6;
+  box-shadow: 0 0 0 3px rgba(43,128,214,0.14);
+}
+.admin-phone-input .prefix {
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  background: #f3f7fb;
+  border-right: 1px solid #e0e8f0;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--text);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.admin-phone-input input {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  flex: 1;
+  padding: 12px 14px !important;
+}
+.admin-phone-input input:focus { outline: none; box-shadow: none !important; }
+
+/* Password field with show/hide + generator */
+.admin-password-field { position: relative; display: flex; gap: 8px; }
+.admin-password-field input {
+  flex: 1;
+  padding-right: 92px !important;
+}
+.admin-password-actions {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  gap: 4px;
+}
+.admin-password-actions button {
+  background: transparent;
+  border: 0;
+  padding: 6px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.admin-password-actions button:hover {
+  background: #eef3f8;
+  color: var(--primary, #10273d);
+}
+.admin-password-actions button svg { width: 16px; height: 16px; stroke: currentColor; }
+
+/* Role selector as segmented control */
+.admin-role-segmented {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  background: #f3f7fb;
+  border-radius: var(--mk-radius-sm);
+  padding: 4px;
+  border: 1px solid #e0e8f0;
+}
+.admin-role-segmented label {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+  transition: background-color 140ms ease, color 140ms ease, box-shadow 140ms ease;
+  border: 0 !important;
+}
+.admin-role-segmented label:hover { color: var(--primary, #10273d); }
+.admin-role-segmented input[type="radio"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  white-space: nowrap;
+  border: 0;
+}
+.admin-role-segmented label.is-selected {
+  background: #fff;
+  color: var(--primary, #10273d);
+  box-shadow: 0 1px 3px rgba(15,39,64,0.10);
+}
+.admin-role-segmented label svg { width: 14px; height: 14px; stroke: currentColor; }
+
+/* Permissions checklist */
+.admin-permissions {
+  display: grid;
+  gap: 8px;
+}
+.admin-permissions label {
+  display: flex !important;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid #e0e8f0;
+  border-radius: var(--mk-radius-sm);
+  background: #fff;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 0.88rem;
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+.admin-permissions label:hover { border-color: #b6c9dc; background: #fafcfe; }
+.admin-permissions label:has(input:checked) {
+  border-color: #2b80d6;
+  background: #eaf3fb;
+}
+.admin-permissions input[type="checkbox"] {
+  width: 18px !important;
+  height: 18px;
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.admin-fixed-permissions-box {
+  background: #eaf3fb;
+  border: 1px solid #cfe2f3;
+  border-radius: var(--mk-radius-sm);
+  padding: 12px 14px;
+  font-size: 0.85rem;
+  color: #0d4974;
+  line-height: 1.5;
+}
+
+/* Advanced section toggle */
+.admin-advanced {
+  border-top: 1px dashed #dde6ef;
+  padding-top: 16px;
+  margin-top: 8px;
+}
+.admin-advanced-toggle {
+  background: transparent;
+  border: 0;
+  padding: 6px 0;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--primary, #10273d);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.admin-advanced-toggle svg { width: 14px; height: 14px; stroke: currentColor; transition: transform 200ms ease; }
+.admin-advanced[open] .admin-advanced-toggle svg { transform: rotate(90deg); }
+.admin-advanced > div {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 12px;
+}
+@media (max-width: 640px) { .admin-advanced > div { grid-template-columns: 1fr; } }
+
+/* Submit row */
+.admin-submit-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-top: 8px;
+  margin-top: 8px;
+  border-top: 1px solid #eef2f7;
+}
+.admin-submit-row .btn-primary { min-width: 160px; }
+
+/* Existing users list — strammere kort */
+.user-admin-card {
+  background: #fff;
+  border-radius: var(--mk-radius-md);
+  border: 1px solid rgba(213,223,235,0.7);
+  padding: 16px 18px;
+  margin-bottom: 12px;
+  box-shadow: var(--mk-shadow-sm);
+}
+.user-admin-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.user-admin-header strong {
+  display: block;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--primary, #10273d);
+  margin-bottom: 2px;
+}
+
+/* Success modal — vises etter at bruker er opprettet */
+.admin-success-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(7, 29, 57, 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  animation: mk-fade-in 200ms ease;
+}
+.admin-success-modal-card {
+  background: #fff;
+  border-radius: var(--mk-radius-lg);
+  padding: clamp(20px, 4vw, 32px);
+  max-width: 460px;
+  width: 100%;
+  box-shadow: var(--mk-shadow-xl);
+  animation: mk-pop-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.admin-success-modal-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #d6efe2;
+  color: #0e5a35;
+  display: grid;
+  place-items: center;
+  margin-bottom: 16px;
+}
+.admin-success-modal-icon svg { width: 28px; height: 28px; stroke: currentColor; stroke-width: 3; }
+.admin-success-modal h3 {
+  margin: 0 0 8px;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--primary, #10273d);
+}
+.admin-success-modal p {
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+.admin-cred-list {
+  background: #f3f7fb;
+  border: 1px solid #e0e8f0;
+  border-radius: var(--mk-radius-sm);
+  padding: 14px 16px;
+  display: grid;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.admin-cred-row {
+  display: grid;
+  grid-template-columns: 110px 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+.admin-cred-label {
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+.admin-cred-value {
+  font-family: 'SF Mono', ui-monospace, Consolas, monospace;
+  font-size: 0.88rem;
+  color: var(--primary, #10273d);
+  font-weight: 600;
+  word-break: break-all;
+}
+.admin-cred-copy {
+  background: transparent;
+  border: 0;
+  padding: 6px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+}
+.admin-cred-copy:hover { background: #e9f0f7; color: var(--primary); }
+.admin-cred-copy svg { width: 14px; height: 14px; stroke: currentColor; }
+
+@keyframes mk-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes mk-pop-in {
+  from { transform: scale(0.92); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .admin-success-modal { animation: none; }
+  .admin-success-modal-card { animation: none; }
+}
+
+/* ------------------------------------------------------------------------
+   Toast (brukes av sync-orchestrator og admin)
+   ------------------------------------------------------------------------ */
+.mk-toast-host {
+  position: fixed;
+  bottom: max(20px, calc(20px + env(safe-area-inset-bottom)));
+  right: 20px;
+  z-index: 9998;
+  display: grid;
+  gap: 8px;
+  pointer-events: none;
+}
+.mk-toast {
+  background: rgba(16, 39, 61, 0.96);
+  color: #fff;
+  padding: 12px 16px;
+  border-radius: var(--mk-radius-md);
+  box-shadow: var(--mk-shadow-xl);
+  font-size: 0.88rem;
+  font-weight: 500;
+  max-width: 360px;
+  pointer-events: auto;
+  animation: mk-toast-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+.mk-toast-success { background: #0e6e46; }
+.mk-toast-error { background: #ab2c2c; }
+@keyframes mk-toast-in {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* ========================================================================
+   1.8.33 — Komprimering, synk-inspektor, SMS-invitasjon
+   ======================================================================== */
+
+/* Sync-badge er nå et a-element i stedet for button */
+a.mk-sync-badge {
+  text-decoration: none;
+}
+a.mk-sync-badge:hover { text-decoration: none; }
+
+/* Admin: SMS-invitasjon-toggle ved siden av submit */
+.admin-invite-toggle {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid #d5dfeb;
+  border-radius: var(--mk-radius-sm);
+  background: #fff;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text);
+  transition: border-color 140ms ease, background-color 140ms ease;
+  margin-right: auto;
+}
+.admin-invite-toggle:hover { border-color: #b6c9dc; background: #fafcfe; }
+.admin-invite-toggle:has(input:checked) {
+  border-color: #2b80d6;
+  background: #eaf3fb;
+  color: #0d4974;
+}
+.admin-invite-toggle input[type="checkbox"] {
+  width: 18px !important;
+  height: 18px;
+  margin: 0;
+  flex-shrink: 0;
+}
+
+@media (max-width: 640px) {
+  .admin-submit-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .admin-invite-toggle {
+    margin-right: 0;
+    justify-content: center;
+  }
+  .admin-submit-row .btn-primary { width: 100%; }
+}
+
+/* Sync-list polish (sync_inspector.html bruker scoped <style>, men noen
+   utility-klasser her for konsistens) */
+.empty-state {
+  padding: 32px 16px;
+  text-align: center;
+}

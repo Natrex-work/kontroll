@@ -1,0 +1,338 @@
+{% extends 'base.html' %}
+{% block title %}Synkstatus · {{ display_app_name }}{% endblock %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>Synkstatus for vedlegg</h1>
+    <p class="muted">Oversikt over alle bilder og lydfiler som er lagret lokalt på denne enheten. Synk skjer automatisk i bakgrunnen.</p>
+  </div>
+  <div class="actions-row wrap">
+    <button class="btn btn-secondary" type="button" id="sync-refresh-btn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="16" height="16" style="margin-right:6px;vertical-align:-3px"><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M3 21v-5h5"/></svg>
+      Oppdater
+    </button>
+    <button class="btn btn-primary" type="button" id="sync-retry-all-btn">
+      Prøv synk på nytt
+    </button>
+  </div>
+</section>
+
+<section class="compact-stats margin-bottom-m" aria-label="Synkstatistikk">
+  <div class="stat-card-inline"><strong id="stat-total">0</strong><span>Totalt på enheten</span></div>
+  <div class="stat-card-inline"><strong id="stat-synced">0</strong><span>Synket til server</span></div>
+  <div class="stat-card-inline"><strong id="stat-pending">0</strong><span>Venter på synk</span></div>
+  <div class="stat-card-inline"><strong id="stat-failed">0</strong><span>Synk feilet</span></div>
+</section>
+
+<section class="card">
+  <div class="sync-storage-info" id="sync-storage-info" aria-live="polite"></div>
+
+  <div class="sync-list" id="sync-list">
+    <div class="empty-state">
+      <p class="muted">Henter status …</p>
+    </div>
+  </div>
+</section>
+
+<style>
+.sync-storage-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: #f3f7fb;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-bottom: 16px;
+}
+.sync-storage-info.persisted { background: #e2f5ea; color: #0e5a35; }
+.sync-storage-info svg { flex-shrink: 0; stroke: currentColor; }
+
+.sync-list { display: grid; gap: 8px; }
+.sync-row {
+  display: grid;
+  grid-template-columns: 40px 1fr auto;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(213,223,235,0.7);
+  background: #fff;
+  align-items: center;
+}
+.sync-row-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: #f3f7fb;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.sync-row-icon svg { stroke: currentColor; color: #5f6f81; }
+.sync-row-meta strong {
+  display: block;
+  font-size: 0.92rem;
+  color: var(--primary, #10273d);
+  font-weight: 600;
+  margin-bottom: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.sync-row-meta span {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.sync-row-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+.sync-row-status.s-synced { background: #d6efe2; color: #0e5a35; border: 1px solid #a4d6bb; }
+.sync-row-status.s-pending { background: #d8eef9; color: #0d4974; border: 1px solid #abd6ee; }
+.sync-row-status.s-uploading { background: #d8eef9; color: #0d4974; border: 1px solid #abd6ee; }
+.sync-row-status.s-failed { background: #fdebec; color: #911e1e; border: 1px solid #f4c5c5; }
+
+.sync-row-action {
+  display: flex;
+  gap: 6px;
+}
+.sync-row-action button {
+  background: transparent;
+  border: 1px solid #d5dfeb;
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--primary, #10273d);
+  transition: background-color 140ms ease;
+}
+.sync-row-action button:hover { background: #f3f7fb; }
+.sync-row-error {
+  grid-column: 1 / -1;
+  font-size: 0.78rem;
+  color: #911e1e;
+  background: #fdebec;
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-top: 4px;
+}
+
+@media (max-width: 640px) {
+  .sync-row { grid-template-columns: 36px 1fr; }
+  .sync-row-status, .sync-row-action { grid-column: 2; justify-self: start; }
+  .sync-row-action { margin-top: 4px; }
+}
+</style>
+
+<script>
+(function () {
+  if (!window.KVLocalMedia || !window.KVLocalMedia.supported || !window.KVLocalMedia.supported()) {
+    document.getElementById('sync-list').innerHTML = '<div class="empty-state"><p class="muted">Lokal lagring (IndexedDB) er ikke tilgjengelig i denne nettleseren.</p></div>';
+    return;
+  }
+
+  var listEl = document.getElementById('sync-list');
+  var btnRefresh = document.getElementById('sync-refresh-btn');
+  var btnRetryAll = document.getElementById('sync-retry-all-btn');
+
+  function fmtBytes(n) {
+    n = Number(n || 0);
+    if (n < 1024) return n + ' B';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(0) + ' KB';
+    return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+  function fmtAge(ms) {
+    var sec = Math.floor((Date.now() - Number(ms || Date.now())) / 1000);
+    if (sec < 60) return 'nettopp';
+    if (sec < 3600) return Math.floor(sec / 60) + ' min siden';
+    if (sec < 86400) return Math.floor(sec / 3600) + ' timer siden';
+    return Math.floor(sec / 86400) + ' dager siden';
+  }
+
+  function getAllOwnerRows() {
+    return new Promise(function (resolve) {
+      try {
+        var req = indexedDB.open('kv-kontroll-local-media', 4);
+        req.onsuccess = function () {
+          var db = req.result;
+          var tx = db.transaction('local_media', 'readonly');
+          var store = tx.objectStore('local_media');
+          var all = [];
+          var cursor = store.openCursor();
+          cursor.onsuccess = function (e) {
+            var c = e.target.result;
+            if (c) {
+              var row = c.value;
+              if (row && String(row.owner_user_id || '') === String((window.MKCurrentUser && window.MKCurrentUser.id) || '')) {
+                all.push(row);
+              }
+              c.continue();
+            } else {
+              db.close();
+              resolve(all);
+            }
+          };
+          cursor.onerror = function () { db.close(); resolve([]); };
+        };
+        req.onerror = function () { resolve([]); };
+      } catch (e) { resolve([]); }
+    });
+  }
+
+  function statusBadge(state) {
+    var s = String(state || 'pending').toLowerCase();
+    var label = s === 'synced' ? 'Synket' :
+                s === 'uploading' ? 'Synker …' :
+                s === 'failed' ? 'Synk feilet' : 'Venter';
+    return '<span class="sync-row-status s-' + s + '">' + label + '</span>';
+  }
+
+  function iconFor(kind) {
+    if (kind === 'audio') {
+      return '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v4"/></svg>';
+    }
+    return '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>';
+  }
+
+  function rowHtml(row) {
+    var caseId = String(row.case_id || '');
+    var caseDisplay = /^\d+$/.test(caseId) ? ('Sak ' + caseId) : ('Lokal sak (ikke synket)');
+    var name = row.original_filename || (row.kind === 'audio' ? 'Lydfil' : 'Bilde');
+    var kind = row.kind === 'audio' ? 'audio' : 'image';
+    var size = fmtBytes(row.file_size || (row.file && row.file.size) || 0);
+    var age = fmtAge(row.created_at);
+    var error = row.last_error || '';
+    var state = String(row.sync_state || 'pending').toLowerCase();
+
+    var actionHtml = '';
+    if (state === 'failed' || state === 'pending') {
+      actionHtml = '<div class="sync-row-action"><button data-retry-id="' + row.id + '">Prøv igjen</button></div>';
+    } else if (state === 'synced') {
+      actionHtml = '<div class="sync-row-action"><button data-delete-id="' + row.id + '" title="Fjern lokal kopi (allerede på server)">Fjern lokal kopi</button></div>';
+    }
+
+    return '<div class="sync-row" data-id="' + row.id + '">' +
+      '<div class="sync-row-icon">' + iconFor(kind) + '</div>' +
+      '<div class="sync-row-meta">' +
+        '<strong>' + caseDisplay + ' · ' + name + '</strong>' +
+        '<span>' + size + ' · ' + age + (kind === 'audio' ? ' · Lyd' : ' · Bilde') + '</span>' +
+      '</div>' +
+      statusBadge(state) +
+      actionHtml +
+      (error ? '<div class="sync-row-error">' + error + '</div>' : '') +
+    '</div>';
+  }
+
+  function refresh() {
+    return getAllOwnerRows().then(function (rows) {
+      // Sort: failed first, then pending, then uploading, then synced. Newest within group.
+      var stateOrder = { failed: 0, pending: 1, uploading: 2, synced: 3 };
+      rows.sort(function (a, b) {
+        var sa = stateOrder[String(a.sync_state || 'pending')] || 1;
+        var sb = stateOrder[String(b.sync_state || 'pending')] || 1;
+        if (sa !== sb) return sa - sb;
+        return Number(b.created_at || 0) - Number(a.created_at || 0);
+      });
+
+      var stats = { total: rows.length, synced: 0, pending: 0, failed: 0 };
+      rows.forEach(function (r) {
+        var s = String(r.sync_state || 'pending');
+        if (s === 'synced') stats.synced += 1;
+        else if (s === 'failed') stats.failed += 1;
+        else stats.pending += 1;
+      });
+
+      document.getElementById('stat-total').textContent = stats.total;
+      document.getElementById('stat-synced').textContent = stats.synced;
+      document.getElementById('stat-pending').textContent = stats.pending;
+      document.getElementById('stat-failed').textContent = stats.failed;
+
+      if (!rows.length) {
+        listEl.innerHTML = '<div class="empty-state"><p class="muted">Ingen lokale vedlegg på denne enheten.</p></div>';
+        return;
+      }
+
+      listEl.innerHTML = rows.map(rowHtml).join('');
+      bindRowActions();
+    });
+  }
+
+  function bindRowActions() {
+    var retryBtns = listEl.querySelectorAll('[data-retry-id]');
+    Array.prototype.forEach.call(retryBtns, function (btn) {
+      btn.addEventListener('click', function () {
+        if (window.MKSyncOrchestrator && window.MKSyncOrchestrator.retryAll) {
+          btn.disabled = true;
+          btn.textContent = 'Prøver …';
+          window.MKSyncOrchestrator.retryAll().then(function () { refresh(); });
+        }
+      });
+    });
+    var deleteBtns = listEl.querySelectorAll('[data-delete-id]');
+    Array.prototype.forEach.call(deleteBtns, function (btn) {
+      btn.addEventListener('click', function () {
+        var id = btn.getAttribute('data-delete-id');
+        if (!id) return;
+        if (!confirm('Fjerne denne lokale kopien? Filen finnes fortsatt på server.')) return;
+        if (window.KVLocalMedia && window.KVLocalMedia.remove) {
+          window.KVLocalMedia.remove(id).then(function () { refresh(); });
+        }
+      });
+    });
+  }
+
+  function refreshStorageInfo() {
+    var box = document.getElementById('sync-storage-info');
+    if (!navigator.storage || !navigator.storage.estimate) {
+      box.innerHTML = '';
+      return;
+    }
+    var promises = [navigator.storage.estimate()];
+    if (navigator.storage.persisted) promises.push(navigator.storage.persisted());
+    else promises.push(Promise.resolve(false));
+
+    Promise.all(promises).then(function (results) {
+      var est = results[0] || {};
+      var persisted = !!results[1];
+      var quota = Number(est.quota || 0);
+      var usage = Number(est.usage || 0);
+      var pct = quota ? Math.round((usage / quota) * 100) : 0;
+      var icon = persisted
+        ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>'
+        : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>';
+      var text = persisted
+        ? 'Lagring er beskyttet av nettleseren. Bruker ' + fmtBytes(usage) + ' av ' + fmtBytes(quota) + ' (' + pct + ' %).'
+        : 'Bruker ' + fmtBytes(usage) + ' av ' + fmtBytes(quota) + ' (' + pct + ' %). Legg til appen på hjemskjermen for at iOS skal bevare lagring lengre.';
+      box.classList.toggle('persisted', persisted);
+      box.innerHTML = icon + '<span>' + text + '</span>';
+    }).catch(function () { box.innerHTML = ''; });
+  }
+
+  btnRefresh.addEventListener('click', function () { refresh(); refreshStorageInfo(); });
+  btnRetryAll.addEventListener('click', function () {
+    if (window.MKSyncOrchestrator && window.MKSyncOrchestrator.retryAll) {
+      btnRetryAll.disabled = true;
+      btnRetryAll.textContent = 'Synker …';
+      window.MKSyncOrchestrator.retryAll().then(function () {
+        btnRetryAll.disabled = false;
+        btnRetryAll.textContent = 'Prøv synk på nytt';
+        refresh();
+      });
+    }
+  });
+
+  refresh();
+  refreshStorageInfo();
+
+  // Auto-refresh every 5 sec
+  setInterval(refresh, 5000);
+})();
+</script>
+{% endblock %}

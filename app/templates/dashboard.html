@@ -7,8 +7,8 @@
   <div class="home-screen-header">
     <div class="stack gap-s">
       <span class="home-kicker">{{ display_app_name }}</span>
-      <h1>Rask tilgang til kontroll, kart og regelverk</h1>
-      <p class="home-lead">Startsiden gir tydelig mobilnavigasjon og direkte vei til ny kontroll, saker, kart og regler.</p>
+      <h1>Velkommen{% if current_user and current_user.full_name %}, {{ current_user.full_name.split(' ')[0] }}{% endif %}</h1>
+      <p class="home-lead">Start ny kontroll, hent fram saker eller åpne kart og regelverk.</p>
     </div>
     <div class="home-header-stats" role="list">
       <div class="home-mini-stat" role="listitem"><strong>{{ counts.total }}</strong><span>Totalt</span></div>
@@ -17,27 +17,27 @@
     </div>
   </div>
 
-  <div class="home-tile-grid" aria-label="Hurtigvalg på forsiden">
+  <div class="home-tile-grid" aria-label="Hurtigvalg">
     <form method="post" action="/cases/new" class="home-tile-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-      <button type="submit" class="home-tile home-tile-button">
+      <button type="submit" class="home-tile home-tile-button home-tile-primary">
         <span class="home-tile-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"></rect><path d="M12 7v10"></path><path d="M7 12h10"></path></svg>
         </span>
         <span class="home-tile-text">
           <strong>Ny kontroll</strong>
-          <span>Opprett sak og få neste LBHN-nummer automatisk.</span>
+          <span>Opprett sak — neste LBHN-nummer tildeles automatisk.</span>
         </span>
       </button>
     </form>
 
-    <a class="home-tile" href="/regelverk">
+    <a class="home-tile" href="/kontroller">
       <span class="home-tile-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h8l4 4V20a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"></path><path d="M14 3.5V8h4"></path><path d="M8 12h8"></path><path d="M8 16h5"></path></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v3"></path><path d="M16 3v3"></path><rect x="4" y="5" width="16" height="15" rx="3"></rect><path d="M7 10h10"></path><path d="M7 14h7"></path></svg>
       </span>
       <span class="home-tile-text">
-        <strong>Regelverk</strong>
-        <span>Finn relevante regler og kontrollpunkter.</span>
+        <strong>Saker</strong>
+        <span>Fortsett pågående saker og se siste oppdateringer.</span>
       </span>
     </a>
 
@@ -46,68 +46,41 @@
         <svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l6-2 6 2 6-2v12l-6 2-6-2-6 2z"></path><path d="M9 4v14"></path><path d="M15 6v14"></path><path d="M12 9.75c1.7 0 3 1.3 3 3 0 2.1-3 4.95-3 4.95s-3-2.85-3-4.95c0-1.7 1.3-3 3-3z"></path><path d="M12 12.75h.01"></path></svg>
       </span>
       <span class="home-tile-text">
-        <strong>Kart og områder</strong>
-        <span>Åpne kartet og se aktuelle temalag.</span>
+        <strong>Kart</strong>
+        <span>Områder, posisjon og relevante temalag.</span>
       </span>
     </a>
 
-    <a class="home-tile" href="/kontroller">
+    <a class="home-tile" href="/regelverk">
       <span class="home-tile-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v3"></path><path d="M16 3v3"></path><rect x="4" y="5" width="16" height="15" rx="3"></rect><path d="M7 10h10"></path><path d="M7 14h7"></path></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h8l4 4V20a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"></path><path d="M14 3.5V8h4"></path><path d="M8 12h8"></path><path d="M8 16h5"></path></svg>
       </span>
       <span class="home-tile-text">
-        <strong>Saker og historikk</strong>
-        <span>Fortsett pågående saker og se siste oppdateringer.</span>
+        <strong>Regelverk</strong>
+        <span>Relevante regler og kontrollpunkter.</span>
       </span>
     </a>
   </div>
 
-  <a class="home-map-promo" href="/kart">
-    <div class="home-map-promo-badge" aria-hidden="true">
-      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4c3.3 0 6 2.7 6 6 0 4.2-6 10-6 10S6 14.2 6 10c0-3.3 2.7-6 6-6z"></path><path d="M12 10h.01"></path></svg>
-    </div>
-    <div class="home-map-promo-text">
-      <strong>Åpne kart</strong>
-      <span>Se områder, posisjon og relevante temalag i samme visning.</span>
-    </div>
-    <span class="home-map-promo-button">Åpne kart</span>
-  </a>
-
-  <div class="home-link-stack">
-    <a class="home-row-link" href="/kontroller">
-      <span>Se siste saker</span>
-      <span class="home-row-arrow" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg>
-      </span>
-    </a>
-    <a class="home-row-link" href="/regelverk">
-      <span>Kontrollpunkter og regelverk</span>
-      <span class="home-row-arrow" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg>
-      </span>
-    </a>
-  </div>
-
-  <section class="home-panel" id="offline-drafts-card">
+  <section class="home-panel" id="offline-drafts-card" hidden>
     <div class="home-panel-head">
       <div>
         <h2>Lokale kladder</h2>
-        <p>Lagringer som ligger på enheten og kan åpnes videre i felt.</p>
+        <p>Ligger på enheten og venter på synk.</p>
       </div>
     </div>
-    <div class="home-list" id="offline-drafts-list" aria-live="polite">
-      <div class="home-list-empty">Ingen lokale kladder funnet på denne enheten.</div>
-    </div>
+    <div class="home-list" id="offline-drafts-list" aria-live="polite"></div>
   </section>
 
   <section class="home-panel">
     <div class="home-panel-head">
       <div>
         <h2>Siste saker</h2>
-        <p>Nylig oppdaterte saker og hurtiglenker tilbake til arbeidet.</p>
       </div>
       {% if cases %}
-      <a class="home-panel-link" href="/kontroller">Se alle saker</a>
+      <a class="home-panel-link" href="/kontroller">Alle saker
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="14" height="14"><path d="m9 6 6 6-6 6"/></svg>
+      </a>
       {% endif %}
     </div>
     <div class="home-list">
@@ -117,11 +90,14 @@
           <strong>{{ case.case_number }}</strong>
           <span>{{ case.control_type or '—' }} · {{ case.species or case.fishery_type or '—' }} · {{ case.gear_type or '—' }}</span>
         </div>
-        <span class="home-case-status">{{ case.status }}</span>
+        <span class="home-case-status status-pill status-{{ (case.status or '')|lower|replace(' ', '-')|replace('å','a')|replace('ø','o')|replace('æ','ae') }}">{{ case.status }}</span>
       </a>
       {% else %}
-      <div class="home-list-empty">
-        <p>Ingen saker ennå.</p>
+      <div class="home-list-empty home-list-empty-cta">
+        <div class="home-empty-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="40" height="40"><path d="M8 3v3"></path><path d="M16 3v3"></path><rect x="4" y="5" width="16" height="15" rx="3"></rect><path d="M7 10h10"></path><path d="M7 14h7"></path></svg>
+        </div>
+        <p>Ingen saker enda.</p>
         <form method="post" action="/cases/new" class="inline-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
           <button class="btn btn-primary btn-small" type="submit">Opprett din første kontroll</button>
@@ -142,10 +118,8 @@
   if (!list || !card || !LocalCases || !LocalCases.supported || !LocalCases.supported()) return;
   LocalCases.listDrafts({ unsyncedOnly: true }).then(function (rows) {
     rows = Array.isArray(rows) ? rows : [];
-    if (!rows.length) {
-      list.innerHTML = '<div class="home-list-empty">Ingen lokale kladder som venter på synk.</div>';
-      return;
-    }
+    if (!rows.length) { return; /* keep card hidden when nothing to show */ }
+    card.hidden = false;
     list.innerHTML = rows.map(function (row) {
       var when = '';
       try { when = new Date(Number(row.updated_at || 0)).toLocaleString('nb-NO'); } catch (e) { when = ''; }
@@ -153,11 +127,9 @@
       return '<a class="home-case-row" href="' + href + '">'
         + '<div class="home-case-copy"><strong>' + String(row.case_number || ('Sak ' + String(row.case_id || ''))) + '</strong>'
         + '<span>Lokal kladd' + (when ? ' · oppdatert ' + when : '') + '</span></div>'
-        + '<span class="home-case-status">Ikke synket</span></a>';
+        + '<span class="home-case-status status-pill status-utkast">Ikke synket</span></a>';
     }).join('');
-  }).catch(function () {
-    list.innerHTML = '<div class="home-list-empty">Kunne ikke lese lokale kladder akkurat nå.</div>';
-  });
+  }).catch(function () { /* swallow */ });
 })();
 </script>
 {% endblock %}

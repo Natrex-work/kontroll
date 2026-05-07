@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+{% block title %}Engangskode · {{ display_app_name }}{% endblock %}
+{% block body_class %}page-login{% endblock %}
+{% block main_class %}main-login{% endblock %}
+{% block content %}
+<section class="login-wrap login-wrap-brand" aria-labelledby="otp-heading">
+  <div class="login-hero-copy">
+    <div class="login-brand-row">
+      <span class="login-brand-badge brand-badge-logo" aria-hidden="true"><img src="/static/logo.png?v=1.8.33" alt="" width="72" height="72" /></span>
+      <div>
+        <div class="login-brand-org">{{ brand_org_name }}</div>
+        <div class="login-brand-app">{{ display_app_name }}</div>
+      </div>
+    </div>
+    <h1 id="otp-heading">Skriv inn engangskoden</h1>
+    <p>Vi sendte en 6-sifret kode på SMS til {{ masked_phone or 'ditt registrerte mobilnummer' }}. Koden er gyldig i ca. {{ otp_ttl_minutes or 5 }} minutter.</p>
+  </div>
+  <div class="login-card login-card-brand">
+    <header class="login-card-head login-card-head-clean">
+      <div class="login-card-title">
+        <span class="brand-badge brand-badge-logo brand-badge-md" aria-hidden="true"><img src="/static/logo.png?v=1.8.33" alt="" width="44" height="44" /></span>
+        <div>
+          <strong>2-trinns innlogging</strong>
+          <span class="muted small">Steg 2 av 2</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="login-step-indicator" aria-hidden="true">
+      <span class="login-step login-step-done">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M5 13l4 4L19 7"/></svg>
+      </span>
+      <span class="login-step-line login-step-line-done"></span>
+      <span class="login-step login-step-active">2</span>
+    </div>
+
+    {% if error %}<div class="alert alert-error" role="alert">{{ error }}</div>{% endif %}
+    {% if dev_code %}<div class="alert alert-warning" role="status">Utviklingsmodus: kode {{ dev_code }}</div>{% endif %}
+
+    <form method="post" action="/login/2fa" class="stack gap-m" novalidate autocomplete="off">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+      <label class="field">
+        <span class="field-label">Engangskode</span>
+        <input
+          name="code"
+          type="text"
+          inputmode="numeric"
+          pattern="[0-9]{6}"
+          maxlength="6"
+          autocomplete="one-time-code"
+          placeholder="— — — — — —"
+          required
+          aria-required="true"
+          autofocus
+          class="otp-input"
+        />
+        <span class="field-hint">6 siffer fra SMS</span>
+      </label>
+      <button class="btn btn-primary btn-full login-submit" type="submit">Bekreft og logg inn</button>
+    </form>
+
+    <div class="login-secondary-actions">
+      <form method="post" action="/login/2fa/resend" class="inline-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        <button class="login-link-btn" type="submit">Send ny kode</button>
+      </form>
+      <a class="login-link-btn" href="/login">Avbryt</a>
+    </div>
+  </div>
+</section>
+
+<script>
+(function () {
+  var input = document.querySelector('.otp-input');
+  if (!input) return;
+  input.addEventListener('input', function () {
+    var v = this.value.replace(/\D/g, '');
+    this.value = v;
+    if (v.length === 6) { this.closest('form').submit(); }
+  });
+})();
+</script>
+{% endblock %}

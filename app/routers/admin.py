@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import sqlite3
+
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.status import HTTP_303_SEE_OTHER
@@ -7,9 +9,13 @@ from starlette.status import HTTP_303_SEE_OTHER
 from .. import db
 from ..auth import hash_password
 from ..dependencies import require_control_admin, require_user_admin
+from ..logging_setup import get_logger
 from ..security import enforce_csrf
+from ..services.sms_service import send_user_invitation
 from ..ui import render_template
-from ..validation import validate_case_prefix, validate_email, validate_password, validate_role
+from ..validation import validate_case_prefix, validate_email, validate_login_mobile, validate_password, validate_role
+
+logger = get_logger(__name__)
 
 router = APIRouter()
 
@@ -45,12 +51,14 @@ async def admin_create_user(request: Request):
             raise HTTPException(status_code=400, detail='Fyll ut navn.')
         password = validate_password(form.get('password'))
         role = validate_role(form.get('role') or 'investigator', ('investigator', 'admin'))
+        if db.get_user_by_email(email):
+            raise HTTPException(status_code=400, detail='Det finnes allerede en bruker med denne e-postadressen.')
         permissions = _selected_permissions(form, role)
         complainant = str(form.get('last_complainant_name') or '').strip() or None
         witness = str(form.get('last_witness_name') or '').strip() or None
         case_prefix = validate_case_prefix(form.get('case_prefix') or 'LBHN')
         address = str(form.get('address') or '').strip() or None
-        phone = str(form.get('phone') or '').strip() or None
+        phone = validate_login_mobile(form.get('phone'), required=(role != 'admin'))
         vessel_affiliation = str(form.get('vessel_affiliation') or '').strip() or None
         user_id = db.create_user(
             email=email,
@@ -65,13 +73,31 @@ async def admin_create_user(request: Request):
             last_witness_name=witness,
             case_prefix=case_prefix,
             active=True,
+            two_factor_required=(role != 'admin'),
         )
         db.record_audit(admin['id'], 'create_user', 'user', user_id, {'email': email, 'role': role, 'permissions': permissions, 'case_prefix': case_prefix})
+
+        # Optional: send invitation SMS with temporary password
+        send_invite = str(form.get('send_invitation_sms') or '').strip() in {'1', 'true', 'on', 'yes'}
+        invite_status = ''
+        if send_invite and phone and role != 'admin':
+            try:
+                login_url = str(request.base_url).rstrip('/') + '/login'
+                send_user_invitation(phone, full_name, password, login_url=login_url)
+                invite_status = 'sent'
+                db.record_audit(admin['id'], 'send_invitation_sms', 'user', user_id, {'phone': phone})
+            except Exception as exc:
+                logger.warning('Kunne ikke sende invitasjons-SMS til %s: %s', phone, exc)
+                invite_status = 'failed'
     except HTTPException as exc:
         return render_template(request, 'admin_users.html', users=users, error=exc.detail)
+    except sqlite3.IntegrityError as exc:
+        return render_template(request, 'admin_users.html', users=users, error='Kunne ikke opprette bruker. E-postadressen er trolig allerede registrert.')
     except Exception as exc:
         return render_template(request, 'admin_users.html', users=users, error=f'Kunne ikke opprette bruker: {exc}')
-    return RedirectResponse('/admin/users?created=1', status_code=HTTP_303_SEE_OTHER)
+    from urllib.parse import urlencode
+    qs = urlencode({'created': '1', 'email': email, 'phone': phone or '', 'invite': invite_status})
+    return RedirectResponse(f'/admin/users?{qs}', status_code=HTTP_303_SEE_OTHER)
 
 
 @router.post('/admin/users/{user_id}/update')
@@ -98,7 +124,7 @@ async def admin_update_user(request: Request, user_id: int):
         witness = str(form.get('last_witness_name') or '').strip() or None
         case_prefix = validate_case_prefix(form.get('case_prefix') or user_row.get('case_prefix') or 'LBHN')
         address = str(form.get('address') or '').strip() or None
-        phone = str(form.get('phone') or '').strip() or None
+        phone = validate_login_mobile(form.get('phone'), required=(role != 'admin' and active))
         vessel_affiliation = str(form.get('vessel_affiliation') or '').strip() or None
         db.update_user(
             user_id,
@@ -112,10 +138,13 @@ async def admin_update_user(request: Request, user_id: int):
             last_complainant_name=complainant,
             last_witness_name=witness,
             case_prefix=case_prefix,
+            two_factor_required=(role != 'admin'),
         )
         db.record_audit(admin['id'], 'update_user', 'user', user_id, {'role': role, 'active': active, 'permissions': permissions, 'case_prefix': case_prefix})
     except HTTPException as exc:
         return render_template(request, 'admin_users.html', users=users, error=exc.detail)
+    except Exception as exc:
+        return render_template(request, 'admin_users.html', users=users, error=f'Kunne ikke oppdatere bruker: {exc}')
     return RedirectResponse('/admin/users?updated=1', status_code=HTTP_303_SEE_OTHER)
 
 
@@ -134,6 +163,8 @@ async def admin_reset_password(request: Request, user_id: int):
         db.record_audit(admin['id'], 'reset_password', 'user', user_id, {'email': user_row['email']})
     except HTTPException as exc:
         return render_template(request, 'admin_users.html', users=users, error=exc.detail)
+    except Exception as exc:
+        return render_template(request, 'admin_users.html', users=users, error=f'Kunne ikke nullstille passord: {exc}')
     return RedirectResponse('/admin/users?password=1', status_code=HTTP_303_SEE_OTHER)
 
 

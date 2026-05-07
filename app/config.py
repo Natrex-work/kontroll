@@ -151,6 +151,18 @@ class Settings:
     server_url: str
     login_rate_limit_attempts: int
     login_rate_limit_window_seconds: int
+    otp_enabled: bool
+    otp_length: int
+    otp_ttl_seconds: int
+    otp_max_attempts: int
+    otp_send_rate_limit_attempts: int
+    otp_send_rate_limit_window_seconds: int
+    otp_dev_log_codes: bool
+    sms_provider: str
+    twilio_account_sid: str
+    twilio_auth_token: str
+    twilio_from_number: str
+    twilio_messaging_service_sid: str
     bootstrap_admin_email: str
     bootstrap_admin_name: str
     bootstrap_admin_password: str
@@ -174,8 +186,8 @@ class Settings:
 settings = Settings(
     app_name=os.getenv('KV_APP_NAME', 'Kontroll'),
     brand_org_name=os.getenv('KV_BRAND_ORG_NAME', 'Minfiskerikontroll').strip() or 'Minfiskerikontroll',
-    app_version=os.getenv('KV_APP_VERSION', '1.8.29'),
-    app_version_label=os.getenv('KV_APP_VERSION_LABEL', '1.8.29'),
+    app_version=os.getenv('KV_APP_VERSION', '1.8.33'),
+    app_version_label=os.getenv('KV_APP_VERSION_LABEL', '1.8.33'),
     base_dir=BASE_DIR,
     data_dir=_runtime_path('KV_DATA_DIR', _RUNTIME_STORAGE_ROOT / 'data'),
     templates_dir=BASE_DIR / 'app' / 'templates',
@@ -198,6 +210,18 @@ settings = Settings(
     server_url=SERVER_URL,
     login_rate_limit_attempts=_env_int('KV_LOGIN_RATE_LIMIT_ATTEMPTS', 10, minimum=3, maximum=100),
     login_rate_limit_window_seconds=_env_int('KV_LOGIN_RATE_LIMIT_WINDOW_SECONDS', 15 * 60, minimum=60, maximum=24 * 60 * 60),
+    otp_enabled=_env_flag('KV_OTP_ENABLED', True),
+    otp_length=_env_int('KV_OTP_LENGTH', 6, minimum=6, maximum=8),
+    otp_ttl_seconds=_env_int('KV_OTP_TTL_SECONDS', 5 * 60, minimum=60, maximum=30 * 60),
+    otp_max_attempts=_env_int('KV_OTP_MAX_ATTEMPTS', 5, minimum=3, maximum=10),
+    otp_send_rate_limit_attempts=_env_int('KV_OTP_SEND_RATE_LIMIT_ATTEMPTS', 3, minimum=1, maximum=20),
+    otp_send_rate_limit_window_seconds=_env_int('KV_OTP_SEND_RATE_LIMIT_WINDOW_SECONDS', 10 * 60, minimum=60, maximum=60 * 60),
+    otp_dev_log_codes=_env_flag('KV_OTP_DEV_LOG_CODES', (not PRODUCTION_MODE and not _render_runtime())),
+    sms_provider=os.getenv('KV_SMS_PROVIDER', 'twilio').strip().lower(),
+    twilio_account_sid=os.getenv('TWILIO_ACCOUNT_SID', '').strip() or os.getenv('KV_TWILIO_ACCOUNT_SID', '').strip(),
+    twilio_auth_token=os.getenv('TWILIO_AUTH_TOKEN', '') or os.getenv('KV_TWILIO_AUTH_TOKEN', ''),
+    twilio_from_number=os.getenv('TWILIO_FROM_NUMBER', '').strip() or os.getenv('KV_TWILIO_FROM_NUMBER', '').strip(),
+    twilio_messaging_service_sid=os.getenv('TWILIO_MESSAGING_SERVICE_SID', '').strip() or os.getenv('KV_TWILIO_MESSAGING_SERVICE_SID', '').strip(),
     bootstrap_admin_email=os.getenv('KV_BOOTSTRAP_ADMIN_EMAIL', '').strip().lower(),
     bootstrap_admin_name=os.getenv('KV_BOOTSTRAP_ADMIN_NAME', '').strip(),
     bootstrap_admin_password=os.getenv('KV_BOOTSTRAP_ADMIN_PASSWORD', ''),

@@ -1,4 +1,4 @@
-# Endringer 1.8.29 - politifaglige autotekster
+# Endringer 1.8.30 - politifaglige autotekster
 
 ## Formål
 Denne versjonen forbedrer autogenererte tekster for patruljeformål, anmeldt forhold/beskrivelse, egenrapport, avhørsrapport, lovhjemler og illustrasjonsrapport. Målet er mer objektiv, kort, etterprøvbar og politifaglig språkføring tilpasset IKV-/Kystvakt-saker.
@@ -28,6 +28,6 @@ Denne versjonen forbedrer autogenererte tekster for patruljeformål, anmeldt for
 - Summary API tar nå også imot fartøysnavn, etterforsker og tipskilde, slik at utkastene blir bedre tilpasset saken.
 
 ## Cache/versjon
-- Appversjon: 1.8.29
-- Service worker-cache: `kv-kontroll-1-8-29-static` og `kv-kontroll-1-8-29-map-tiles`
-- JS/CSS og ikoner lastes med `?v=1.8.29`
+- Appversjon: 1.8.30
+- Service worker-cache: `kv-kontroll-1-8-30-static` og `kv-kontroll-1-8-30-map-tiles`
+- JS/CSS og ikoner lastes med `?v=1.8.30`
