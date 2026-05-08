@@ -30,40 +30,24 @@
     <form method="post" action="/admin/users" id="admin-create-form" class="stack gap-m" novalidate>
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
 
-      <!-- Rolle som segmentert kontroll -->
-      <div class="admin-field">
-        <span class="admin-field-label">
-          <span>Rolle <span class="req" aria-hidden="true">*</span></span>
-        </span>
-        <div class="admin-role-segmented" id="create-role-segmented" role="radiogroup" aria-label="Rolle">
-          <label data-role="investigator" class="is-selected">
-            <input type="radio" name="role" value="investigator" checked />
-            <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6"/><path d="M23 11h-6"/></svg>
-            <span>Etterforsker</span>
-          </label>
-          <label data-role="admin">
-            <input type="radio" name="role" value="admin" />
-            <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-            <span>Admin</span>
-          </label>
-        </div>
-        <span class="admin-field-hint" id="role-hint">Etterforsker logger inn med passord + SMS-kode. Admin er unntatt 2-trinn.</span>
-      </div>
+      {# Bevar verdier ved feil — preserved overrides default #}
+      {% set p = preserved or {} %}
 
-      <!-- Hurtig: navn + epost + telefon + passord -->
       <div class="admin-quick-grid">
         <div class="admin-field">
           <label class="admin-field-label" for="create-full-name">
             <span>Fullt navn <span class="req" aria-hidden="true">*</span></span>
           </label>
-          <input id="create-full-name" name="full_name" autocomplete="name" required placeholder="F.eks. Anders Hansen" />
+          <input id="create-full-name" name="full_name" autocomplete="name" required
+            value="{{ p.get('full_name', '') }}" placeholder="F.eks. Anders Hansen" />
         </div>
 
         <div class="admin-field">
           <label class="admin-field-label" for="create-email">
             <span>E-post <span class="req" aria-hidden="true">*</span></span>
           </label>
-          <input id="create-email" name="email" type="email" autocomplete="email" required placeholder="navn@eksempel.no" />
+          <input id="create-email" name="email" type="email" autocomplete="email" required
+            value="{{ p.get('email', '') }}" placeholder="navn@eksempel.no" />
         </div>
 
         <div class="admin-field">
@@ -74,12 +58,23 @@
             <span class="prefix" aria-hidden="true">🇳🇴 +47</span>
             <input id="create-phone" name="phone" type="tel" inputmode="numeric" autocomplete="tel"
               maxlength="14" placeholder="900 00 000"
-              data-phone-input-for-role-select="create-role-hidden" />
+              value="{{ p.get('phone', '') }}" />
           </div>
           <span class="admin-field-hint" id="phone-hint">Norsk mobilnummer (8 siffer). SMS-kode sendes hit ved innlogging.</span>
         </div>
 
         <div class="admin-field">
+          <label class="admin-field-label" for="create-role">
+            <span>Rolle <span class="req" aria-hidden="true">*</span></span>
+          </label>
+          <select id="create-role" name="role" required>
+            <option value="investigator" {% if p.get('role') != 'admin' %}selected{% endif %}>Etterforsker</option>
+            <option value="admin" {% if p.get('role') == 'admin' %}selected{% endif %}>Admin</option>
+          </select>
+          <span class="admin-field-hint" id="role-hint">Etterforsker logger inn med passord + SMS-kode. Admin er unntatt 2-trinn.</span>
+        </div>
+
+        <div class="admin-field" style="grid-column: 1 / -1;">
           <label class="admin-field-label" for="create-password">
             <span>Passord <span class="req" aria-hidden="true">*</span></span>
             <button type="button" class="opt" id="generate-password-btn" style="cursor:pointer; background:transparent; border:0; color:#2b80d6; font-weight:600; letter-spacing:0; text-transform:none;">
@@ -98,17 +93,18 @@
               </button>
             </div>
           </div>
-          <span class="admin-field-hint">Minst 14 tegn. Kombinasjon av små/store bokstaver, tall og spesialtegn (eller bare lengde over 16).</span>
+          <span class="admin-field-hint">Minst 14 tegn med kombinasjon av bokstaver, tall og spesialtegn (eller minst 16 tegn).</span>
         </div>
       </div>
 
-      <!-- Tilganger (kun for ikke-admin) -->
+      <!-- Tilganger -->
       <div class="admin-field" id="permissions-wrap">
         <span class="admin-field-label"><span>Tilgang til moduler</span></span>
         <div class="admin-permissions" id="create-permissions">
           {% for option in investigator_permission_options %}
           <label>
-            <input type="checkbox" name="permissions" value="{{ option.value }}" {% if option.value == 'kv_kontroll' %}checked{% endif %} />
+            <input type="checkbox" name="permissions" value="{{ option.value }}"
+              {% if (p.get('permissions') and option.value in p.get('permissions')) or (not p.get('permissions') and option.value == 'kv_kontroll') %}checked{% endif %} />
             <span>{{ option.label }}</span>
           </label>
           {% endfor %}
@@ -119,7 +115,7 @@
       </div>
 
       <!-- Avansert -->
-      <details class="admin-advanced">
+      <details class="admin-advanced" {% if p.get('address') or p.get('vessel_affiliation') or p.get('case_prefix', 'LBHN') != 'LBHN' or p.get('last_complainant_name') or p.get('last_witness_name') %}open{% endif %}>
         <summary class="admin-advanced-toggle">
           <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
           Avanserte felter (kan fylles ut senere)
@@ -127,34 +123,27 @@
         <div>
           <div class="admin-field">
             <label class="admin-field-label" for="create-address"><span>Adresse <span class="opt">valgfritt</span></span></label>
-            <input id="create-address" name="address" autocomplete="street-address" placeholder="Gate, postnummer og sted" />
+            <input id="create-address" name="address" autocomplete="street-address" value="{{ p.get('address', '') }}" placeholder="Gate, postnummer og sted" />
           </div>
           <div class="admin-field">
             <label class="admin-field-label" for="create-vessel"><span>Fartøystilhørighet <span class="opt">valgfritt</span></span></label>
-            <input id="create-vessel" name="vessel_affiliation" placeholder="F.eks. KV Nornen" />
+            <input id="create-vessel" name="vessel_affiliation" value="{{ p.get('vessel_affiliation', '') }}" placeholder="F.eks. KV Nornen" />
           </div>
           <div class="admin-field">
             <label class="admin-field-label" for="create-prefix"><span>Saksprefix</span></label>
-            <input id="create-prefix" name="case_prefix" value="LBHN" placeholder="F.eks. LBHN" />
+            <input id="create-prefix" name="case_prefix" value="{{ p.get('case_prefix', 'LBHN') }}" placeholder="F.eks. LBHN" />
           </div>
           <div class="admin-field">
             <label class="admin-field-label" for="create-complainant"><span>Standard anmelder <span class="opt">valgfritt</span></span></label>
-            <input id="create-complainant" name="last_complainant_name" placeholder="Navn på anmelder" />
+            <input id="create-complainant" name="last_complainant_name" value="{{ p.get('last_complainant_name', '') }}" placeholder="Navn på anmelder" />
           </div>
           <div class="admin-field">
             <label class="admin-field-label" for="create-witness"><span>Standard vitne <span class="opt">valgfritt</span></span></label>
-            <input id="create-witness" name="last_witness_name" placeholder="Navn på vitne" />
+            <input id="create-witness" name="last_witness_name" value="{{ p.get('last_witness_name', '') }}" placeholder="Navn på vitne" />
           </div>
         </div>
       </details>
 
-      <!-- Hidden role select for compatibility with existing JS -->
-      <select id="create-role-hidden" name="_role_legacy" hidden aria-hidden="true">
-        <option value="investigator" selected>investigator</option>
-        <option value="admin">admin</option>
-      </select>
-
-      <!-- Submit -->
       <div class="admin-submit-row">
         <label class="admin-invite-toggle">
           <input type="checkbox" name="send_invitation_sms" value="1" id="send-invite-cb" />
@@ -317,7 +306,7 @@
       </div>
       {% endif %}
     </div>
-    <p class="muted small" style="font-size:.78rem; margin:0 0 14px;">Av sikkerhetsgrunner vises ikke passordet i etterkant. Hvis du har glemt det, bruk «Nullstill passord» på brukerkortet.</p>
+    <p class="muted small" style="font-size:.78rem; margin:0 0 14px;">Av sikkerhetsgrunner vises ikke passordet i etterkant. Hvis admin har glemt det, bruk «Nullstill passord» på brukerkortet.</p>
     <div class="actions-row" style="justify-content:flex-end;">
       <a href="/admin/users" class="btn btn-secondary btn-small">Lukk</a>
     </div>
@@ -325,4 +314,4 @@
 </div>
 {% endif %}
 {% endblock %}
-{% block page_scripts %}<script src="/static/js/admin-users.js?v=1.8.33"></script>{% endblock %}
+{% block page_scripts %}<script src="/static/js/admin-users.js?v=1.8.34"></script>{% endblock %}

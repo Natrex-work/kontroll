@@ -40,64 +40,124 @@ def admin_users(request: Request):
 
 @router.post('/admin/users')
 async def admin_create_user(request: Request):
+    """Opprett ny bruker. Defensiv mot alle feilmoduser:
+    - Bevarer skjemaverdier ved valideringsfeil (slipper å fylle ut alt på nytt)
+    - Logger detaljert hva som feilet
+    - Returnerer alltid en HTML-side, aldri 500
+    """
     admin = require_user_admin(request)
     form = await request.form()
-    users = db.list_users()
+
+    # Samle inn alle skjemaverdier først, slik at vi kan bevare dem ved feil
+    raw = {
+        'full_name': str(form.get('full_name') or '').strip(),
+        'email': str(form.get('email') or '').strip(),
+        'phone': str(form.get('phone') or '').strip(),
+        'role': str(form.get('role') or 'investigator').strip(),
+        'address': str(form.get('address') or '').strip(),
+        'vessel_affiliation': str(form.get('vessel_affiliation') or '').strip(),
+        'case_prefix': str(form.get('case_prefix') or 'LBHN').strip(),
+        'last_complainant_name': str(form.get('last_complainant_name') or '').strip(),
+        'last_witness_name': str(form.get('last_witness_name') or '').strip(),
+        'permissions': [str(p).strip() for p in form.getlist('permissions') if str(p).strip()],
+    }
+
+    def _render_error(detail: str):
+        try:
+            users = db.list_users()
+        except Exception as exc:
+            logger.error('Kunne ikke hente brukerliste i feilflyt: %s', exc)
+            users = []
+        return render_template(
+            request,
+            'admin_users.html',
+            users=users,
+            error=detail,
+            preserved=raw,
+        )
+
     try:
         enforce_csrf(request, form)
-        email = validate_email(form.get('email'))
-        full_name = str(form.get('full_name') or '').strip()
-        if not full_name:
-            raise HTTPException(status_code=400, detail='Fyll ut navn.')
+    except HTTPException as exc:
+        logger.info('CSRF-feil ved brukeropprettelse: %s', exc.detail)
+        return _render_error('Sikkerhetssjekk feilet. Last siden på nytt og prøv igjen.')
+
+    try:
+        email = validate_email(raw['email'])
+        if not raw['full_name']:
+            raise HTTPException(status_code=400, detail='Fyll ut fullt navn.')
         password = validate_password(form.get('password'))
-        role = validate_role(form.get('role') or 'investigator', ('investigator', 'admin'))
-        if db.get_user_by_email(email):
+        role = validate_role(raw['role'] or 'investigator', ('investigator', 'admin'))
+        existing = db.get_user_by_email(email)
+        if existing:
             raise HTTPException(status_code=400, detail='Det finnes allerede en bruker med denne e-postadressen.')
         permissions = _selected_permissions(form, role)
-        complainant = str(form.get('last_complainant_name') or '').strip() or None
-        witness = str(form.get('last_witness_name') or '').strip() or None
-        case_prefix = validate_case_prefix(form.get('case_prefix') or 'LBHN')
-        address = str(form.get('address') or '').strip() or None
-        phone = validate_login_mobile(form.get('phone'), required=(role != 'admin'))
-        vessel_affiliation = str(form.get('vessel_affiliation') or '').strip() or None
+        case_prefix = validate_case_prefix(raw['case_prefix'] or 'LBHN')
+        phone = validate_login_mobile(raw['phone'], required=(role != 'admin'))
+    except HTTPException as exc:
+        logger.info('Valideringsfeil ved brukeropprettelse: %s', exc.detail)
+        return _render_error(str(exc.detail))
+    except Exception as exc:
+        logger.exception('Uventet valideringsfeil ved brukeropprettelse')
+        return _render_error(f'Kunne ikke validere skjemaet: {exc}')
+
+    # Opprett bruker
+    try:
         user_id = db.create_user(
             email=email,
-            full_name=full_name,
+            full_name=raw['full_name'],
             password_hash=hash_password(password),
             role=role,
-            address=address,
+            address=raw['address'] or None,
             phone=phone,
-            vessel_affiliation=vessel_affiliation,
+            vessel_affiliation=raw['vessel_affiliation'] or None,
             permissions=permissions,
-            last_complainant_name=complainant,
-            last_witness_name=witness,
+            last_complainant_name=raw['last_complainant_name'] or None,
+            last_witness_name=raw['last_witness_name'] or None,
             case_prefix=case_prefix,
             active=True,
             two_factor_required=(role != 'admin'),
         )
-        db.record_audit(admin['id'], 'create_user', 'user', user_id, {'email': email, 'role': role, 'permissions': permissions, 'case_prefix': case_prefix})
-
-        # Optional: send invitation SMS with temporary password
-        send_invite = str(form.get('send_invitation_sms') or '').strip() in {'1', 'true', 'on', 'yes'}
-        invite_status = ''
-        if send_invite and phone and role != 'admin':
-            try:
-                login_url = str(request.base_url).rstrip('/') + '/login'
-                send_user_invitation(phone, full_name, password, login_url=login_url)
-                invite_status = 'sent'
-                db.record_audit(admin['id'], 'send_invitation_sms', 'user', user_id, {'phone': phone})
-            except Exception as exc:
-                logger.warning('Kunne ikke sende invitasjons-SMS til %s: %s', phone, exc)
-                invite_status = 'failed'
-    except HTTPException as exc:
-        return render_template(request, 'admin_users.html', users=users, error=exc.detail)
     except sqlite3.IntegrityError as exc:
-        return render_template(request, 'admin_users.html', users=users, error='Kunne ikke opprette bruker. E-postadressen er trolig allerede registrert.')
+        logger.warning('IntegrityError ved create_user: %s', exc)
+        return _render_error('Kunne ikke opprette bruker. E-postadressen er trolig allerede registrert.')
     except Exception as exc:
-        return render_template(request, 'admin_users.html', users=users, error=f'Kunne ikke opprette bruker: {exc}')
+        logger.exception('Uventet feil i db.create_user')
+        return _render_error(f'Kunne ikke opprette bruker i databasen: {exc}')
+
+    # Audit
+    try:
+        db.record_audit(admin['id'], 'create_user', 'user', user_id,
+                        {'email': email, 'role': role, 'permissions': permissions, 'case_prefix': case_prefix})
+    except Exception as exc:
+        # Audit failure should not block user creation
+        logger.warning('Audit-logg for create_user feilet (ignorert): %s', exc)
+
+    # Optional: SMS invitation
+    invite_status = ''
+    send_invite = str(form.get('send_invitation_sms') or '').strip() in {'1', 'true', 'on', 'yes'}
+    if send_invite and phone and role != 'admin':
+        try:
+            login_url = str(request.base_url).rstrip('/') + '/login'
+            send_user_invitation(phone, raw['full_name'], password, login_url=login_url)
+            invite_status = 'sent'
+            try:
+                db.record_audit(admin['id'], 'send_invitation_sms', 'user', user_id, {'phone': phone})
+            except Exception:
+                pass
+        except Exception as exc:
+            logger.warning('Kunne ikke sende invitasjons-SMS til %s: %s', phone, exc)
+            invite_status = 'failed'
+
     from urllib.parse import urlencode
-    qs = urlencode({'created': '1', 'email': email, 'phone': phone or '', 'invite': invite_status})
+    qs = urlencode({
+        'created': '1',
+        'email': email,
+        'phone': phone or '',
+        'invite': invite_status,
+    })
     return RedirectResponse(f'/admin/users?{qs}', status_code=HTTP_303_SEE_OTHER)
+
 
 
 @router.post('/admin/users/{user_id}/update')

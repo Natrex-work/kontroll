@@ -1,14 +1,15 @@
 /**
- * Admin user management — UX helpers.
+ * Admin user management — robust version uten kompliserte segmenterte kontroller.
  *
- * - Segmented role selector (radio buttons styled as tabs)
- * - Phone required toggle based on role
- * - Permissions panel show/hide based on role
- * - Password generator (16-char strong password)
- * - Show/hide password toggle
- * - Copy password to clipboard
- * - Copy credentials from success modal
- * - Permissions visual highlight when checked
+ * Bruker bare standard <select> og <input>-elementer som alltid fungerer.
+ *
+ * - Phone required toggle basert på rolle (select)
+ * - Permissions panel show/hide basert på rolle
+ * - Password generator (16-tegns sterkt passord)
+ * - Show/hide passord-toggle
+ * - Kopier passord til utklippstavlen
+ * - Permissions visual highlight når avkrysset
+ * - Confirm-dialog for delete
  */
 (function () {
   'use strict';
@@ -19,86 +20,60 @@
   }
 
   // --------------------------------------------------------------------
-  // Role: segmented control + sync hidden select for backwards compat
+  // Rolle (select) — påvirker telefon-krav, hint-tekst og permissions
   // --------------------------------------------------------------------
-  function initRoleSegmented() {
-    var seg = document.getElementById('create-role-segmented');
-    if (!seg) return;
-    var hidden = document.getElementById('create-role-hidden');
-    var labels = seg.querySelectorAll('label');
+  function applyCreateRole(role) {
+    var phoneInput = document.getElementById('create-phone');
+    var phoneReq = document.getElementById('phone-req');
+    var phoneHint = document.getElementById('phone-hint');
+    var permsWrap = document.getElementById('create-permissions');
+    var permsInfo = document.getElementById('admin-permissions-info');
+    var roleHint = document.getElementById('role-hint');
 
-    function applyRole(role) {
-      labels.forEach(function (lbl) {
-        lbl.classList.toggle('is-selected', lbl.getAttribute('data-role') === role);
-      });
-      if (hidden) hidden.value = role;
+    var isAdmin = (role === 'admin');
 
-      // Phone requirement
-      var phoneInput = document.getElementById('create-phone');
-      var phoneReq = document.getElementById('phone-req');
-      var phoneHint = document.getElementById('phone-hint');
-      if (phoneInput) {
-        phoneInput.required = (role !== 'admin');
-        phoneInput.setAttribute('aria-required', (role !== 'admin') ? 'true' : 'false');
-      }
-      if (phoneReq) phoneReq.style.display = (role === 'admin') ? 'none' : 'inline';
-      if (phoneHint) {
-        phoneHint.textContent = (role === 'admin')
-          ? 'Valgfritt for admin (admin er unntatt 2-trinnskravet).'
-          : 'Norsk mobilnummer (8 siffer). SMS-kode sendes hit ved innlogging.';
-      }
-
-      // Permissions section
-      var permsWrap = document.getElementById('create-permissions');
-      var permsInfo = document.getElementById('admin-permissions-info');
-      if (permsWrap) permsWrap.classList.toggle('hidden', role === 'admin');
-      if (permsInfo) permsInfo.classList.toggle('hidden', role !== 'admin');
-
-      // Role hint
-      var roleHint = document.getElementById('role-hint');
-      if (roleHint) {
-        roleHint.textContent = (role === 'admin')
-          ? 'Admin har full tilgang til alle moduler og er unntatt 2-trinnskravet.'
-          : 'Etterforsker logger inn med passord + SMS-kode. Admin er unntatt 2-trinn.';
-      }
+    if (phoneInput) {
+      phoneInput.required = !isAdmin;
+      phoneInput.setAttribute('aria-required', isAdmin ? 'false' : 'true');
     }
+    if (phoneReq) phoneReq.style.display = isAdmin ? 'none' : 'inline';
+    if (phoneHint) {
+      phoneHint.textContent = isAdmin
+        ? 'Valgfritt for admin (admin er unntatt 2-trinnskravet).'
+        : 'Norsk mobilnummer (8 siffer). SMS-kode sendes hit ved innlogging.';
+    }
+    if (permsWrap) permsWrap.classList.toggle('hidden', isAdmin);
+    if (permsInfo) permsInfo.classList.toggle('hidden', !isAdmin);
+    if (roleHint) {
+      roleHint.textContent = isAdmin
+        ? 'Admin har full tilgang til alle moduler og er unntatt 2-trinnskravet.'
+        : 'Etterforsker logger inn med passord + SMS-kode. Admin er unntatt 2-trinn.';
+    }
+  }
 
-    labels.forEach(function (lbl) {
-      lbl.addEventListener('click', function (e) {
-        e.preventDefault();
-        var role = lbl.getAttribute('data-role');
-        var radio = lbl.querySelector('input[type="radio"]');
-        if (radio) radio.checked = true;
-        applyRole(role);
-      });
-    });
-
-    // Init
-    var checked = seg.querySelector('input[type="radio"]:checked');
-    applyRole(checked ? checked.value : 'investigator');
+  function initCreateRole() {
+    var sel = document.getElementById('create-role');
+    if (!sel) return;
+    sel.addEventListener('change', function () { applyCreateRole(sel.value); });
+    applyCreateRole(sel.value || 'investigator');
   }
 
   // --------------------------------------------------------------------
-  // Password generator
+  // Passord-hjelpere
   // --------------------------------------------------------------------
   function generateStrongPassword() {
-    // 16 characters, includes lower/upper/digit/symbol — meets backend rule of 14+ with 3 classes
     var lower = 'abcdefghijkmnpqrstuvwxyz';
     var upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
     var digits = '23456789';
     var symbols = '!@#$%&*+-?';
     var all = lower + upper + digits + symbols;
-
     function pick(set) {
       var arr = new Uint32Array(1);
       window.crypto.getRandomValues(arr);
       return set[arr[0] % set.length];
     }
-
     var pwd = [pick(lower), pick(upper), pick(digits), pick(symbols)];
     while (pwd.length < 16) pwd.push(pick(all));
-
-    // Shuffle (Fisher-Yates with crypto random)
     for (var i = pwd.length - 1; i > 0; i--) {
       var rand = new Uint32Array(1);
       window.crypto.getRandomValues(rand);
@@ -124,7 +99,6 @@
         pwd.type = 'text';
         if (eyeShow) eyeShow.style.display = 'none';
         if (eyeHide) eyeHide.style.display = 'block';
-        // Auto-copy to clipboard so admin can paste it to the new user
         if (navigator.clipboard && navigator.clipboard.writeText) {
           navigator.clipboard.writeText(newPwd).then(function () {
             showToast('Passord generert og kopiert til utklippstavlen', 'success');
@@ -163,7 +137,6 @@
             showToast('Kunne ikke kopiere automatisk', 'error');
           });
         } else {
-          // Fallback: select + execCommand
           pwd.select();
           try { document.execCommand('copy'); showToast('Passord kopiert', 'success'); }
           catch (e) { showToast('Kunne ikke kopiere', 'error'); }
@@ -189,7 +162,7 @@
   }
 
   // --------------------------------------------------------------------
-  // Phone required for existing-user edits (legacy)
+  // Phone required for existing-user edits
   // --------------------------------------------------------------------
   function initLegacyPhoneRequired() {
     var inputs = document.querySelectorAll('[data-phone-input-for-role-select]');
@@ -199,8 +172,6 @@
       function sync() {
         if (!select) return;
         var isAdmin = String(select.value || '').toLowerCase() === 'admin';
-        // Skip the create form's hidden select (handled by initRoleSegmented)
-        if (roleId === 'create-role-hidden') return;
         input.required = !isAdmin;
         input.setAttribute('aria-required', isAdmin ? 'false' : 'true');
       }
@@ -226,7 +197,7 @@
   }
 
   // --------------------------------------------------------------------
-  // Success modal copy buttons
+  // Suksess-modal kopier-knapper
   // --------------------------------------------------------------------
   function initCopyButtons() {
     var btns = document.querySelectorAll('.admin-cred-copy');
@@ -286,7 +257,7 @@
   }
 
   ready(function () {
-    initRoleSegmented();
+    initCreateRole();
     initPasswordHelpers();
     initPermissions();
     initLegacyPhoneRequired();

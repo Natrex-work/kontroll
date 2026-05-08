@@ -6130,3 +6130,326 @@ a.mk-sync-badge:hover { text-decoration: none; }
   padding: 32px 16px;
   text-align: center;
 }
+
+/* ========================================================================
+   1.8.34 — iPhone-topbar fix (definitiv)
+   --------------------------------------------------------------------------
+   Problemet: på iPhone (< 480 px) kolliderer brand-tittelen "MINFISKERIKONTROLL"
+   med synk-badgen og historikk-knappene. Denne blokken overstyrer alle
+   tidligere mobil-stiler for topbaren.
+   ======================================================================== */
+
+/* iPhone (≤ 480 px): minimalistisk topbar */
+@media (max-width: 480px) {
+  .sidebar-topbar {
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 52px;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .topbar-brand-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  /* Meny-trigger: kun logo, ingen "Meny"-tekst */
+  .brand-toggle.brand-menu-trigger {
+    flex: 0 0 auto;
+    padding: 4px;
+    background: transparent !important;
+    border: 0 !important;
+  }
+  .brand-toggle .brand-toggle-label,
+  .brand-menu-trigger .brand-toggle-label {
+    display: none !important;
+  }
+  .brand-toggle .brand-badge,
+  .brand-menu-trigger .brand-badge {
+    width: 36px !important;
+    height: 36px !important;
+  }
+  .brand-toggle .brand-badge img {
+    width: 36px !important;
+    height: 36px !important;
+  }
+
+  /* Brand-tittel: kort, én linje, ellipsis hvis for lang */
+  .brand-home-link {
+    flex: 1 1 auto;
+    min-width: 0;
+    text-decoration: none;
+    overflow: hidden;
+  }
+  .brand-home-link .brand-meta {
+    min-width: 0;
+    overflow: hidden;
+  }
+  .brand-home-link .brand-title {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0 !important;
+    align-items: flex-start !important;
+    line-height: 1.05;
+  }
+  .brand-home-link .brand-org-name {
+    font-size: 0.62rem !important;
+    line-height: 1.1 !important;
+    letter-spacing: 0.06em !important;
+    opacity: 0.7 !important;
+    text-transform: uppercase !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    max-width: 100%;
+  }
+  .brand-home-link .brand-app-name {
+    font-size: 0.96rem !important;
+    line-height: 1.1 !important;
+    font-weight: 700 !important;
+    letter-spacing: -0.01em !important;
+    text-transform: none !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    max-width: 100%;
+  }
+  .brand-home-link .brand-version,
+  .brand-home-link .sidebar-subtitle {
+    display: none !important;
+  }
+
+  /* Actions-gruppe: tett komprimert, ingen overlapp */
+  .topbar-actions {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  /* Synk-badge: kun ikon på iPhone (ingen tekst, kompakt sirkel) */
+  .mk-sync-badge {
+    width: 36px;
+    height: 36px;
+    padding: 0 !important;
+    border-radius: 50%;
+    justify-content: center;
+  }
+  .mk-sync-badge .mk-sync-text {
+    display: none !important;
+  }
+  .mk-sync-badge .mk-sync-count {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    min-width: 16px;
+    height: 16px;
+    border-radius: 8px;
+    font-size: 0.65rem;
+    padding: 0 4px;
+    border: 2px solid #11365a;
+  }
+  .mk-sync-badge {
+    position: relative;
+  }
+
+  /* Historikk-knapper: kompakte men trykkbare */
+  .history-controls {
+    display: inline-flex;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  .history-btn {
+    width: 36px !important;
+    height: 36px !important;
+    padding: 0 !important;
+    border-radius: 10px !important;
+    flex-shrink: 0;
+  }
+  .history-btn svg {
+    width: 16px !important;
+    height: 16px !important;
+  }
+}
+
+/* Ekstra smal iPhone (≤ 380 px – iPhone SE 1. gen.): skjul org-name helt */
+@media (max-width: 380px) {
+  .brand-home-link .brand-org-name {
+    display: none !important;
+  }
+  .brand-home-link .brand-app-name {
+    font-size: 0.92rem !important;
+  }
+  .topbar-actions { gap: 4px; }
+}
+
+/* Sidebar-mobile-modus: fjern grid-overstyringen som gjør tittel for stor */
+@media (max-width: 960px) and (min-width: 481px) {
+  .brand-home-link .brand-org-name {
+    font-size: 0.74rem !important;
+    line-height: 1.1;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    opacity: 0.7;
+  }
+  .brand-home-link .brand-app-name {
+    font-size: 1.05rem !important;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    text-transform: none;
+  }
+}
+
+/* ========================================================================
+   1.8.34 — Topbar fix for iPhone + bulletproof admin
+   ======================================================================== */
+
+/* ------------------------------------------------------------------------
+   TOPBAR: full kontroll på iPhone-størrelse.
+   Problem løst: "MINFISKERIKONTROLL" + sync-badge + back/forward overflowet.
+   ------------------------------------------------------------------------ */
+
+/* iPhone og smale tablets — kraftig forenkling */
+@media (max-width: 640px) {
+  /* Sidebar topbar: tett rad, ingen wrap, ingen overlap */
+  .sidebar-topbar {
+    grid-template-columns: auto minmax(0, 1fr) auto !important;
+    align-items: center;
+    gap: 8px !important;
+    min-height: 52px;
+    padding-right: 4px;
+  }
+  .topbar-brand-group {
+    display: contents;  /* la grid-en styre alle barna direkte */
+  }
+
+  /* Logo: kompakt og fast bredde */
+  .brand-menu-trigger {
+    grid-column: 1;
+    flex-shrink: 0;
+  }
+  .brand-menu-trigger .brand-badge {
+    width: 42px !important;
+    height: 42px !important;
+  }
+  .brand-menu-trigger .brand-badge img {
+    width: 42px !important;
+    height: 42px !important;
+  }
+
+  /* Brand-tekst: kompakt, single-line, ellipsis */
+  .brand-home-link {
+    grid-column: 2;
+    min-width: 0;
+    overflow: hidden;
+    flex: 1 1 auto;
+  }
+  .brand-home-link .brand-meta {
+    display: block !important;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .brand-home-link .brand-title {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0 !important;
+    align-items: flex-start !important;
+    line-height: 1.05;
+    min-width: 0;
+  }
+  .brand-home-link .brand-org-name {
+    font-size: 0.78rem !important;
+    line-height: 1.1 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 700 !important;
+    opacity: 0.78;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    display: block;
+  }
+  .brand-home-link .brand-app-name {
+    font-size: 1rem !important;
+    line-height: 1.15 !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.015em;
+    color: #fff;
+    text-transform: none !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    display: block;
+  }
+  .brand-home-link .brand-version,
+  .brand-home-link .sidebar-subtitle,
+  .brand-menu-trigger .brand-toggle-label {
+    display: none !important;
+  }
+
+  /* Topbar actions: kompakt, sync badge bare ikon, history bare hvis plass */
+  .topbar-actions {
+    grid-column: 3;
+    margin-left: 0;
+    gap: 6px !important;
+    flex-shrink: 0;
+  }
+  .mk-sync-badge {
+    width: 36px;
+    height: 36px;
+    padding: 0 !important;
+    justify-content: center;
+  }
+  .mk-sync-badge .mk-sync-text { display: none !important; }
+  .mk-sync-badge .mk-sync-count {
+    /* Hvis det er et nummer, vis det som liten boble oppå ikonet */
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    min-width: 16px;
+    height: 16px;
+    font-size: 0.62rem;
+    padding: 0 3px;
+  }
+  .mk-sync-badge { position: relative; }
+  .history-controls { gap: 4px; }
+  .history-btn {
+    width: 36px !important;
+    height: 36px !important;
+  }
+  .history-btn svg { width: 16px !important; height: 16px !important; }
+}
+
+/* Veldig smale telefoner (iPhone SE, mini) — skjul én history-knapp */
+@media (max-width: 380px) {
+  .sidebar-topbar { gap: 6px !important; }
+  .brand-menu-trigger .brand-badge,
+  .brand-menu-trigger .brand-badge img {
+    width: 38px !important;
+    height: 38px !important;
+  }
+  .brand-home-link .brand-org-name { font-size: 0.7rem !important; }
+  .brand-home-link .brand-app-name { font-size: 0.95rem !important; }
+  /* Behold bare back-knappen, skjul forward */
+  #history-forward-btn { display: none; }
+  /* Sync badge enda mindre */
+  .mk-sync-badge { width: 34px; height: 34px; }
+  .history-btn {
+    width: 34px !important;
+    height: 34px !important;
+  }
+}
+
+/* Sikre at brand-text-CSS-en min IKKE påvirker mobile (jeg satte 0.7rem
+   tidligere — det blir overstyrt av de eksplisitte mobile-reglene over) */
