@@ -93,7 +93,7 @@ async def admin_create_user(request: Request):
             raise HTTPException(status_code=400, detail='Det finnes allerede en bruker med denne e-postadressen.')
         permissions = _selected_permissions(form, role)
         case_prefix = validate_case_prefix(raw['case_prefix'] or 'LBHN')
-        phone = validate_login_mobile(raw['phone'], required=(role != 'admin'))
+        phone = validate_login_mobile(raw['phone'], required=False)
     except HTTPException as exc:
         logger.info('Valideringsfeil ved brukeropprettelse: %s', exc.detail)
         return _render_error(str(exc.detail))
@@ -116,7 +116,7 @@ async def admin_create_user(request: Request):
             last_witness_name=raw['last_witness_name'] or None,
             case_prefix=case_prefix,
             active=True,
-            two_factor_required=(role != 'admin'),
+            two_factor_required=False,
         )
     except sqlite3.IntegrityError as exc:
         logger.warning('IntegrityError ved create_user: %s', exc)
@@ -133,10 +133,10 @@ async def admin_create_user(request: Request):
         # Audit failure should not block user creation
         logger.warning('Audit-logg for create_user feilet (ignorert): %s', exc)
 
-    # Optional: SMS invitation
+    # Optional: SMS invitation (available for any user with a phone number)
     invite_status = ''
     send_invite = str(form.get('send_invitation_sms') or '').strip() in {'1', 'true', 'on', 'yes'}
-    if send_invite and phone and role != 'admin':
+    if send_invite and phone:
         try:
             login_url = str(request.base_url).rstrip('/') + '/login'
             send_user_invitation(phone, raw['full_name'], password, login_url=login_url)
@@ -184,7 +184,7 @@ async def admin_update_user(request: Request, user_id: int):
         witness = str(form.get('last_witness_name') or '').strip() or None
         case_prefix = validate_case_prefix(form.get('case_prefix') or user_row.get('case_prefix') or 'LBHN')
         address = str(form.get('address') or '').strip() or None
-        phone = validate_login_mobile(form.get('phone'), required=(role != 'admin' and active))
+        phone = validate_login_mobile(form.get('phone'), required=False)
         vessel_affiliation = str(form.get('vessel_affiliation') or '').strip() or None
         db.update_user(
             user_id,
@@ -198,7 +198,7 @@ async def admin_update_user(request: Request, user_id: int):
             last_complainant_name=complainant,
             last_witness_name=witness,
             case_prefix=case_prefix,
-            two_factor_required=(role != 'admin'),
+            two_factor_required=False,
         )
         db.record_audit(admin['id'], 'update_user', 'user', user_id, {'role': role, 'active': active, 'permissions': permissions, 'case_prefix': case_prefix})
     except HTTPException as exc:

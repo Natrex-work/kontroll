@@ -157,6 +157,8 @@ async def login(request: Request):
 
 @router.get('/login/2fa', response_class=HTMLResponse)
 def login_2fa_page(request: Request):
+    if not settings.otp_enabled:
+        return RedirectResponse('/login', status_code=HTTP_303_SEE_OTHER)
     challenge_id = request.session.get(PENDING_OTP_CHALLENGE_ID)
     user_id = request.session.get(PENDING_OTP_USER_ID)
     if not challenge_id or not user_id:
@@ -171,6 +173,8 @@ def login_2fa_page(request: Request):
 
 @router.post('/login/2fa')
 async def login_2fa(request: Request):
+    if not settings.otp_enabled:
+        return RedirectResponse('/login', status_code=HTTP_303_SEE_OTHER)
     form = await request.form()
     try:
         enforce_csrf(request, form)
@@ -213,6 +217,8 @@ async def login_2fa(request: Request):
 
 @router.post('/login/2fa/resend')
 async def resend_login_2fa(request: Request):
+    if not settings.otp_enabled:
+        return RedirectResponse('/login', status_code=HTTP_303_SEE_OTHER)
     form = await request.form()
     try:
         enforce_csrf(request, form)

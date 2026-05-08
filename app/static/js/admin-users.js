@@ -32,22 +32,21 @@
 
     var isAdmin = (role === 'admin');
 
+    // Phone is always optional now (no SMS code requirement at login)
     if (phoneInput) {
-      phoneInput.required = !isAdmin;
-      phoneInput.setAttribute('aria-required', isAdmin ? 'false' : 'true');
+      phoneInput.required = false;
+      phoneInput.setAttribute('aria-required', 'false');
     }
-    if (phoneReq) phoneReq.style.display = isAdmin ? 'none' : 'inline';
+    if (phoneReq) phoneReq.style.display = 'none';
     if (phoneHint) {
-      phoneHint.textContent = isAdmin
-        ? 'Valgfritt for admin (admin er unntatt 2-trinnskravet).'
-        : 'Norsk mobilnummer (8 siffer). SMS-kode sendes hit ved innlogging.';
+      phoneHint.textContent = 'Norsk mobilnummer (8 siffer). Brukes hvis du sender invitasjon på SMS.';
     }
     if (permsWrap) permsWrap.classList.toggle('hidden', isAdmin);
     if (permsInfo) permsInfo.classList.toggle('hidden', !isAdmin);
     if (roleHint) {
       roleHint.textContent = isAdmin
-        ? 'Admin har full tilgang til alle moduler og er unntatt 2-trinnskravet.'
-        : 'Etterforsker logger inn med passord + SMS-kode. Admin er unntatt 2-trinn.';
+        ? 'Admin har full tilgang til alle moduler og brukerstyring.'
+        : 'Etterforsker har tilgang til kontroll, kart og regelverk.';
     }
   }
 
@@ -167,16 +166,9 @@
   function initLegacyPhoneRequired() {
     var inputs = document.querySelectorAll('[data-phone-input-for-role-select]');
     inputs.forEach(function (input) {
-      var roleId = input.getAttribute('data-phone-input-for-role-select');
-      var select = roleId ? document.getElementById(roleId) : null;
-      function sync() {
-        if (!select) return;
-        var isAdmin = String(select.value || '').toLowerCase() === 'admin';
-        input.required = !isAdmin;
-        input.setAttribute('aria-required', isAdmin ? 'false' : 'true');
-      }
-      sync();
-      if (select) select.addEventListener('change', sync);
+      // Phone is always optional now
+      input.required = false;
+      input.setAttribute('aria-required', 'false');
     });
 
     var panels = document.querySelectorAll('.permission-panel');
