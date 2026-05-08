@@ -277,6 +277,31 @@ def init_db() -> None:
                 created_at TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS hummerfiskere_register (
+                deltakernummer TEXT PRIMARY KEY,
+                navn TEXT,
+                adresse TEXT,
+                postnummer TEXT,
+                poststed TEXT,
+                mobil TEXT,
+                fartoy_navn TEXT,
+                fartoy_reg TEXT,
+                source TEXT NOT NULL DEFAULT 'fiskeridir',
+                fetched_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_hummerfiskere_navn ON hummerfiskere_register(navn);
+            CREATE INDEX IF NOT EXISTS idx_hummerfiskere_postnummer ON hummerfiskere_register(postnummer);
+
+            CREATE TABLE IF NOT EXISTS hummerfiskere_register_meta (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                last_fetch_attempt_at TEXT,
+                last_fetch_success_at TEXT,
+                last_fetch_status TEXT,
+                last_fetch_error TEXT,
+                row_count INTEGER NOT NULL DEFAULT 0
+            );
+
             CREATE INDEX IF NOT EXISTS idx_cases_created_by_deleted_updated ON cases(created_by, deleted_at, updated_at);
             CREATE INDEX IF NOT EXISTS idx_cases_deleted_updated ON cases(deleted_at, updated_at);
             CREATE INDEX IF NOT EXISTS idx_cases_status_updated ON cases(status, updated_at);
@@ -1178,3 +1203,105 @@ def related_gear_summary(phone: str = '', name: str = '', address: str = '', spe
             'status': row.get('status'),
         })
     return {'count_total': total, 'matches': cases}
+
+
+# ---------------------------------------------------------------------------
+# Hummerfiskere-register (fra Fiskeridirektoratet)
+# ---------------------------------------------------------------------------
+
+def _normalize_deltakernummer(value: str | None) -> str:
+    digits = ''.join(ch for ch in str(value or '') if ch.isdigit())
+    return digits
+
+
+def upsert_hummerfisker(record: dict[str, Any], *, source: str = 'fiskeridir') -> bool:
+    """Insert or update one row in the hummer-register cache. Returns True if changed."""
+    nr = _normalize_deltakernummer(record.get('deltakernummer'))
+    if not nr:
+        return False
+    now = utcnow_iso()
+    fields = {
+        'deltakernummer': nr,
+        'navn': str(record.get('navn') or '').strip() or None,
+        'adresse': str(record.get('adresse') or '').strip() or None,
+        'postnummer': ''.join(ch for ch in str(record.get('postnummer') or '') if ch.isdigit())[:4] or None,
+        'poststed': str(record.get('poststed') or '').strip() or None,
+        'mobil': str(record.get('mobil') or '').strip() or None,
+        'fartoy_navn': str(record.get('fartoy_navn') or '').strip() or None,
+        'fartoy_reg': str(record.get('fartoy_reg') or '').strip() or None,
+        'source': source,
+        'fetched_at': now,
+        'updated_at': now,
+    }
+    with get_conn() as conn:
+        existing = conn.execute('SELECT * FROM hummerfiskere_register WHERE deltakernummer = ?', (nr,)).fetchone()
+        if existing and all(str(existing[k] or '') == str(fields[k] or '') for k in ('navn', 'adresse', 'postnummer', 'poststed', 'mobil', 'fartoy_navn', 'fartoy_reg')):
+            # No data change — only update fetched_at to keep cache fresh
+            conn.execute('UPDATE hummerfiskere_register SET fetched_at = ? WHERE deltakernummer = ?', (now, nr))
+            conn.commit()
+            return False
+        conn.execute(
+            '''INSERT INTO hummerfiskere_register
+               (deltakernummer, navn, adresse, postnummer, poststed, mobil, fartoy_navn, fartoy_reg, source, fetched_at, updated_at)
+               VALUES (:deltakernummer, :navn, :adresse, :postnummer, :poststed, :mobil, :fartoy_navn, :fartoy_reg, :source, :fetched_at, :updated_at)
+               ON CONFLICT(deltakernummer) DO UPDATE SET
+                 navn = excluded.navn,
+                 adresse = excluded.adresse,
+                 postnummer = excluded.postnummer,
+                 poststed = excluded.poststed,
+                 mobil = excluded.mobil,
+                 fartoy_navn = excluded.fartoy_navn,
+                 fartoy_reg = excluded.fartoy_reg,
+                 source = excluded.source,
+                 fetched_at = excluded.fetched_at,
+                 updated_at = excluded.updated_at''',
+            fields,
+        )
+        conn.commit()
+        return True
+
+
+def lookup_hummerfisker(deltakernummer: str) -> Optional[Dict[str, Any]]:
+    nr = _normalize_deltakernummer(deltakernummer)
+    if not nr:
+        return None
+    with get_conn() as conn:
+        row = conn.execute('SELECT * FROM hummerfiskere_register WHERE deltakernummer = ?', (nr,)).fetchone()
+        return dict(row) if row else None
+
+
+def count_hummerfiskere() -> int:
+    with get_conn() as conn:
+        row = conn.execute('SELECT COUNT(*) AS c FROM hummerfiskere_register').fetchone()
+        return int(row['c']) if row else 0
+
+
+def set_hummerfiskere_meta(*, success: bool, error: str = '', row_count: int = 0) -> None:
+    now = utcnow_iso()
+    with get_conn() as conn:
+        existing = conn.execute('SELECT id FROM hummerfiskere_register_meta WHERE id = 1').fetchone()
+        if existing:
+            if success:
+                conn.execute(
+                    'UPDATE hummerfiskere_register_meta SET last_fetch_attempt_at = ?, last_fetch_success_at = ?, last_fetch_status = ?, last_fetch_error = ?, row_count = ? WHERE id = 1',
+                    (now, now, 'success', '', row_count),
+                )
+            else:
+                conn.execute(
+                    'UPDATE hummerfiskere_register_meta SET last_fetch_attempt_at = ?, last_fetch_status = ?, last_fetch_error = ? WHERE id = 1',
+                    (now, 'failed', error[:500]),
+                )
+        else:
+            conn.execute(
+                'INSERT INTO hummerfiskere_register_meta(id, last_fetch_attempt_at, last_fetch_success_at, last_fetch_status, last_fetch_error, row_count) VALUES (1, ?, ?, ?, ?, ?)',
+                (now, now if success else None, 'success' if success else 'failed', '' if success else error[:500], row_count if success else 0),
+            )
+        conn.commit()
+
+
+def get_hummerfiskere_meta() -> Dict[str, Any]:
+    with get_conn() as conn:
+        row = conn.execute('SELECT * FROM hummerfiskere_register_meta WHERE id = 1').fetchone()
+        if not row:
+            return {'last_fetch_attempt_at': None, 'last_fetch_success_at': None, 'last_fetch_status': 'never_fetched', 'last_fetch_error': '', 'row_count': 0}
+        return dict(row)

@@ -548,3 +548,133 @@
 
   ready(initMapOverview);
 })();
+
+/**
+ * 1.8.36 — Mobile-first enhancements
+ *
+ * Tilleggsmodul som kjører etter at hovedinitialiseringen er ferdig.
+ * - Auto-hent posisjon ved sidelast (med fallback hvis bruker avslår)
+ * - Oppdater bunnpanel-tellern når relevante områder blir funnet
+ * - Lag-panel toggle via FAB
+ * - Oppdater statusbanner med ikon + tekst-format
+ */
+(function () {
+  'use strict';
+
+  function ready(fn) {
+    if (document.readyState !== 'loading') fn();
+    else document.addEventListener('DOMContentLoaded', fn);
+  }
+
+  function setStatus(text, kind) {
+    var banner = document.getElementById('overview-map-status');
+    if (!banner) return;
+    var span = banner.querySelector('.map-status-text');
+    if (span) span.textContent = String(text || '');
+    else banner.textContent = String(text || '');
+    banner.classList.remove('map-status-info', 'map-status-success', 'map-status-warning', 'map-status-error');
+    if (kind) banner.classList.add('map-status-' + kind);
+  }
+
+  function updateBottomSheetCount() {
+    var list = document.getElementById('overview-relevant-areas-list');
+    var count = document.getElementById('map-bottom-sheet-count');
+    if (!list || !count) return;
+    // Count actual finding rows (not the placeholder)
+    var rows = list.querySelectorAll('.map-finding-row, .map-relevant-row, [data-area-row]');
+    var n = rows.length;
+    if (!n && list.querySelector('.map-empty-card')) {
+      count.textContent = 'Vises etter posisjonssjekk';
+    } else if (n === 0) {
+      count.textContent = 'Ingen treff';
+    } else {
+      count.textContent = n + ' ' + (n === 1 ? 'område' : 'områder') + ' i nærheten';
+    }
+  }
+
+  function watchListChanges() {
+    var list = document.getElementById('overview-relevant-areas-list');
+    if (!list || !window.MutationObserver) return;
+    var obs = new MutationObserver(updateBottomSheetCount);
+    obs.observe(list, { childList: true, subtree: true });
+    updateBottomSheetCount();
+  }
+
+  function autoLocate() {
+    // Auto-trigger location after the map has had a chance to initialize.
+    var btn = document.getElementById('btn-overview-location');
+    if (!btn) return;
+    if (!navigator.geolocation) {
+      setStatus('Denne enheten støtter ikke geolokasjon i nettleseren. Du kan fortsatt bruke kartet manuelt.', 'warning');
+      return;
+    }
+    // Check if we already have permission to avoid the prompt being shown after click
+    if (navigator.permissions && navigator.permissions.query) {
+      navigator.permissions.query({ name: 'geolocation' }).then(function (result) {
+        if (result.state === 'granted') {
+          // Auto-locate silently
+          setTimeout(function () { btn.click(); }, 800);
+        } else if (result.state === 'prompt') {
+          setStatus('Trykk på 📍-knappen for å vise din posisjon. Regulerte områder lastes inn på kartet.', 'info');
+        } else {
+          setStatus('Posisjonsdeling er avslått. Bruk kartet manuelt eller endre tilgangen i nettleserinnstillingene.', 'warning');
+        }
+      }).catch(function () {
+        // Some browsers (Safari) don't support permissions.query — try anyway
+        setTimeout(function () { btn.click(); }, 1000);
+      });
+    } else {
+      // Fallback: just attempt to auto-locate (browser will prompt if needed)
+      setTimeout(function () { btn.click(); }, 1000);
+    }
+  }
+
+  function initLayerPanelToggle() {
+    var btn = document.getElementById('btn-toggle-layer-panel');
+    var panel = document.getElementById('overview-map-layer-panel-host');
+    if (!btn || !panel) return;
+    btn.addEventListener('click', function () {
+      var isHidden = panel.classList.contains('hidden') || panel.style.display === 'none';
+      if (isHidden) {
+        panel.classList.remove('hidden');
+        panel.style.display = '';
+        panel.setAttribute('aria-hidden', 'false');
+        btn.classList.add('map-fab-active');
+      } else {
+        panel.classList.add('hidden');
+        panel.setAttribute('aria-hidden', 'true');
+        btn.classList.remove('map-fab-active');
+      }
+    });
+    // Close panel when clicking outside
+    document.addEventListener('click', function (e) {
+      if (panel.classList.contains('hidden')) return;
+      if (panel.contains(e.target) || btn.contains(e.target)) return;
+      panel.classList.add('hidden');
+      panel.setAttribute('aria-hidden', 'true');
+      btn.classList.remove('map-fab-active');
+    });
+  }
+
+  function initBottomSheetMobile() {
+    // On mobile, default the bottom sheet to closed.
+    if (window.innerWidth > 720) return;
+    var sheet = document.getElementById('map-bottom-sheet');
+    if (sheet) sheet.removeAttribute('open');
+  }
+
+  function styleStatusBannerInitial() {
+    setStatus('Trykk på 📍 for å vise din posisjon. Regulerte områder vises på kartet.', 'info');
+  }
+
+  ready(function () {
+    // Wait for the main initMapOverview to finish (it sets statusEl text)
+    setTimeout(function () {
+      styleStatusBannerInitial();
+      watchListChanges();
+      initLayerPanelToggle();
+      initBottomSheetMobile();
+      autoLocate();
+    }, 200);
+  });
+})();

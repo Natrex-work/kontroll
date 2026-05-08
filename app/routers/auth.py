@@ -128,23 +128,37 @@ async def login(request: Request):
     try:
         enforce_csrf(request, form)
     except HTTPException:
-        return render_template(request, 'login.html', error='Sikkerhetssjekk feilet. Last siden på nytt og prøv igjen.')
+        return render_template(request, 'login.html',
+            error_title='Sikkerhetssjekk mislyktes',
+            error='Last siden på nytt og prøv å logge inn igjen.')
     email = str(form.get('email') or '').strip().lower()
     password = str(form.get('password') or '')
     try:
         check_login_rate_limit(request, email)
     except HTTPException as exc:
-        return render_template(request, 'login.html', error=exc.detail)
+        return render_template(request, 'login.html',
+            error_title='For mange forsøk',
+            error='Av sikkerhetshensyn er innlogging midlertidig sperret. Vent noen minutter før du prøver igjen.',
+            email_value=email)
     user = db.get_user_by_email(email)
     if not user or not verify_password(password, user['password_hash']):
         record_login_failure(request, email)
-        return render_template(request, 'login.html', error='Feil e-post eller passord.')
+        return render_template(request, 'login.html',
+            error_title='Feil e-postadresse eller passord',
+            error='Kontroller at du har skrevet riktig e-postadresse og passord, og prøv igjen.',
+            email_value=email)
     if not int(user.get('active', 1)):
         record_login_failure(request, email)
-        return render_template(request, 'login.html', error='Brukeren er deaktivert av admin.')
+        return render_template(request, 'login.html',
+            error_title='Kontoen er deaktivert',
+            error='Tilgangen til denne kontoen er midlertidig sperret. Kontakt administrator for å få den gjenåpnet.',
+            email_value=email)
     landing = first_allowed_path(user)
     if not landing:
-        return render_template(request, 'login.html', error='Brukeren har ingen aktive moduler. Kontakt admin.')
+        return render_template(request, 'login.html',
+            error_title='Ingen tilganger tildelt',
+            error='Brukerkontoen din er aktiv, men har ingen moduler tildelt. Kontakt administrator.',
+            email_value=email)
     if password_needs_rehash(user['password_hash']):
         db.set_user_password(int(user['id']), hash_password(password))
     clear_login_failures(request, email)

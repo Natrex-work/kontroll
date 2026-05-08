@@ -6,7 +6,7 @@
 <section class="login-wrap login-wrap-brand" aria-labelledby="login-heading">
   <div class="login-hero-copy">
     <div class="login-brand-row">
-      <span class="login-brand-badge brand-badge-logo" aria-hidden="true"><img src="/static/logo.png?v=1.8.35" alt="" width="72" height="72" /></span>
+      <span class="login-brand-badge brand-badge-logo" aria-hidden="true"><img src="/static/logo.png?v=1.8.37" alt="" width="72" height="72" /></span>
       <div>
         <div class="login-brand-org">{{ brand_org_name }}</div>
         <div class="login-brand-app">{{ display_app_name }}</div>
@@ -18,7 +18,7 @@
   <div class="login-card login-card-brand">
     <header class="login-card-head login-card-head-clean">
       <div class="login-card-title">
-        <span class="brand-badge brand-badge-logo brand-badge-md" aria-hidden="true"><img src="/static/logo.png?v=1.8.35" alt="" width="44" height="44" /></span>
+        <span class="brand-badge brand-badge-logo brand-badge-md" aria-hidden="true"><img src="/static/logo.png?v=1.8.37" alt="" width="44" height="44" /></span>
         <div>
           <strong>{{ display_app_name }}</strong>
           <span class="muted small">Sikker innlogging</span>
@@ -27,7 +27,15 @@
     </header>
 
     {% if error %}
-      <div class="alert alert-error" role="alert">{{ error }}</div>
+      <div class="login-alert-pro" role="alert" aria-live="assertive">
+        <span class="login-alert-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+        </span>
+        <div class="login-alert-body">
+          <strong class="login-alert-title">{{ error_title or 'Innlogging mislyktes' }}</strong>
+          <span class="login-alert-msg">{{ error }}</span>
+        </div>
+      </div>
     {% endif %}
 
     <form method="post" action="/login" class="stack gap-m" novalidate>
@@ -36,6 +44,7 @@
         <span class="field-label">E-post</span>
         <input name="email" type="email" inputmode="email" placeholder="navn@eksempel.no"
           autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false"
+          value="{{ email_value or '' }}"
           required aria-required="true" />
       </label>
       <label class="field">

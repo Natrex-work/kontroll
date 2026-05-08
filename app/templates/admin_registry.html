@@ -1,0 +1,198 @@
+{% extends 'base.html' %}
+{% block title %}Hummerregister · {{ app_name }}{% endblock %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>Hummerregister</h1>
+    <p class="muted">Deltakerlisten brukes til automatisk oppslag når Person/Fartøy-bilde leses. Data hentes fra Fiskeridirektoratets tableau-visning.</p>
+  </div>
+</section>
+
+{% set qp = request.query_params %}
+{% if qp.get('uploaded') %}
+<div class="alert alert-success" role="status">
+  ✅ Lastet opp <strong>{{ qp.get('uploaded') }}</strong> deltakere fra CSV-fil. Cachen er nå oppdatert.
+</div>
+{% endif %}
+{% if qp.get('refreshed') %}
+<div class="alert alert-success" role="status">
+  ✅ Live-henting fra Fiskeridirektoratet ferdig. <strong>{{ qp.get('refreshed') }}</strong> deltakere lastet inn.
+</div>
+{% endif %}
+{% if qp.get('cleared') %}
+<div class="alert alert-warning" role="status">⚠️ Cachen er tømt.</div>
+{% endif %}
+{% if qp.get('error') %}
+<div class="alert alert-error" role="alert">
+  {% set err = qp.get('error') %}
+  {% if err == 'csrf' %}Sikkerhetssjekk feilet. Last siden på nytt.
+  {% elif err == 'format' %}Ugyldig filformat. Last opp en CSV-, TSV- eller TXT-fil.
+  {% elif err == 'read' %}Kunne ikke lese filen. Prøv igjen.
+  {% elif err == 'empty' %}Filen er tom.
+  {% elif err == 'size' %}Filen er for stor (maks 25 MB).
+  {% elif err == 'encoding' %}Kunne ikke tolke tegnsettet i filen. Lagre som UTF-8 og prøv igjen.
+  {% elif err == 'parse' %}Kunne ikke tolke CSV-strukturen. Sjekk at filen har kolonner for navn og deltakernummer.
+  {% elif err == 'norows' %}Ingen gyldige deltakere ble funnet i filen.
+  {% elif err == 'write' %}Kunne ikke lagre cachen på serveren.
+  {% elif err == 'live' %}Live-henting feilet. Tableau-visningen krever som regel manuell nedlasting og opplasting.
+  {% elif err == 'empty_live' %}Live-henting fant ingen rader. Bruk manuell opplasting.
+  {% elif err == 'clear' %}Kunne ikke tømme cachen.
+  {% else %}Ukjent feil.
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="grid-two">
+
+  <!-- ===================== Cache-status ===================== -->
+  <section class="card">
+    <div class="card-header">
+      <h2>Cache-status</h2>
+    </div>
+    <div class="hummer-status">
+      {% if hummer_status.has_cache %}
+        <div class="hummer-status-row hummer-status-ok">
+          <span class="hummer-status-icon">✅</span>
+          <div>
+            <strong>{{ hummer_status.count }} deltakere lastet</strong>
+            {% if hummer_status.fetched_at_iso %}
+              <div class="muted small">
+                Sist oppdatert {{ hummer_status.fetched_at_iso }}
+                {% if hummer_status.fetched_age_hours is not none %}
+                  ({{ hummer_status.fetched_age_hours }} timer siden)
+                {% endif %}
+              </div>
+            {% endif %}
+            {% if hummer_status.source_url %}
+              <div class="muted small">Kilde: {{ hummer_status.source_url }}</div>
+            {% endif %}
+          </div>
+        </div>
+      {% else %}
+        <div class="hummer-status-row hummer-status-empty">
+          <span class="hummer-status-icon">⚠️</span>
+          <div>
+            <strong>Ingen deltakerliste er lastet inn</strong>
+            <div class="muted small">Last opp CSV manuelt eller prøv live-henting.</div>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="actions-row wrap margin-top-m">
+      <form method="post" action="/admin/registry/hummer/refresh" class="inline-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        <button class="btn btn-secondary btn-small" type="submit">
+          🔄 Prøv live-henting nå
+        </button>
+      </form>
+      {% if hummer_status.has_cache %}
+      <form method="post" action="/admin/registry/hummer/clear" class="inline-form"
+            data-confirm="Tøm hele hummerregister-cachen? Du må laste opp eller hente på nytt etterpå.">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        <button class="btn btn-danger btn-small" type="submit">Tøm cache</button>
+      </form>
+      <button class="btn btn-secondary btn-small" type="button" id="btn-show-sample">Vis eksempler</button>
+      {% endif %}
+    </div>
+
+    <div id="hummer-sample" class="hummer-sample-box hidden margin-top-m"></div>
+  </section>
+
+  <!-- ===================== Manuell opplasting ===================== -->
+  <section class="card">
+    <div class="card-header">
+      <h2>Last opp deltakerliste</h2>
+    </div>
+    <p class="muted small">
+      Tableau-visningen til Fiskeridirektoratet blokkerer ofte automatisk nedlasting (krever pålogging eller godkjent klient). Last ned data manuelt og last opp her:
+    </p>
+    <ol class="hummer-howto">
+      <li>Åpne <a href="{{ hummer_status.tableau_url }}" target="_blank" rel="noopener">tableau.fiskeridir.no — Påmeldte hummerfiskere</a></li>
+      <li>Klikk på «Last ned» (Download) i Tableau-verktøylinjen</li>
+      <li>Velg <strong>«Crosstab»</strong> eller <strong>«Data»</strong> som format</li>
+      <li>Velg <strong>CSV</strong> som filtype og lagre filen</li>
+      <li>Last opp filen her under</li>
+    </ol>
+
+    <form method="post" action="/admin/registry/hummer/upload" enctype="multipart/form-data" class="stack gap-m margin-top-m">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+      <label class="field">
+        <span class="field-label">CSV-fil fra Tableau</span>
+        <input type="file" name="file" accept=".csv,.tsv,.txt,text/csv" required />
+        <span class="field-hint">UTF-8 eller UTF-16, semikolon eller komma som skilletegn. Maks 25 MB.</span>
+      </label>
+      <button class="btn btn-primary" type="submit">Last opp og oppdater cache</button>
+    </form>
+
+    <details class="margin-top-m">
+      <summary class="muted small" style="cursor:pointer">Hvilke kolonner gjenkjennes?</summary>
+      <div class="muted small margin-top-s">
+        Parseren gjenkjenner kolonner med følgende navn (norske eller engelske, små eller store bokstaver):
+        <ul style="margin: 6px 0 0 18px; padding: 0;">
+          <li><code>navn</code> / <code>namn</code> / <code>fullt navn</code> / <code>name</code></li>
+          <li><code>deltakarnummer</code> / <code>deltakernummer</code> / <code>deltakarnr</code> / <code>participant_no</code></li>
+          <li><code>type fiskar</code> / <code>type fisker</code> / <code>fiskartype</code> / <code>fisher_type</code></li>
+          <li><code>sesong</code> / <code>år</code> / <code>year</code></li>
+        </ul>
+      </div>
+    </details>
+  </section>
+
+</div>
+
+<script>
+(function () {
+  var btn = document.getElementById('btn-show-sample');
+  var box = document.getElementById('hummer-sample');
+  if (!btn || !box) return;
+  btn.addEventListener('click', function () {
+    if (!box.classList.contains('hidden')) {
+      box.classList.add('hidden');
+      btn.textContent = 'Vis eksempler';
+      return;
+    }
+    btn.textContent = 'Henter…';
+    btn.disabled = true;
+    fetch('/admin/registry/hummer/sample.json', { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var rows = (data && data.rows) || [];
+        if (!rows.length) {
+          box.innerHTML = '<p class="muted small">Ingen rader å vise.</p>';
+        } else {
+          var html = '<table class="data-table"><thead><tr><th>Navn</th><th>Deltakernr</th><th>Type</th><th>Sesong</th></tr></thead><tbody>';
+          rows.forEach(function (r) {
+            html += '<tr>'
+              + '<td>' + escapeHtml(r.name || '') + '</td>'
+              + '<td><code>' + escapeHtml(r.participant_no || '') + '</code></td>'
+              + '<td class="muted small">' + escapeHtml(r.fisher_type || '') + '</td>'
+              + '<td class="muted small">' + escapeHtml(r.last_registered_year || '') + '</td>'
+              + '</tr>';
+          });
+          html += '</tbody></table>';
+          if (data.total && data.total > rows.length) {
+            html += '<p class="muted small margin-top-s">Viser ' + rows.length + ' av totalt ' + data.total + ' deltakere.</p>';
+          }
+          box.innerHTML = html;
+        }
+        box.classList.remove('hidden');
+        btn.textContent = 'Skjul eksempler';
+        btn.disabled = false;
+      })
+      .catch(function () {
+        box.innerHTML = '<p class="alert alert-error">Kunne ikke hente eksempler.</p>';
+        box.classList.remove('hidden');
+        btn.textContent = 'Vis eksempler';
+        btn.disabled = false;
+      });
+  });
+
+  function escapeHtml(s) {
+    return String(s || '').replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+})();
+</script>
+{% endblock %}

@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import json
 import sqlite3
+import time
+from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from starlette.status import HTTP_303_SEE_OTHER
 
-from .. import db
+from .. import db, live_sources, registry
 from ..auth import hash_password
 from ..dependencies import require_control_admin, require_user_admin
 from ..logging_setup import get_logger
@@ -282,3 +285,196 @@ async def admin_restore_control(request: Request, case_id: int):
     db.restore_case(case_id)
     db.record_audit(admin['id'], 'restore_case', 'case', case_id, {'case_number': case_row['case_number']})
     return RedirectResponse('/admin/controls?state=deleted&restored=1', status_code=HTTP_303_SEE_OTHER)
+
+
+# ---------------------------------------------------------------------------
+# Hummerregister-administrasjon (Tableau-import)
+# ---------------------------------------------------------------------------
+
+def _hummer_cache_status() -> dict:
+    """Return current cache status for display in admin UI."""
+    status = {
+        'has_cache': False,
+        'count': 0,
+        'fetched_at_iso': '',
+        'fetched_age_hours': None,
+        'source_url': '',
+        'tableau_url': live_sources.HUMMER_REGISTER_URL,
+        'fallback_url': live_sources.HUMMER_REGISTER_FALLBACK_URL,
+    }
+    try:
+        if live_sources.HUMMER_CACHE_JSON.exists():
+            data = json.loads(live_sources.HUMMER_CACHE_JSON.read_text(encoding='utf-8'))
+            if isinstance(data, list):
+                status['has_cache'] = True
+                status['count'] = len(data)
+        if live_sources.HUMMER_CACHE_META.exists():
+            meta = json.loads(live_sources.HUMMER_CACHE_META.read_text(encoding='utf-8'))
+            fetched_at = float(meta.get('fetched_at') or 0)
+            if fetched_at:
+                from datetime import datetime, timezone
+                dt = datetime.fromtimestamp(fetched_at, tz=timezone.utc)
+                status['fetched_at_iso'] = dt.strftime('%Y-%m-%d %H:%M UTC')
+                status['fetched_age_hours'] = round((time.time() - fetched_at) / 3600, 1)
+            status['source_url'] = str(meta.get('source_url') or '')
+    except Exception as exc:
+        logger.warning('Kunne ikke lese hummercache-status: %s', exc)
+    return status
+
+
+@router.get('/admin/registry', response_class=HTMLResponse)
+def admin_registry_page(request: Request):
+    require_user_admin(request)
+    return render_template(
+        request,
+        'admin_registry.html',
+        hummer_status=_hummer_cache_status(),
+    )
+
+
+@router.post('/admin/registry/hummer/upload')
+async def admin_registry_hummer_upload(request: Request, file: UploadFile = File(...)):
+    """Manuelt opplasting av hummer-CSV fra Tableau.
+
+    Admin kan laste ned CSV fra
+    https://tableau.fiskeridir.no/t/Internet/views/Pmeldehummarfiskarargjeldander/Pmeldehummarfiskarar
+    (via «Last ned» / «Crosstab» / «Data»-alternativene i Tableau-UI),
+    og laste den opp her. Filen parses og lagres i samme cache som
+    automatisk live-henting bruker.
+    """
+    admin = require_user_admin(request)
+    form = await request.form()
+    try:
+        enforce_csrf(request, form)
+    except HTTPException:
+        return RedirectResponse('/admin/registry?error=csrf', status_code=HTTP_303_SEE_OTHER)
+
+    filename = (file.filename or 'hummer.csv').lower()
+    if not filename.endswith(('.csv', '.tsv', '.txt')):
+        return RedirectResponse('/admin/registry?error=format', status_code=HTTP_303_SEE_OTHER)
+
+    try:
+        raw = await file.read()
+    except Exception as exc:
+        logger.warning('Kunne ikke lese opplastet hummer-CSV: %s', exc)
+        return RedirectResponse('/admin/registry?error=read', status_code=HTTP_303_SEE_OTHER)
+
+    if not raw:
+        return RedirectResponse('/admin/registry?error=empty', status_code=HTTP_303_SEE_OTHER)
+    if len(raw) > 25 * 1024 * 1024:  # 25 MB hard cap
+        return RedirectResponse('/admin/registry?error=size', status_code=HTTP_303_SEE_OTHER)
+
+    # Try common encodings used by Tableau exports (UTF-8 BOM, UTF-16, latin-1)
+    text = ''
+    for encoding in ('utf-8-sig', 'utf-8', 'utf-16', 'iso-8859-1', 'cp1252'):
+        try:
+            text = raw.decode(encoding)
+            break
+        except Exception:
+            continue
+    if not text:
+        return RedirectResponse('/admin/registry?error=encoding', status_code=HTTP_303_SEE_OTHER)
+
+    try:
+        rows = live_sources._parse_hummer_csv(text, source_url=f'admin-upload:{file.filename}')
+    except Exception as exc:
+        logger.warning('Parse av hummer-CSV feilet: %s', exc)
+        return RedirectResponse('/admin/registry?error=parse', status_code=HTTP_303_SEE_OTHER)
+
+    if not rows:
+        return RedirectResponse('/admin/registry?error=norows', status_code=HTTP_303_SEE_OTHER)
+
+    try:
+        live_sources.HUMMER_CACHE_JSON.parent.mkdir(parents=True, exist_ok=True)
+        live_sources.HUMMER_CACHE_JSON.write_text(
+            json.dumps(rows, ensure_ascii=False, indent=2),
+            encoding='utf-8',
+        )
+        live_sources.HUMMER_CACHE_META.write_text(
+            json.dumps(
+                {
+                    'fetched_at': time.time(),
+                    'source_url': f'Manuell opplasting: {file.filename}',
+                    'count': len(rows),
+                    'uploaded_by': admin.get('email'),
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding='utf-8',
+        )
+    except Exception as exc:
+        logger.error('Kunne ikke skrive hummercache-fil: %s', exc)
+        return RedirectResponse('/admin/registry?error=write', status_code=HTTP_303_SEE_OTHER)
+
+    try:
+        db.record_audit(admin['id'], 'hummer_registry_upload', 'registry', 0,
+                        {'rows': len(rows), 'filename': file.filename})
+    except Exception:
+        pass
+
+    return RedirectResponse(f'/admin/registry?uploaded={len(rows)}', status_code=HTTP_303_SEE_OTHER)
+
+
+@router.post('/admin/registry/hummer/refresh')
+async def admin_registry_hummer_refresh(request: Request):
+    admin = require_user_admin(request)
+    form = await request.form()
+    try:
+        enforce_csrf(request, form)
+    except HTTPException:
+        return RedirectResponse('/admin/registry?error=csrf', status_code=HTTP_303_SEE_OTHER)
+
+    try:
+        rows = live_sources.refresh_hummer_registry_cache(force=True)
+    except Exception as exc:
+        logger.warning('Live-henting av hummerregister feilet: %s', exc)
+        return RedirectResponse('/admin/registry?error=live', status_code=HTTP_303_SEE_OTHER)
+
+    try:
+        db.record_audit(admin['id'], 'hummer_registry_live_refresh', 'registry', 0,
+                        {'rows': len(rows or [])})
+    except Exception:
+        pass
+
+    if not rows:
+        return RedirectResponse('/admin/registry?error=empty_live', status_code=HTTP_303_SEE_OTHER)
+    return RedirectResponse(f'/admin/registry?refreshed={len(rows)}', status_code=HTTP_303_SEE_OTHER)
+
+
+@router.post('/admin/registry/hummer/clear')
+async def admin_registry_hummer_clear(request: Request):
+    admin = require_user_admin(request)
+    form = await request.form()
+    try:
+        enforce_csrf(request, form)
+    except HTTPException:
+        return RedirectResponse('/admin/registry?error=csrf', status_code=HTTP_303_SEE_OTHER)
+    try:
+        if live_sources.HUMMER_CACHE_JSON.exists():
+            live_sources.HUMMER_CACHE_JSON.unlink()
+        if live_sources.HUMMER_CACHE_META.exists():
+            live_sources.HUMMER_CACHE_META.unlink()
+    except Exception as exc:
+        logger.warning('Kunne ikke slette hummercache: %s', exc)
+        return RedirectResponse('/admin/registry?error=clear', status_code=HTTP_303_SEE_OTHER)
+    try:
+        db.record_audit(admin['id'], 'hummer_registry_clear', 'registry', 0, {})
+    except Exception:
+        pass
+    return RedirectResponse('/admin/registry?cleared=1', status_code=HTTP_303_SEE_OTHER)
+
+
+@router.get('/admin/registry/hummer/sample.json')
+def admin_registry_hummer_sample(request: Request):
+    """Returnerer 10 første rader fra cache for verifisering i admin-UI."""
+    require_user_admin(request)
+    if not live_sources.HUMMER_CACHE_JSON.exists():
+        return JSONResponse({'rows': []})
+    try:
+        data = json.loads(live_sources.HUMMER_CACHE_JSON.read_text(encoding='utf-8'))
+        if isinstance(data, list):
+            return JSONResponse({'rows': data[:10], 'total': len(data)})
+    except Exception:
+        pass
+    return JSONResponse({'rows': []})

@@ -223,7 +223,19 @@
               <label data-vision-field="postnummer"><span>Postnummer</span><input id="vision_postnummer" inputmode="numeric" autocomplete="postal-code" /></label>
               <label data-vision-field="poststed"><span>Poststed</span><input id="vision_poststed" autocomplete="address-level2" /></label>
               <label data-vision-field="mobil"><span>Mobil</span><input id="vision_mobil" inputmode="tel" autocomplete="tel" /></label>
-              <label data-vision-field="deltakernummer"><span>Deltakernummer</span><input id="vision_deltakernummer" inputmode="text" autocomplete="off" /></label>
+              <label data-vision-field="deltakernummer">
+                <span>Deltakernummer</span>
+                <div class="deltaker-input-row">
+                  <input id="vision_deltakernummer" inputmode="text" autocomplete="off" />
+                  <button type="button" class="btn btn-secondary btn-small deltaker-lookup-btn"
+                          id="btn-lookup-deltakernummer"
+                          title="Slå opp i Fiskeridirektoratets register over registrerte hummerfiskere"
+                          aria-label="Slå opp i Fiskeridir-registeret">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                    <span>Slå opp</span>
+                  </button>
+                </div>
+              </label>
               <label class="span-2" data-vision-field="annen_merking"><span>Annen merking</span><input id="vision_annen_merking" inputmode="text" autocomplete="off" /></label>
             </div>
             <div class="callout area-warning margin-top-s hidden" id="vision-uncertainty-box"></div>
@@ -643,5 +655,5 @@
   }
 })();
 </script>
-<script src="/static/js/case-app.js?v=1.8.35"></script>
+<script src="/static/js/case-app.js?v=1.8.37"></script>
 {% endblock %}

@@ -4885,7 +4885,12 @@
       }
       updateExternalSearchLinks();
       var uncertaintyText = Array.isArray(result.usikkerhet) ? result.usikkerhet.join(' ').toLowerCase() : '';
-      var analysisSource = uncertaintyText.indexOf('lokal ocr') !== -1 || uncertaintyText.indexOf('api-nøkkel') !== -1 ? 'Bildeanalyse / lokal OCR-reserve' : 'OpenAI bildeanalyse';
+      var analysisSource;
+      if (result.registry_match) {
+        analysisSource = 'Lokal OCR + hummerregister';
+      } else {
+        analysisSource = 'Lokal OCR (Tesseract)';
+      }
       renderAutofillPreview({ source: analysisSource, detail: (result.usikkerhet && result.usikkerhet.length) ? 'Kontroller markerte felt' : 'Skjemaet er fylt fra bilde' });
       if (changed) {
         loadGearSummary();
@@ -4935,7 +4940,20 @@
         fillPersonVisionFields(payload);
         var uncertain = Array.isArray(payload.usikkerhet) ? payload.usikkerhet.length : 0;
         if (registryResult) {
-          registryResult.innerHTML = '<strong>Bildeanalyse fullført</strong><div class="small muted">Feltene er fylt ut fra ' + personVisionFiles.length + ' bilde' + (personVisionFiles.length === 1 ? '' : 'r') + '. ' + (uncertain ? 'Kontroller markerte usikre felt.' : 'Ingen usikkerhet ble meldt fra bildeanalysen.') + '</div>';
+          var statusBits = [];
+          if (payload.registry_match) {
+            statusBits.push('<div class="callout callout-success" style="margin-top:6px"><strong>✓ Bekreftet i hummerregisteret</strong><div class="small">' + escapeHtml(payload.registry_source || 'Fiskeridirektoratet') + '</div></div>');
+          }
+          var headline = payload.registry_match
+            ? 'Bildeanalyse fullført og bekreftet mot Fiskeridirektoratet'
+            : 'Bildeanalyse fullført';
+          var detail = 'Feltene er fylt ut fra ' + personVisionFiles.length + ' bilde' + (personVisionFiles.length === 1 ? '' : 'r') + '. ';
+          if (payload.registry_match) {
+            detail += 'Navn, adresse og deltakernummer er hentet fra det offentlige registeret.';
+          } else {
+            detail += (uncertain ? 'Kontroller markerte usikre felt.' : 'Ingen usikkerhet ble meldt fra bildeanalysen.');
+          }
+          registryResult.innerHTML = '<strong>' + escapeHtml(headline) + '</strong><div class="small muted">' + detail + '</div>' + statusBits.join('');
         }
         return payload;
       }).catch(function (err) {
@@ -8510,6 +8528,71 @@ function renderHummerStatus(result) {
 
     if (btnApplyPersonVisionFields) btnApplyPersonVisionFields.addEventListener('click', function () {
       applyPersonVisionFieldsToCase(collectPersonVisionFields(), { silent: false });
+    });
+
+    var btnLookupDeltakernummer = document.getElementById('btn-lookup-deltakernummer');
+    if (btnLookupDeltakernummer) btnLookupDeltakernummer.addEventListener('click', function () {
+      var fields = personVisionFieldElements();
+      var deltaker = fields.deltakernummer ? String(fields.deltakernummer.value || '').trim() : '';
+      var navn = fields.navn ? String(fields.navn.value || '').trim() : '';
+      if (!deltaker && !navn) {
+        if (registryResult) registryResult.innerHTML = '<div class="small muted">Skriv inn deltakernummer eller navn først.</div>';
+        return;
+      }
+      var origText = btnLookupDeltakernummer.innerHTML;
+      btnLookupDeltakernummer.disabled = true;
+      btnLookupDeltakernummer.innerHTML = '<span>Slår opp …</span>';
+      if (registryResult) {
+        registryResult.innerHTML = '<strong>Slår opp i Fiskeridir-registeret</strong><div class="small muted">Henter fra tableau.fiskeridir.no …</div>';
+      }
+      var qs = 'deltakernummer=' + encodeURIComponent(deltaker) + '&navn=' + encodeURIComponent(navn);
+      fetch('/api/person-fartoy/lookup-deltakernummer?' + qs, {
+        credentials: 'same-origin',
+        headers: { 'X-CSRF-Token': csrfToken() || '' }
+      }).then(function (resp) {
+        return resp.json().then(function (data) { return { ok: resp.ok, status: resp.status, data: data }; });
+      }).then(function (result) {
+        btnLookupDeltakernummer.disabled = false;
+        btnLookupDeltakernummer.innerHTML = origText;
+        var data = result.data || {};
+        if (data.found) {
+          // Auto-fill the vision fields with authoritative data
+          if (data.navn && fields.navn) fields.navn.value = data.navn;
+          if (data.deltakernummer && fields.deltakernummer) fields.deltakernummer.value = data.deltakernummer;
+          if (data.adresse && fields.adresse && !fields.adresse.value) fields.adresse.value = data.adresse;
+          if (data.post_place && (!fields.postnummer.value || !fields.poststed.value)) {
+            var m = String(data.post_place).match(/^(\d{4})\s*(.*)$/);
+            if (m) {
+              if (!fields.postnummer.value) fields.postnummer.value = m[1];
+              if (!fields.poststed.value) fields.poststed.value = String(m[2] || '').trim();
+            }
+          }
+          if (data.mobil && fields.mobil && !fields.mobil.value) fields.mobil.value = data.mobil;
+          // Apply to case form
+          applyPersonVisionFieldsToCase(collectPersonVisionFields(), { silent: true });
+          var info = '<strong>✓ Treff i Fiskeridir-registeret</strong>'
+            + '<div>' + escapeHtml(data.navn || '') + ' · Deltakernummer ' + escapeHtml(data.deltakernummer || '') + '</div>';
+          if (data.fisher_type) info += '<div class="small muted">Fiskertype: ' + escapeHtml(data.fisher_type) + '</div>';
+          if (data.last_registered) info += '<div class="small muted">Sist registrert: ' + escapeHtml(data.last_registered) + '</div>';
+          info += '<div class="small muted">Kilde: <a href="' + escapeHtml(data.source_url || '#') + '" target="_blank" rel="noopener">' + escapeHtml(data.source || 'Fiskeridirektoratet') + '</a></div>';
+          if (registryResult) registryResult.innerHTML = info;
+          scheduleAutosave('Slått opp deltakernummer i Fiskeridir-registeret');
+        } else {
+          var msg = '<strong>Ingen treff</strong><div class="small muted">' + escapeHtml(data.detail || 'Fant ikke deltakernummeret i registeret.') + '</div>';
+          if (data.candidates && data.candidates.length) {
+            msg += '<div class="small margin-top-s"><strong>Mulige treff:</strong></div><ul class="small muted">';
+            data.candidates.forEach(function (c) {
+              msg += '<li>' + escapeHtml(c.name || '') + ' · ' + escapeHtml(c.deltakernummer || '') + (c.fisher_type ? ' (' + escapeHtml(c.fisher_type) + ')' : '') + '</li>';
+            });
+            msg += '</ul>';
+          }
+          if (registryResult) registryResult.innerHTML = msg;
+        }
+      }).catch(function (err) {
+        btnLookupDeltakernummer.disabled = false;
+        btnLookupDeltakernummer.innerHTML = origText;
+        if (registryResult) registryResult.innerHTML = '<strong>Oppslag feilet</strong><div class="small muted">' + escapeHtml(String(err && err.message ? err.message : err)) + '</div>';
+      });
     });
 
     var personVisionFields = personVisionFieldElements();

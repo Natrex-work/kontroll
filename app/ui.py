@@ -79,6 +79,7 @@ def build_nav_links(user: dict[str, Any] | None) -> list[dict[str, str]]:
         links.append({'href': '/regelverk', 'label': 'Regelverk', 'dock_label': 'Regler', 'icon': '📘', 'method': 'get', 'key': 'rules'})
     if has_permission(user, 'user_admin'):
         links.append({'href': '/admin/users', 'label': 'Brukere', 'dock_label': 'Brukere', 'icon': '👤', 'method': 'get', 'key': 'users'})
+        links.append({'href': '/admin/registry', 'label': 'Hummerregister', 'dock_label': 'Register', 'icon': '🦞', 'method': 'get', 'key': 'registry'})
     if has_permission(user, 'control_admin'):
         links.append({'href': '/admin/controls', 'label': 'Kontroller', 'dock_label': 'Admin', 'icon': '♻', 'method': 'get', 'key': 'admin_controls'})
     return links

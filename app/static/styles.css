@@ -6453,3 +6453,915 @@ a.mk-sync-badge:hover { text-decoration: none; }
 
 /* Sikre at brand-text-CSS-en min IKKE påvirker mobile (jeg satte 0.7rem
    tidligere — det blir overstyrt av de eksplisitte mobile-reglene over) */
+
+/* ========================================================================
+   1.8.36 — Profesjonelle login-feilmeldinger + bedre kart-flyt
+   ======================================================================== */
+
+/* Profesjonell login-alert: tittel + beskrivelse + ikon */
+.login-alert-pro {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  background: #fff5f5;
+  border: 1px solid #f4c5c5;
+  border-left: 3px solid #c2374a;
+  border-radius: var(--mk-radius-md, 16px);
+  box-shadow: 0 2px 8px rgba(194, 55, 74, 0.08);
+  margin-bottom: 4px;
+  animation: mk-shake 360ms cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+.login-alert-icon {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #c2374a;
+  color: #fff;
+  display: grid;
+  place-items: center;
+  margin-top: 1px;
+}
+.login-alert-icon svg { width: 16px; height: 16px; stroke: currentColor; }
+
+.login-alert-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+.login-alert-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #911e1e;
+  letter-spacing: -0.01em;
+}
+.login-alert-msg {
+  font-size: 0.85rem;
+  color: #6b1f2a;
+  line-height: 1.45;
+}
+
+@keyframes mk-shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+  20%, 40%, 60%, 80% { transform: translateX(4px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .login-alert-pro { animation: none; }
+}
+
+/* ========================================================================
+   1.8.36 — Kart-side full-bleed + login-feilmeldinger
+   ======================================================================== */
+
+/* ------------------------------------------------------------------------
+   Kart-side: full-bleed på mobil, sentrert med padding på desktop
+   ------------------------------------------------------------------------ */
+
+.page-map .main {
+  /* Fjern unødvendig padding så kartet kan flyte full-width */
+  padding: 0 !important;
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+.map-page {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 100%;
+  background: var(--bg, #eef3f8);
+}
+
+/* Header — kompakt strek på mobil, full bredde på desktop */
+.map-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px 12px;
+  background: rgba(255,255,255,0.96);
+  border-bottom: 1px solid rgba(213,223,235,0.7);
+  flex-shrink: 0;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+.map-page-title h1 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--primary, #10273d);
+  line-height: 1.1;
+}
+.map-page-title p {
+  margin: 2px 0 0;
+  font-size: 0.85rem;
+  line-height: 1.2;
+}
+.map-page-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* Btn-tertiary — minimal style */
+.btn-tertiary {
+  background: #f3f7fb;
+  border: 1px solid #e0e8f0;
+  color: var(--primary, #10273d);
+  font-weight: 600;
+}
+.btn-tertiary:hover {
+  background: #e9f0f7;
+  border-color: #cfdbe8;
+}
+
+/* Kart-canvas */
+.map-canvas-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 50vh;
+  display: flex;
+  flex-direction: column;
+}
+.map-canvas {
+  width: 100%;
+  flex: 1;
+  min-height: 50vh;
+  height: auto !important;
+  z-index: 1;
+}
+
+/* Floating action buttons (FAB) */
+.map-fab-stack {
+  position: absolute;
+  right: 14px;
+  top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 1000;
+}
+.map-fab {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #fff;
+  border: 1px solid rgba(213,223,235,0.9);
+  color: var(--primary, #10273d);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  box-shadow: 0 6px 16px rgba(15,39,64,0.18), 0 1px 3px rgba(15,39,64,0.10);
+  transition: background-color 140ms ease, transform 100ms ease, box-shadow 180ms ease;
+}
+.map-fab:hover {
+  background: #f8fbfe;
+  box-shadow: 0 10px 22px rgba(15,39,64,0.22);
+}
+.map-fab:active { transform: scale(0.94); }
+.map-fab svg { stroke: currentColor; }
+.map-fab-primary {
+  background: #2b80d6;
+  color: #fff;
+  border-color: #1f63ad;
+  box-shadow: 0 6px 18px rgba(43,128,214,0.34);
+}
+.map-fab-primary:hover {
+  background: #1f63ad;
+  box-shadow: 0 10px 24px rgba(43,128,214,0.44);
+}
+.map-fab-active {
+  background: var(--primary, #10273d);
+  color: #fff;
+  border-color: var(--primary, #10273d);
+}
+
+/* Status-banner over kartet (nederst på mobil) */
+.map-status-banner {
+  position: absolute;
+  bottom: 14px;
+  left: 14px;
+  right: 78px; /* gi plass til FAB-stacken når den er nederst */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: rgba(16, 39, 61, 0.92);
+  color: #fff;
+  border-radius: var(--mk-radius-md, 16px);
+  font-size: 0.8rem;
+  line-height: 1.35;
+  box-shadow: 0 8px 22px rgba(15,39,64,0.20);
+  z-index: 999;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  pointer-events: auto;
+}
+.map-status-banner .map-status-icon {
+  flex-shrink: 0;
+  stroke: currentColor;
+  opacity: 0.85;
+}
+.map-status-banner.map-status-info { background: rgba(16, 39, 61, 0.92); }
+.map-status-banner.map-status-success {
+  background: rgba(14, 110, 70, 0.94);
+}
+.map-status-banner.map-status-warning {
+  background: rgba(180, 100, 20, 0.94);
+}
+.map-status-banner.map-status-error {
+  background: rgba(155, 35, 35, 0.94);
+}
+
+/* Bottom sheet (kollapsbart panel) */
+.map-bottom-sheet {
+  flex-shrink: 0;
+  background: #fff;
+  border-top: 1px solid rgba(213,223,235,0.7);
+  box-shadow: 0 -4px 20px rgba(15,39,64,0.08);
+}
+.map-bottom-sheet[open] { /* kun for layout, ingen animasjon */ }
+.map-bottom-sheet-handle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px 12px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.map-bottom-sheet-handle::-webkit-details-marker { display: none; }
+.map-bottom-sheet-handle::marker { display: none; }
+.map-handle-grip {
+  width: 32px;
+  height: 4px;
+  border-radius: 4px;
+  background: #cfdbe8;
+  display: none; /* vises kun på mobil */
+  flex-shrink: 0;
+}
+.map-bottom-sheet-title {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.map-bottom-sheet-title strong {
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--primary, #10273d);
+}
+.map-bottom-sheet-title .small {
+  font-size: 0.78rem;
+  color: var(--muted, #5f6f81);
+}
+.map-bottom-sheet-toggle {
+  flex-shrink: 0;
+  color: var(--muted, #5f6f81);
+  transition: transform 200ms ease;
+}
+.map-bottom-sheet[open] .map-bottom-sheet-toggle {
+  transform: rotate(180deg);
+}
+.map-bottom-sheet-content {
+  padding: 0 16px 16px;
+  max-height: 50vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Empty state inni bottom sheet */
+.map-empty-card {
+  padding: 24px 16px;
+  text-align: center;
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+}
+.map-empty-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: #f3f7fb;
+  color: #6f8aa6;
+  display: grid;
+  place-items: center;
+}
+
+/* Liste over treff */
+.map-relevant-list .map-finding-row,
+.map-relevant-list .map-relevant-row,
+.map-relevant-list [data-area-row],
+.map-relevant-list .map-relevant-card {
+  padding: 14px;
+  border-radius: var(--mk-radius-md, 16px);
+  border: 1px solid rgba(213,223,235,0.7);
+  background: #fff;
+  margin-bottom: 8px;
+}
+.map-relevant-list .map-finding-row:last-child,
+.map-relevant-list .map-relevant-row:last-child {
+  margin-bottom: 0;
+}
+
+/* Offline-pakker (sub-collapsible inni bottom sheet) */
+.map-offline-packages {
+  margin-top: 14px;
+  border-top: 1px dashed #dde6ef;
+  padding-top: 14px;
+}
+.map-offline-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--primary, #10273d);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+.map-offline-summary::-webkit-details-marker { display: none; }
+.map-offline-summary svg {
+  transition: transform 200ms ease;
+}
+.map-offline-packages[open] .map-offline-summary > svg:first-child {
+  transform: rotate(90deg);
+}
+.map-offline-summary-text {
+  margin-top: 10px;
+  font-size: 0.85rem;
+}
+
+/* Lag-panel popover (vises ved klikk på lag-FAB) */
+.map-layer-panel-popover {
+  position: absolute;
+  top: 70px;
+  right: 14px;
+  width: min(320px, calc(100vw - 32px));
+  max-height: calc(100% - 100px);
+  background: #fff;
+  border-radius: var(--mk-radius-md, 16px);
+  box-shadow: 0 12px 32px rgba(15,39,64,0.22);
+  border: 1px solid rgba(213,223,235,0.7);
+  z-index: 1001;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 14px;
+}
+.map-layer-panel-popover.hidden { display: none; }
+
+/* ------------------------------------------------------------------------
+   Mobile (iPhone/iPad) — full-bleed
+   ------------------------------------------------------------------------ */
+@media (max-width: 720px) {
+  .page-map .main { padding: 0 !important; }
+
+  .map-page-header {
+    padding: 10px 14px 8px calc(14px + var(--mk-safe-left, 0px));
+    padding-right: calc(14px + var(--mk-safe-right, 0px));
+  }
+  .map-page-title h1 { font-size: 1.05rem; }
+  .map-page-title p { font-size: 0.78rem; }
+  .map-page-actions .btn-tertiary { padding: 6px 10px; font-size: 0.78rem; }
+
+  .map-canvas-wrap { min-height: 0; flex: 1; }
+  .map-canvas { min-height: 0; height: 100%; }
+
+  .map-fab-stack {
+    right: calc(12px + var(--mk-safe-right, 0px));
+    top: 12px;
+    gap: 8px;
+  }
+  .map-fab { width: 44px; height: 44px; }
+
+  .map-status-banner {
+    bottom: 12px;
+    left: calc(12px + var(--mk-safe-left, 0px));
+    right: calc(72px + var(--mk-safe-right, 0px));
+    padding: 8px 12px;
+    font-size: 0.78rem;
+  }
+
+  .map-bottom-sheet { border-radius: 18px 18px 0 0; }
+  .map-bottom-sheet-handle {
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 8px;
+  }
+  .map-handle-grip { display: block; }
+  .map-bottom-sheet-title {
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+  .map-bottom-sheet-toggle {
+    position: absolute;
+    right: 16px;
+    top: 14px;
+  }
+  .map-bottom-sheet-content { max-height: 60vh; padding-bottom: calc(16px + var(--mk-safe-bottom, 0px)); }
+}
+
+/* iPad portrett — sett header bredere, behold full-bleed kart */
+@media (min-width: 721px) and (max-width: 1024px) {
+  .page-map .main { padding: 0 !important; }
+  .map-canvas-wrap { min-height: 60vh; }
+}
+
+/* ------------------------------------------------------------------------
+   Login-alert: bedre visuelt med ikon
+   ------------------------------------------------------------------------ */
+.login-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: var(--mk-radius-md, 16px);
+  border: 1px solid #f4c5c5;
+  background: linear-gradient(180deg, #fdebec 0%, #faddde 100%);
+  color: #911e1e;
+  font-size: 0.92rem;
+  line-height: 1.4;
+  box-shadow: 0 2px 6px rgba(155, 35, 35, 0.08);
+}
+.login-alert svg {
+  stroke: #911e1e;
+  opacity: 0.85;
+}
+
+/* Skjul den globale synk-badgen og history-controls på kart-siden for
+   å gi maksimal kart-areal */
+.page-map .topbar-actions { gap: 4px; }
+@media (max-width: 720px) {
+  .page-map .mk-sync-badge { display: none; }
+  .page-map .history-controls .history-btn { width: 32px !important; height: 32px !important; }
+}
+
+/* ------------------------------------------------------------------------
+   1.8.36 — Full-bleed kart-design for iPhone/iPad
+   ------------------------------------------------------------------------ */
+
+/* Når vi er på kart-siden, fjern padding rundt main slik at kartet får hele bredden */
+body.page-map-fullscreen .main {
+  padding: 0 !important;
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - var(--mk-topbar-h, 0px));
+  height: calc(100dvh - var(--mk-topbar-h, 0px));
+  overflow: hidden;
+  background: #0d2238;
+}
+body.page-map-fullscreen {
+  overflow: hidden;
+}
+
+.map-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: linear-gradient(180deg, rgba(13, 34, 56, 0.96) 0%, rgba(17, 54, 90, 0.92) 100%);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  flex-shrink: 0;
+  gap: 12px;
+}
+.map-page-title h1 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #fff;
+  line-height: 1.1;
+}
+.map-page-title .muted {
+  font-size: 0.72rem;
+  color: rgba(231,243,255,0.65);
+  letter-spacing: 0.02em;
+}
+.map-page-actions { flex-shrink: 0; }
+.map-page-actions .btn { padding: 6px 12px; font-size: 0.78rem; }
+
+/* Container for map + overlays */
+.map-fullscreen-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: #0d2238;
+}
+
+/* The map itself fills its container */
+.leaflet-map.map-fullscreen {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  background: #b9d4e8;
+}
+
+/* Leaflet user position marker — Apple Maps style blue dot with pulse */
+.leaflet-user-dot,
+.kv-user-marker .leaflet-user-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #2b80d6;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 4px rgba(43, 128, 214, 0.30), 0 2px 8px rgba(0,0,0,0.30);
+  position: relative;
+}
+.leaflet-user-dot::after {
+  content: '';
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  background: rgba(43, 128, 214, 0.18);
+  animation: mk-user-pulse 2.4s ease-out infinite;
+  pointer-events: none;
+}
+@keyframes mk-user-pulse {
+  0%   { transform: scale(0.6); opacity: 0.8; }
+  80%  { transform: scale(2.4); opacity: 0; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .leaflet-user-dot::after { animation: none; opacity: 0; }
+}
+
+/* Floating action buttons (top-right of map) */
+.map-floating-controls {
+  position: absolute;
+  top: max(12px, env(safe-area-inset-top, 12px));
+  right: max(12px, env(safe-area-inset-right, 12px));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 1000;
+  pointer-events: none;
+}
+.map-fab {
+  pointer-events: auto;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.96);
+  border: 1px solid rgba(15, 39, 64, 0.12);
+  color: #10273d;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.25), 0 1px 3px rgba(0,0,0,0.15);
+  transition: background-color 140ms ease, transform 100ms ease, box-shadow 180ms ease;
+}
+.map-fab:hover {
+  background: #fff;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.30), 0 2px 4px rgba(0,0,0,0.18);
+}
+.map-fab:active { transform: scale(0.94); }
+.map-fab:focus-visible {
+  outline: 3px solid #2b80d6;
+  outline-offset: 2px;
+}
+.map-fab svg { stroke: currentColor; }
+.map-fab-locate svg { color: #2b80d6; }
+.map-fab[disabled] { opacity: 0.55; cursor: not-allowed; }
+
+/* iPad/iPhone size adjustments */
+@media (max-width: 640px) {
+  .map-floating-controls {
+    top: max(8px, env(safe-area-inset-top, 8px));
+    right: max(8px, env(safe-area-inset-right, 8px));
+    gap: 8px;
+  }
+  .map-fab {
+    width: 44px;
+    height: 44px;
+  }
+  .map-fab svg { width: 20px; height: 20px; }
+  .map-page-header { padding: 10px 12px; }
+  .map-page-title h1 { font-size: 1rem; }
+  .map-page-title .muted { font-size: 0.68rem; }
+}
+
+/* Bottom sheet — Apple Maps-stil glir opp fra bunnen */
+.map-bottom-sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #fff;
+  border-top-left-radius: 22px;
+  border-top-right-radius: 22px;
+  box-shadow: 0 -8px 24px rgba(0,0,0,0.15);
+  z-index: 999;
+  max-height: calc(100% - 60px);
+  display: flex;
+  flex-direction: column;
+  transform: translateY(0);
+  transition: transform 280ms cubic-bezier(0.32, 0.72, 0, 1);
+  padding-bottom: max(8px, env(safe-area-inset-bottom, 8px));
+}
+.map-bottom-sheet[data-state="collapsed"] .map-sheet-body {
+  display: none;
+}
+.map-bottom-sheet[data-state="expanded"] {
+  /* Sheet expanded — body shows */
+}
+.map-bottom-sheet[data-state="expanded"] .map-sheet-body {
+  display: block;
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 16px 16px;
+}
+
+.map-sheet-handle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 16px 14px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  flex-shrink: 0;
+  position: relative;
+}
+.map-sheet-grip {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: #d5dfeb;
+}
+.map-sheet-summary {
+  flex: 1;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--primary, #10273d);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 6px;
+}
+.map-sheet-chevron {
+  flex-shrink: 0;
+  color: var(--muted, #5f6f81);
+  transition: transform 240ms ease;
+  margin-top: 6px;
+}
+.map-bottom-sheet[data-state="expanded"] .map-sheet-chevron {
+  transform: rotate(180deg);
+}
+.map-sheet-handle:focus-visible {
+  outline: 2px solid #2b80d6;
+  outline-offset: -2px;
+  border-radius: 22px 22px 0 0;
+}
+.map-sheet-handle:hover {
+  background: #fafcfe;
+  border-radius: 22px 22px 0 0;
+}
+
+.map-sheet-status {
+  background: #f3f7fb;
+  border: 1px solid #e0e8f0;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 0.85rem;
+  color: var(--text, #12202f);
+  line-height: 1.4;
+  margin-bottom: 16px;
+}
+
+.map-sheet-section { margin-bottom: 18px; }
+.map-sheet-section:last-child { margin-bottom: 0; }
+.map-sheet-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.map-sheet-section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted, #5f6f81);
+  margin: 0 0 8px;
+}
+.map-sheet-section-head .map-sheet-section-title { margin: 0; }
+.map-sheet-section-title svg {
+  stroke: currentColor;
+  flex-shrink: 0;
+}
+
+/* Treff-list polish */
+.map-relevant-list {
+  display: grid;
+  gap: 8px;
+}
+.map-relevant-list .muted.small {
+  padding: 12px;
+  background: #f3f7fb;
+  border-radius: 10px;
+  text-align: center;
+}
+
+/* Bottom sheet på iPhone — slipper å klemme oppi kart-FABs */
+@media (max-width: 640px) {
+  .map-bottom-sheet {
+    max-height: 70%;
+  }
+  .map-bottom-sheet[data-state="expanded"] .map-sheet-body {
+    padding: 0 14px 14px;
+  }
+  .map-sheet-summary { font-size: 0.88rem; }
+}
+
+/* iPad: slipp en mer maximert size */
+@media (min-width: 641px) and (max-width: 1180px) {
+  .map-bottom-sheet { max-height: 60%; }
+}
+
+/* Skjul den gamle "Kontroll ved posisjon"-strukturen hvis noen referanser
+   eksisterer fra tidligere bygg (defensiv) */
+.portal-map-card,
+.map-main-card { display: none !important; }
+
+/* iPhone landscape */
+@media (max-height: 480px) and (orientation: landscape) {
+  .map-page-header { padding: 6px 12px; }
+  .map-page-title h1 { font-size: 0.92rem; }
+  .map-page-title .muted { display: none; }
+  .map-bottom-sheet { max-height: 90%; }
+}
+
+/* ========================================================================
+   1.8.37 — Lokal OCR + register-treff-styling
+   ======================================================================== */
+
+.callout-success {
+  background: #d6efe2;
+  color: #0e5a35;
+  border: 1px solid #a4d6bb;
+  border-radius: var(--mk-radius-sm, 12px);
+  padding: 10px 14px;
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+.callout-success strong {
+  display: block;
+  margin-bottom: 2px;
+  letter-spacing: -0.005em;
+}
+.callout-success .small {
+  font-size: 0.8rem;
+  opacity: 0.8;
+}
+
+/* ========================================================================
+   1.8.37 — Bedre Person/Fartøy-bildeanalyse + Fiskeridir-oppslag
+   ======================================================================== */
+
+/* Deltakernummer-felt med inline "Slå opp"-knapp */
+.deltaker-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.deltaker-input-row input {
+  flex: 1;
+  min-width: 0;
+}
+.deltaker-lookup-btn {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  padding: 0 14px !important;
+  height: auto !important;
+}
+.deltaker-lookup-btn svg {
+  stroke: currentColor;
+  flex-shrink: 0;
+}
+.deltaker-lookup-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+@media (max-width: 480px) {
+  .deltaker-input-row { flex-direction: column; gap: 6px; }
+  .deltaker-lookup-btn { justify-content: center; }
+}
+
+/* ========================================================================
+   1.8.37 — Hummerregister-administrasjon
+   ======================================================================== */
+
+.hummer-status { padding: 4px 0; }
+.hummer-status-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--mk-radius-md, 16px);
+  border: 1px solid #e0e8f0;
+}
+.hummer-status-ok {
+  background: #e2f5ea;
+  border-color: #b9e0c7;
+}
+.hummer-status-empty {
+  background: #fff3d8;
+  border-color: #f1d896;
+}
+.hummer-status-icon {
+  font-size: 1.4rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.hummer-status-row strong {
+  display: block;
+  font-size: 0.95rem;
+  letter-spacing: -0.005em;
+  color: var(--primary, #10273d);
+  margin-bottom: 2px;
+}
+
+.hummer-howto {
+  margin: 12px 0 0;
+  padding-left: 20px;
+  font-size: 0.85rem;
+  line-height: 1.55;
+  color: var(--text, #12202f);
+}
+.hummer-howto li { margin-bottom: 4px; }
+.hummer-howto a {
+  color: #2b80d6;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.hummer-howto a:hover { color: #1f63ad; }
+
+.hummer-sample-box {
+  background: #f3f7fb;
+  border: 1px solid #e0e8f0;
+  border-radius: 12px;
+  padding: 12px;
+  font-size: 0.85rem;
+}
+.hummer-sample-box .data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.hummer-sample-box .data-table thead th {
+  text-align: left;
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #5f7186;
+  padding: 6px 8px;
+  border-bottom: 1px solid #d5dfeb;
+}
+.hummer-sample-box .data-table tbody td {
+  padding: 6px 8px;
+  border-bottom: 1px solid #ecf1f6;
+}
+.hummer-sample-box .data-table tbody tr:last-child td { border-bottom: 0; }
+.hummer-sample-box code {
+  background: #fff;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  border: 1px solid #d5dfeb;
+}
+
+@media (max-width: 640px) {
+  .hummer-howto { font-size: 0.82rem; }
+  .hummer-sample-box .data-table thead th,
+  .hummer-sample-box .data-table tbody td { padding: 4px 6px; }
+}

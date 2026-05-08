@@ -732,6 +732,143 @@ def _parse_hummer_csv(text: str, source_url: str = '') -> list[dict[str, str]]:
     return rows
 
 
+def _try_tableau_bootstrap_session(view_url: str) -> list[dict[str, str]]:
+    """Attempt to fetch Tableau view data via the bootstrapSession API.
+
+    This is a third-tier fallback used when direct CSV export URLs return
+    HTML (Tableau Server has restricted format=csv on some installations
+    since 2020). The flow:
+      1. GET the workbook page → contains tsConfigContainer JSON
+      2. POST to /bootstrapSession to get full data dump
+      3. Parse the dataDictionary out of the response
+
+    Returns [] on any failure — never raises. The HTML-page fallback in
+    the existing pipeline still runs after this, so partial success is fine.
+    """
+    try:
+        import urllib.parse as _urlparse
+        # Strip query params and trailing slash
+        base_url = view_url.split('?')[0].rstrip('/')
+        parts = base_url.split('/views/')
+        if len(parts) != 2:
+            return []
+        host = parts[0]  # https://tableau.fiskeridir.no/t/Internet
+        view_path = parts[1]  # Pmeldehummarfiskarargjeldander/Pmeldehummarfiskarar
+        view_segments = view_path.split('/')
+        if len(view_segments) < 2:
+            return []
+        workbook = view_segments[0]
+        sheet = view_segments[1]
+
+        # Step 1: GET workbook page with embed=y to get session bootstrap config
+        embed_url = f'{base_url}?:embed=y&:showVizHome=no&:apiInternalVersion=1.117.0'
+        resp = _SESSION.get(embed_url, timeout=REQUEST_TIMEOUT)
+        if resp.status_code != 200:
+            return []
+        html = resp.text
+
+        # Extract tsConfigContainer JSON
+        config_match = re.search(r'<textarea[^>]*id="tsConfigContainer"[^>]*>([\s\S]*?)</textarea>', html)
+        if not config_match:
+            return []
+        try:
+            config = json.loads(config_match.group(1).strip())
+        except Exception:
+            return []
+        session_id = str(config.get('sessionid') or '')
+        if not session_id:
+            return []
+        ts_data_url = str(config.get('vizql_root') or f'{host}/vizql').rstrip('/')
+        sheet_id = config.get('sheetId') or sheet
+
+        # Step 2: bootstrapSession POST
+        bootstrap_url = f'{ts_data_url}/t/Internet/w/{workbook}/v/{sheet}/bootstrapSession/sessions/{session_id}'
+        # Some Tableau versions need the path without /t/Internet
+        alt_bootstrap_url = f'{ts_data_url}/w/{workbook}/v/{sheet}/bootstrapSession/sessions/{session_id}'
+        post_data = {
+            'sheet_id': sheet_id,
+            'showParams': json.dumps({
+                'unknownParams': '',
+                'displayStaticImage': True,
+                'pix-ratio': '1',
+            }),
+            'stickySessionKey': '',
+        }
+        post_headers = {
+            'Accept': 'text/javascript',
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Referer': embed_url,
+            'X-Tsi-Active-Tab': sheet,
+        }
+
+        bootstrap_resp = None
+        for try_url in (bootstrap_url, alt_bootstrap_url):
+            try:
+                r = _SESSION.post(try_url, data=post_data, headers=post_headers, timeout=REQUEST_TIMEOUT)
+                if r.status_code == 200 and len(r.text) > 1000:
+                    bootstrap_resp = r
+                    break
+            except Exception:
+                continue
+        if not bootstrap_resp:
+            return []
+
+        # Tableau wraps multiple JSON chunks separated by length markers
+        # like "1234;{...json...}5678;{...json...}"
+        body = bootstrap_resp.text
+        chunks = []
+        pos = 0
+        while pos < len(body):
+            sep = body.find(';', pos)
+            if sep == -1:
+                break
+            try:
+                length = int(body[pos:sep])
+            except Exception:
+                break
+            chunk = body[sep + 1: sep + 1 + length]
+            try:
+                chunks.append(json.loads(chunk))
+            except Exception:
+                pass
+            pos = sep + 1 + length
+
+        # Walk chunks to find dataDictionary with the actual rows
+        rows: list[dict[str, str]] = []
+        for chunk in chunks:
+            secondary = chunk.get('secondaryInfo') if isinstance(chunk, dict) else None
+            if not isinstance(secondary, dict):
+                continue
+            presModel = secondary.get('presModelMap') or {}
+            data_dict = presModel.get('dataDictionary') or {}
+            data_segments = (data_dict.get('presModelHolder') or {}).get('genDataDictionaryPresModel', {}).get('dataSegments', {})
+            # Each segment has values arrays we need to assemble
+            for seg in data_segments.values():
+                if not isinstance(seg, dict):
+                    continue
+                data_columns = seg.get('dataColumns') or []
+                # We don't know exact field positions; collect anything that looks like a participant + name
+                lookup_by_col = {}
+                for col in data_columns:
+                    type_name = str(col.get('dataType') or '').lower()
+                    values = col.get('dataValues') or []
+                    lookup_by_col[type_name] = lookup_by_col.get(type_name, []) + values
+                strings = lookup_by_col.get('cstring', []) + lookup_by_col.get('string', [])
+                # Heuristic: participant numbers are short alphanumerics, names contain space
+                participants = [s for s in strings if isinstance(s, str) and registry._normalize_hummer_no(s)]
+                # Build minimal row entries
+                for p in participants:
+                    item = _normalize_hummer_candidate_row(
+                        {'name': '', 'participant_no': p, 'fisher_type': '', 'last_registered_year': ''},
+                        source_url=view_url,
+                    )
+                    if item:
+                        rows.append(item)
+        return rows
+    except Exception:
+        return []
+
+
 def refresh_hummer_registry_cache(force: bool = False, max_age_seconds: int = 12 * 3600) -> list[dict[str, str]]:
     try:
         if HUMMER_CACHE_JSON.exists() and HUMMER_CACHE_META.exists() and not force:
@@ -784,6 +921,17 @@ def refresh_hummer_registry_cache(force: bool = False, max_age_seconds: int = 12
             HUMMER_CACHE_JSON.write_text(json.dumps(rows, ensure_ascii=False, indent=2), encoding='utf-8')
             HUMMER_CACHE_META.write_text(json.dumps({'fetched_at': time.time(), 'source_url': url, 'count': len(rows)}, ensure_ascii=False, indent=2), encoding='utf-8')
             return rows
+
+    # Tableau bootstrapSession fallback (when CSV export blocked)
+    try:
+        bootstrap_rows = _try_tableau_bootstrap_session(HUMMER_REGISTER_URL)
+        if bootstrap_rows:
+            HUMMER_CACHE_JSON.parent.mkdir(parents=True, exist_ok=True)
+            HUMMER_CACHE_JSON.write_text(json.dumps(bootstrap_rows, ensure_ascii=False, indent=2), encoding='utf-8')
+            HUMMER_CACHE_META.write_text(json.dumps({'fetched_at': time.time(), 'source_url': HUMMER_REGISTER_URL + ' (bootstrapSession)', 'count': len(bootstrap_rows)}, ensure_ascii=False, indent=2), encoding='utf-8')
+            return bootstrap_rows
+    except Exception:
+        pass
 
     if fallback_extracted:
         HUMMER_CACHE_JSON.parent.mkdir(parents=True, exist_ok=True)

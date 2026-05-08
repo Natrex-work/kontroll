@@ -375,11 +375,23 @@ def _local_ocr_person_marking_fallback(images: list[dict[str, Any]], *, reason: 
     return _sanitize_result(result)
 
 def analyze_person_marking_images(images: list[dict[str, Any]]) -> dict[str, Any]:
-    """Analyze one or more gear/marker photos with OpenAI vision.
+    """Analyze one or more gear/marker photos.
+
+    By default this uses 100% local OCR (Tesseract) plus an authoritative
+    lookup against the cached Fiskeridirektoratet hummer registry.
+
+    Set KV_PERSON_FARTOY_USE_OPENAI=1 in the environment to opt back in to
+    OpenAI Vision (requires an API key). Default: local only.
 
     images: list of {'content': bytes, 'filename': str}
-    Returns exactly the fields expected by the Person/Fartøy frontend.
     """
+    use_openai = str(os.getenv('KV_PERSON_FARTOY_USE_OPENAI') or '').strip().lower() in {'1', 'true', 'yes', 'on'}
+
+    if not use_openai:
+        # 100% lokal pipeline — Tesseract + hummerregisteret
+        from .local_marker_analyzer import analyze_person_marking_images_local
+        return analyze_person_marking_images_local(images)
+
     api_key, api_key_source = _first_configured_api_key()
     if not api_key:
         return _local_ocr_person_marking_fallback(

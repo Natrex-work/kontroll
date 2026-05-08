@@ -457,6 +457,71 @@ async def api_person_fartoy_analyze_image(request: Request, files: list[UploadFi
     return JSONResponse(result, headers={'Cache-Control': 'no-store, max-age=0'})
 
 
+@router.get('/api/person-fartoy/lookup-deltakernummer')
+def api_person_fartoy_lookup_deltakernummer(request: Request, deltakernummer: str = '', navn: str = ''):
+    """Manuelt oppslag av deltakernummer mot Fiskeridirektoratets register
+    over hummerfiskere (live fra tableau.fiskeridir.no, med lokal cache).
+
+    Returnerer alle felt (navn, deltakernummer, eventuelt adresse fra
+    katalogoppslag) slik at klienten kan auto-fylle Person/Fartøy-skjemaet.
+    """
+    require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til Minfiskerikontroll.')
+    deltaker = str(deltakernummer or '').strip()
+    name = str(navn or '').strip()
+    if not deltaker and not name:
+        raise HTTPException(status_code=400, detail='Oppgi deltakernummer eller navn.')
+
+    from .. import live_sources, registry as registry_mod
+
+    # Live lookup against the Tableau register (with local cache fallback)
+    try:
+        result = live_sources.lookup_hummer_participant_live(participant_no=deltaker, name=name)
+    except Exception as exc:
+        return JSONResponse({
+            'found': False,
+            'detail': f'Kunne ikke nå Fiskeridir-registeret akkurat nå ({exc}). Lokal cache er sjekket uten treff.',
+            'candidates': [],
+        })
+
+    if not result.get('found'):
+        return JSONResponse({
+            'found': False,
+            'detail': result.get('message') or 'Fant ingen registrert hummerfisker med dette deltakernummeret.',
+            'candidates': [
+                {
+                    'name': c.get('name', ''),
+                    'deltakernummer': registry_mod._normalize_hummer_no(c.get('participant_no') or c.get('hummer_participant_no') or ''),
+                    'fisher_type': c.get('fisher_type', ''),
+                    'last_registered': c.get('last_registered_display') or c.get('last_registered_year') or '',
+                }
+                for c in (result.get('candidates') or [])[:10]
+            ],
+        })
+
+    person = dict(result.get('person') or {})
+    payload = {
+        'found': True,
+        'navn': registry_mod.normalize_person_name(person.get('name') or ''),
+        'deltakernummer': registry_mod._normalize_hummer_no(
+            person.get('participant_no') or person.get('hummer_participant_no') or deltaker
+        ),
+        'fisher_type': str(person.get('fisher_type') or '').strip(),
+        'last_registered': str(person.get('last_registered_display') or person.get('last_registered_year') or '').strip(),
+        'source': str(person.get('source') or 'Fiskeridirektoratet — registrerte hummerfiskere'),
+        'source_url': str(person.get('source_url') or 'https://tableau.fiskeridir.no/t/Internet/views/Pmeldehummarfiskarargjeldander/Pmeldehummarfiskarar'),
+    }
+
+    # If person also has address from cache, include it
+    if person.get('address'):
+        payload['adresse'] = str(person.get('address'))
+    if person.get('post_place'):
+        payload['post_place'] = str(person.get('post_place'))
+    if person.get('phone'):
+        payload['mobil'] = str(person.get('phone'))
+
+    return JSONResponse(payload, headers={'Cache-Control': 'no-store, max-age=0'})
+
+
 @router.post('/api/summary/suggest')
 def api_summary_suggest(request: Request, payload: SummarySuggestRequest):
     require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til Minfiskerikontroll.')

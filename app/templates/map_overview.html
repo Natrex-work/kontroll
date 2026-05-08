@@ -1,65 +1,153 @@
 {% extends 'base.html' %}
 {% block title %}Kart og områder · {{ brand_org_name }}{% endblock %}
+{% block body_class %}page-map-fullscreen{% endblock %}
 {% block content %}
-<section class="page-header page-header-soft sea-hero">
-  <div>
+
+<!-- Full-bleed kart-layout: minimal header, kartet eier resten av skjermen -->
+<section class="map-page-header">
+  <div class="map-page-title">
     <h1>Kart og områder</h1>
-    <p class="muted">Fiskeridirektoratets reguleringskart brukes som hovedkart. Appen beholder egen rask punktkontroll og offline-lagring av relevante reguleringsområder.</p>
+    <span class="muted small">Fiskeregulerte områder · Live posisjon</span>
   </div>
-  <div class="actions-row wrap">
-    <a class="btn btn-primary" href="{{ portal_map_url }}" target="_blank" rel="noopener">Åpne kartportal</a>
-    <button class="btn btn-secondary" type="button" id="btn-overview-location">Bruk min posisjon</button>
-    <button class="btn btn-secondary" type="button" id="btn-overview-download-offline">Lagre reguleringer lokalt</button>
+  <div class="map-page-actions">
+    <a class="btn btn-secondary btn-small" href="{{ portal_map_url }}" target="_blank" rel="noopener" aria-label="Åpne Fiskeridirektoratets kartportal i ny fane">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="margin-right:4px;vertical-align:-2px"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/></svg>
+      Portal
+    </a>
   </div>
 </section>
 
-<section class="stack gap-m">
-  <article class="card portal-map-card">
-    <div class="portal-map-head">
-      <div>
-        <h2>Fiskeridirektoratets kartportal</h2>
-        <div class="muted small">Fiskerireguleringer, korallrev og andre lovregulerte områder vises i kartportalen.</div>
-      </div>
-      <a class="btn btn-secondary btn-small" href="{{ portal_map_url }}" target="_blank" rel="noopener">Ny fane</a>
-    </div>
-    <div class="portal-map-frame-wrap">
-      <iframe class="portal-map-frame" src="{{ portal_map_url }}" title="Fiskeridirektoratets kartportal" loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe>
-    </div>
-    <div class="callout margin-top-s small">Hvis kartportalen ikke kan vises inne i appen på enheten, bruk «Åpne kartportal».</div>
-  </article>
+<!-- Kartcontainer: full-bleed, fyller hele tilgjengelig skjerm -->
+<div class="map-fullscreen-wrap">
+  <div id="overview-map"
+       class="leaflet-map map-fullscreen"
+       role="application"
+       aria-label="Interaktivt kart over fiskeregulerte områder med din posisjon"
+       data-portal-catalog='{{ portal_layers|tojson }}'
+       data-portal-url="{{ portal_map_url }}"
+       data-portal-mapserver="{{ portal_mapserver_url }}"
+       data-portal-vern-mapserver="{{ portal_vern_mapserver_url }}"></div>
 
-  <article class="card map-main-card">
-    <h2>Kontroll ved posisjon</h2>
-    <p class="muted small">Denne delen er appens raske kontroll mot valgt posisjon. Den viser kun lovregulerte lag og kan lagre relevante reguleringsområder lokalt for raskere feltbruk.</p>
-    <details class="map-relevant-panel overview-theme-map margin-top-s" open>
-      <summary class="map-relevant-head">
-        <strong>Kollapsbart temakart</strong>
-        <span class="muted small">Lovverk, forskrifter og J-meldinger.</span>
-      </summary>
-      <div id="overview-map-layer-panel-host" class="map-layer-panel-host margin-top-s"></div>
-    </details>
-    <div id="overview-map" class="leaflet-map compact-map" role="application" aria-label="Interaktivt kart for punktkontroll" data-portal-catalog='{{ portal_layers|tojson }}' data-portal-url="{{ portal_map_url }}" data-portal-mapserver="{{ portal_mapserver_url }}" data-portal-vern-mapserver="{{ portal_vern_mapserver_url }}"></div>
-    <div id="overview-map-status" class="callout margin-top-s" role="status" aria-live="polite">Bruk min posisjon for rask punktsjekk og lokal lagring av relevante reguleringsområder.</div>
-    <details class="map-relevant-panel margin-top-s" open>
-      <summary class="map-relevant-head">
-        <strong>Aktuelle reguleringsområder</strong>
-        <span class="muted small">Fra punktkontrollen.</span>
-      </summary>
-      <div class="map-relevant-list" id="overview-relevant-areas-list" aria-live="polite"><div class="muted small">Treff vises her etter posisjonssjekk.</div></div>
-    </details>
-    <div class="offline-packages-panel margin-top-s">
-      <div class="offline-packages-head">
-        <div>
-          <strong>Offline-reguleringer</strong>
-          <div class="muted small">Vektorobjekter lagres lokalt slik at områder kommer raskere opp i webappen.</div>
+  <!-- Flytende kontroll-knapper øverst til høyre på kartet -->
+  <div class="map-floating-controls" aria-label="Kart-kontroller">
+    <button class="map-fab map-fab-locate" type="button" id="btn-overview-location"
+            aria-label="Bruk min posisjon" title="Bruk min posisjon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><circle cx="12" cy="12" r="3"/><path d="M12 2v4"/><path d="M12 18v4"/><path d="M4.93 4.93l2.83 2.83"/><path d="M16.24 16.24l2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/><path d="M4.93 19.07l2.83-2.83"/><path d="M16.24 7.76l2.83-2.83"/></svg>
+    </button>
+    <button class="map-fab map-fab-layers" type="button" id="btn-overview-toggle-layers"
+            aria-label="Vis eller skjul kartlag" title="Kartlag" aria-pressed="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+    </button>
+    <button class="map-fab map-fab-offline" type="button" id="btn-overview-download-offline"
+            aria-label="Lagre reguleringer for offline bruk" title="Lagre offline">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    </button>
+  </div>
+
+  <!-- Bottom sheet: glir opp fra bunnen med treff og status -->
+  <aside class="map-bottom-sheet" id="map-bottom-sheet" data-state="collapsed" aria-label="Områdetreff og status">
+    <button class="map-sheet-handle" type="button" id="map-sheet-toggle" aria-controls="map-sheet-body" aria-expanded="false">
+      <span class="map-sheet-grip" aria-hidden="true"></span>
+      <span class="map-sheet-summary" id="map-sheet-summary">Bruk min posisjon for å sjekke regulerte områder</span>
+      <svg class="map-sheet-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20" aria-hidden="true"><path d="m18 15-6-6-6 6"/></svg>
+    </button>
+
+    <div class="map-sheet-body" id="map-sheet-body" hidden>
+      <!-- Status -->
+      <div id="overview-map-status" class="map-sheet-status" role="status" aria-live="polite">
+        Bruk min posisjon for rask punktsjekk og lokal lagring av relevante reguleringsområder.
+      </div>
+
+      <!-- Treff -->
+      <div class="map-sheet-section">
+        <h3 class="map-sheet-section-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          Aktuelle reguleringsområder
+        </h3>
+        <div class="map-relevant-list" id="overview-relevant-areas-list" aria-live="polite">
+          <div class="muted small">Treff vises her etter posisjonssjekk.</div>
         </div>
-        <button class="btn btn-secondary btn-small" type="button" id="btn-overview-refresh-packages">Oppdater lagrede pakker</button>
       </div>
-      <div class="callout margin-top-s" id="overview-offline-packages-summary" aria-live="polite">Ingen offline-reguleringer er lagret på denne enheten ennå.</div>
-      <div class="offline-packages-list" id="overview-offline-packages-list"></div>
-    </div>
-  </article>
-</section>
-{% endblock %}
 
-{% block page_scripts %}<script src="/static/js/map-overview.js?v=1.8.35"></script>{% endblock %}
+      <!-- Layer panel -->
+      <div class="map-sheet-section" id="map-layers-section">
+        <h3 class="map-sheet-section-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/></svg>
+          Kartlag
+        </h3>
+        <div id="overview-map-layer-panel-host" class="map-layer-panel-host"></div>
+      </div>
+
+      <!-- Offline -->
+      <div class="map-sheet-section">
+        <div class="map-sheet-section-head">
+          <h3 class="map-sheet-section-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/></svg>
+            Lagrede offline-pakker
+          </h3>
+          <button class="btn btn-secondary btn-small" type="button" id="btn-overview-refresh-packages">Oppdater</button>
+        </div>
+        <div class="muted small" id="overview-offline-packages-summary" aria-live="polite">
+          Ingen offline-reguleringer er lagret på denne enheten ennå.
+        </div>
+        <div class="offline-packages-list" id="overview-offline-packages-list"></div>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<script>
+// Bottom sheet toggle
+(function () {
+  var sheet = document.getElementById('map-bottom-sheet');
+  var btn = document.getElementById('map-sheet-toggle');
+  var body = document.getElementById('map-sheet-body');
+  if (!sheet || !btn || !body) return;
+
+  function setExpanded(expanded) {
+    sheet.dataset.state = expanded ? 'expanded' : 'collapsed';
+    btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    body.hidden = !expanded;
+    // Trigger map resize so Leaflet recalculates after sheet animation
+    setTimeout(function () {
+      var mapEl = document.getElementById('overview-map');
+      if (mapEl && mapEl._kvLeafletMap && typeof mapEl._kvLeafletMap.invalidateSize === 'function') {
+        mapEl._kvLeafletMap.invalidateSize();
+      }
+    }, 320);
+  }
+
+  btn.addEventListener('click', function () {
+    var nowExpanded = sheet.dataset.state !== 'expanded';
+    setExpanded(nowExpanded);
+  });
+
+  // Auto-expand when status text changes meaningfully (set by map-overview.js)
+  var statusEl = document.getElementById('overview-map-status');
+  if (statusEl) {
+    var observer = new MutationObserver(function () {
+      var summary = document.getElementById('map-sheet-summary');
+      if (summary && statusEl.textContent.trim()) {
+        var txt = statusEl.textContent.trim();
+        // Pick first sentence/short summary
+        var short = txt.split(/[.!?\n]/)[0].trim();
+        if (short.length > 4) summary.textContent = short.length > 80 ? short.substring(0, 78) + '…' : short;
+      }
+    });
+    observer.observe(statusEl, { childList: true, characterData: true, subtree: true });
+  }
+
+  // Layers FAB toggles the layers panel section + sheet open
+  var btnLayers = document.getElementById('btn-overview-toggle-layers');
+  if (btnLayers) {
+    btnLayers.addEventListener('click', function () {
+      var section = document.getElementById('map-layers-section');
+      if (sheet.dataset.state !== 'expanded') setExpanded(true);
+      if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+})();
+</script>
+
+{% endblock %}
+{% block page_scripts %}<script src="/static/js/map-overview.js?v=1.8.37"></script>{% endblock %}
