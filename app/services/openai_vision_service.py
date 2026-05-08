@@ -10,6 +10,10 @@ from typing import Any
 import httpx
 from PIL import Image, ImageOps, ImageEnhance, ImageFilter
 
+from ..logging_setup import get_logger
+
+logger = get_logger(__name__)
+
 try:
     from .ocr_service import extract_text_from_image as _local_extract_text_from_image
 except Exception:  # pragma: no cover - optional fallback
@@ -377,29 +381,97 @@ def _local_ocr_person_marking_fallback(images: list[dict[str, Any]], *, reason: 
 def analyze_person_marking_images(images: list[dict[str, Any]]) -> dict[str, Any]:
     """Analyze one or more gear/marker photos.
 
-    By default this uses 100% local OCR (Tesseract) plus an authoritative
-    lookup against the cached Fiskeridirektoratet hummer registry.
+    Primary path: OpenAI Vision (when KV_OPENAI_API_KEY is set) — gives
+    significantly better results on handwriting, dirty/bent markers and
+    poorly lit photos.
 
-    Set KV_PERSON_FARTOY_USE_OPENAI=1 in the environment to opt back in to
-    OpenAI Vision (requires an API key). Default: local only.
+    Fallback path: 100% local Tesseract OCR — used when:
+      - No API key is configured, OR
+      - KV_PERSON_FARTOY_USE_OPENAI=0 is explicitly set to disable, OR
+      - The OpenAI request times out, errors, or returns nothing useful
+
+    After either path, the result is enriched with an authoritative lookup
+    against Fiskeridirektoratet's hummer registry when a deltakernummer is
+    found — so navn + deltakernummer can be cross-checked against the
+    public source of truth.
 
     images: list of {'content': bytes, 'filename': str}
     """
-    use_openai = str(os.getenv('KV_PERSON_FARTOY_USE_OPENAI') or '').strip().lower() in {'1', 'true', 'yes', 'on'}
+    if not images:
+        raise ValueError('Legg ved minst ett bilde.')
 
+    # Explicit opt-out: KV_PERSON_FARTOY_USE_OPENAI=0/false/no/off
+    raw_flag = str(os.getenv('KV_PERSON_FARTOY_USE_OPENAI') or '').strip().lower()
+    explicitly_disabled = raw_flag in {'0', 'false', 'no', 'off'}
+
+    api_key, _ = _first_configured_api_key()
+
+    use_openai = bool(api_key) and not explicitly_disabled
+
+    # No API key (or explicitly disabled) → straight to local pipeline
     if not use_openai:
-        # 100% lokal pipeline — Tesseract + hummerregisteret
         from .local_marker_analyzer import analyze_person_marking_images_local
         return analyze_person_marking_images_local(images)
 
-    api_key, api_key_source = _first_configured_api_key()
-    if not api_key:
-        return _local_ocr_person_marking_fallback(
-            images,
-            reason='OpenAI API-nøkkel er ikke satt på serveren. Lokal OCR er brukt som reserve; kontroller alle felt manuelt.'
-        )
-    if not images:
-        raise ValueError('Legg ved minst ett bilde.')
+    # OpenAI Vision path with auto-fallback on any error
+    try:
+        result = _analyze_with_openai_vision(images, api_key)
+    except (RuntimeError, ValueError, httpx.HTTPError, httpx.TimeoutException) as exc:
+        logger.warning('OpenAI bildeanalyse feilet, faller tilbake til lokal OCR: %s', exc)
+        from .local_marker_analyzer import analyze_person_marking_images_local
+        result = analyze_person_marking_images_local(images)
+        usikkerhet = list(result.get('usikkerhet') or [])
+        usikkerhet.insert(0, 'OpenAI bildeanalyse var ikke tilgjengelig — lokal OCR ble brukt i stedet.')
+        result['usikkerhet'] = usikkerhet
+        return result
+
+    # Verify we got something useful from OpenAI; if all fields empty, try local
+    has_any = any(
+        str(result.get(field) or '').strip()
+        for field in ('navn', 'adresse', 'postnummer', 'poststed', 'mobil', 'deltakernummer')
+    )
+    if not has_any:
+        logger.info('OpenAI returnerte tomme felt — supplerer med lokal OCR')
+        from .local_marker_analyzer import analyze_person_marking_images_local
+        local_result = analyze_person_marking_images_local(images)
+        # Prefer local values if OpenAI gave nothing
+        for field in ('navn', 'adresse', 'postnummer', 'poststed', 'mobil', 'deltakernummer', 'annen_merking'):
+            if not result.get(field) and local_result.get(field):
+                result[field] = local_result[field]
+        # Carry over registry match flags from local analyzer
+        for key in ('registry_match', 'registry_source', 'registry_source_url'):
+            if key in local_result:
+                result[key] = local_result[key]
+
+    # Enrich OpenAI result with hummer registry lookup if deltakernummer present
+    # (local pipeline already does this, OpenAI doesn't)
+    if not result.get('registry_match'):
+        result = _enrich_openai_result_with_registry(result)
+
+    result['analysis_source'] = 'openai'
+    return result
+
+
+def _enrich_openai_result_with_registry(result: dict[str, Any]) -> dict[str, Any]:
+    """Run the same hummer registry lookup that local_marker_analyzer uses,
+    on a result coming from OpenAI Vision. Adds registry_match flags and
+    fills in any missing fields the registry can authoritatively provide.
+    """
+    deltakernr = str(result.get('deltakernummer') or '').strip()
+    name_hint = str(result.get('navn') or '').strip()
+    if not deltakernr and not name_hint:
+        return result
+    try:
+        from .local_marker_analyzer import _enrich_with_registry
+        return _enrich_with_registry(result)
+    except Exception as exc:
+        logger.info('Hummerregister-oppslag feilet under OpenAI-flyt: %s', exc)
+        return result
+
+
+def _analyze_with_openai_vision(images: list[dict[str, Any]], api_key: str) -> dict[str, Any]:
+    """Run the OpenAI Vision call. Raises on any error so the caller can
+    decide whether to fall back to local OCR."""
     max_images = _env_int('KV_OPENAI_VISION_MAX_IMAGES', 4, minimum=1, maximum=8)
     selected = images[:max_images]
     content_items: list[dict[str, Any]] = [{'type': 'input_text', 'text': PERSON_MARKING_PROMPT}]

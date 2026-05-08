@@ -417,6 +417,47 @@ async def api_ocr_extract(request: Request, file: UploadFile = File(...)):
     return JSONResponse(payload)
 
 
+@router.get('/api/person-fartoy/analyzer-status')
+def api_person_fartoy_analyzer_status(request: Request):
+    """Diagnose hvilken bildeanalyse-pipeline som vil brukes.
+
+    Returnerer hvilken kilde (OpenAI Vision eller lokal Tesseract) som er
+    aktiv, slik at felt-bruker ser status før analysen starter."""
+    require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til Minfiskerikontroll.')
+    import os as _os
+    from ..services.openai_vision_service import _first_configured_api_key, VISION_MODEL_DEFAULT
+
+    api_key, key_source = _first_configured_api_key()
+    raw_flag = str(_os.getenv('KV_PERSON_FARTOY_USE_OPENAI') or '').strip().lower()
+    explicitly_disabled = raw_flag in {'0', 'false', 'no', 'off'}
+    openai_active = bool(api_key) and not explicitly_disabled
+
+    if openai_active:
+        primary = 'openai'
+        primary_label = 'OpenAI Vision'
+        primary_detail = f'Avansert AI-analyse (modell: {_os.getenv("KV_OPENAI_VISION_MODEL") or _os.getenv("OPENAI_VISION_MODEL") or VISION_MODEL_DEFAULT})'
+    else:
+        primary = 'local'
+        primary_label = 'Lokal Tesseract OCR'
+        if api_key and explicitly_disabled:
+            primary_detail = 'OpenAI-nøkkel er konfigurert, men er deaktivert via KV_PERSON_FARTOY_USE_OPENAI=0.'
+        elif not api_key:
+            primary_detail = 'Sett miljøvariabel KV_OPENAI_API_KEY for å aktivere OpenAI Vision.'
+        else:
+            primary_detail = 'Lokal OCR-pipeline.'
+
+    return JSONResponse({
+        'primary': primary,
+        'primary_label': primary_label,
+        'primary_detail': primary_detail,
+        'openai_active': openai_active,
+        'openai_key_source': key_source if openai_active else '',
+        'fallback': 'local' if openai_active else None,
+        'registry_lookup_active': True,
+        'registry_source': 'Fiskeridirektoratet — registrerte hummerfiskere',
+    })
+
+
 @router.post('/api/person-fartoy/analyze-image')
 async def api_person_fartoy_analyze_image(request: Request, files: list[UploadFile] = File(...)):
     require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til Minfiskerikontroll.')

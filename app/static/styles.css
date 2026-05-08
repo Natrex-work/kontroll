@@ -7365,3 +7365,57 @@ body.page-map-fullscreen {
   .hummer-sample-box .data-table thead th,
   .hummer-sample-box .data-table tbody td { padding: 4px 6px; }
 }
+
+/* ========================================================================
+   1.8.38 — Person/Fartøy bildeanalyse-status
+   ======================================================================== */
+
+.person-analyzer-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: var(--mk-radius-md, 14px);
+  margin: 0 0 12px;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  border: 1px solid transparent;
+  transition: background-color 200ms ease, border-color 200ms ease;
+}
+.person-analyzer-status .pa-icon {
+  font-size: 1.4em;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.person-analyzer-status .pa-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.person-analyzer-status .pa-body strong {
+  font-weight: 700;
+  letter-spacing: -0.005em;
+}
+.person-analyzer-status .pa-hint {
+  font-size: 0.78rem;
+  opacity: 0.82;
+}
+
+.person-analyzer-success {
+  background: linear-gradient(180deg, #e8f5ee 0%, #ddf2e6 100%);
+  border-color: #a4d6bb;
+  color: #0e5a35;
+}
+.person-analyzer-info {
+  background: linear-gradient(180deg, #eaf3fb 0%, #dceaf6 100%);
+  border-color: #abd6ee;
+  color: #0d4974;
+}
+.person-analyzer-loading {
+  background: #f3f7fb;
+  border-color: #e0e8f0;
+  color: #5f6f81;
+}

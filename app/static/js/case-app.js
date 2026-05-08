@@ -4886,7 +4886,15 @@
       updateExternalSearchLinks();
       var uncertaintyText = Array.isArray(result.usikkerhet) ? result.usikkerhet.join(' ').toLowerCase() : '';
       var analysisSource;
-      if (result.registry_match) {
+      var openaiUsed = result.analysis_source === 'openai';
+      var openaiFell = uncertaintyText.indexOf('openai') !== -1 && uncertaintyText.indexOf('lokal ocr') !== -1;
+      if (openaiUsed && result.registry_match) {
+        analysisSource = 'OpenAI bildeanalyse + hummerregister';
+      } else if (openaiUsed) {
+        analysisSource = 'OpenAI bildeanalyse';
+      } else if (openaiFell) {
+        analysisSource = 'Lokal OCR (OpenAI utilgjengelig)';
+      } else if (result.registry_match) {
         analysisSource = 'Lokal OCR + hummerregister';
       } else {
         analysisSource = 'Lokal OCR (Tesseract)';
@@ -4939,17 +4947,23 @@
         }
         fillPersonVisionFields(payload);
         var uncertain = Array.isArray(payload.usikkerhet) ? payload.usikkerhet.length : 0;
+        var aiUsed = payload.analysis_source === 'openai';
         if (registryResult) {
           var statusBits = [];
+          if (aiUsed) {
+            statusBits.push('<div class="callout callout-info" style="margin-top:6px"><strong>🤖 OpenAI bildeanalyse brukt</strong><div class="small">Avansert AI for håndskrift, slitte merker og dårlig lys.</div></div>');
+          }
           if (payload.registry_match) {
             statusBits.push('<div class="callout callout-success" style="margin-top:6px"><strong>✓ Bekreftet i hummerregisteret</strong><div class="small">' + escapeHtml(payload.registry_source || 'Fiskeridirektoratet') + '</div></div>');
           }
-          var headline = payload.registry_match
-            ? 'Bildeanalyse fullført og bekreftet mot Fiskeridirektoratet'
-            : 'Bildeanalyse fullført';
+          var headline;
+          if (payload.registry_match && aiUsed) headline = 'OpenAI bildeanalyse fullført og bekreftet mot Fiskeridirektoratet';
+          else if (payload.registry_match) headline = 'Bildeanalyse fullført og bekreftet mot Fiskeridirektoratet';
+          else if (aiUsed) headline = 'OpenAI bildeanalyse fullført';
+          else headline = 'Bildeanalyse fullført';
           var detail = 'Feltene er fylt ut fra ' + personVisionFiles.length + ' bilde' + (personVisionFiles.length === 1 ? '' : 'r') + '. ';
           if (payload.registry_match) {
-            detail += 'Navn, adresse og deltakernummer er hentet fra det offentlige registeret.';
+            detail += 'Navn og deltakernummer er hentet fra det offentlige registeret.';
           } else {
             detail += (uncertain ? 'Kontroller markerte usikre felt.' : 'Ingen usikkerhet ble meldt fra bildeanalysen.');
           }
@@ -8518,6 +8532,64 @@ function renderHummerStatus(result) {
     if (btnRunPersonImageAnalysis) btnRunPersonImageAnalysis.addEventListener('click', function () {
       runPersonImageAnalysis();
     });
+
+    // Inject a status bar above the analyze button (if not already present)
+    if (btnRunPersonImageAnalysis && !document.getElementById('person-analyzer-status')) {
+      var statusBar = document.createElement('div');
+      statusBar.id = 'person-analyzer-status';
+      statusBar.className = 'person-analyzer-status person-analyzer-loading';
+      statusBar.innerHTML = '<span class="pa-icon" aria-hidden="true">⋯</span><div class="pa-body"><strong>Henter bildeanalyse-status …</strong></div>';
+      var insertParent = btnRunPersonImageAnalysis.parentElement;
+      if (insertParent) insertParent.insertBefore(statusBar, btnRunPersonImageAnalysis);
+    }
+
+    // Fetch and display analyzer status (OpenAI vs local) the first time
+    // user interacts with the Person/Fartøy area
+    var analyzerStatusFetched = false;
+    function fetchAndShowAnalyzerStatus() {
+      if (analyzerStatusFetched) return;
+      analyzerStatusFetched = true;
+      try {
+        fetch('/api/person-fartoy/analyzer-status', { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (data) {
+            if (!data) return;
+            var statusBar = document.getElementById('person-analyzer-status');
+            if (!statusBar) return;
+            var icon, label, hint, kind;
+            if (data.openai_active) {
+              icon = '🤖';
+              label = data.primary_label;
+              hint = data.primary_detail;
+              kind = 'success';
+            } else {
+              icon = '📷';
+              label = data.primary_label;
+              hint = data.primary_detail;
+              kind = 'info';
+            }
+            statusBar.className = 'person-analyzer-status person-analyzer-' + kind;
+            statusBar.innerHTML =
+              '<span class="pa-icon" aria-hidden="true">' + icon + '</span>' +
+              '<div class="pa-body">' +
+                '<strong>' + escapeHtml(label) + '</strong>' +
+                '<span class="pa-hint">' + escapeHtml(hint) + '</span>' +
+              '</div>';
+          })
+          .catch(function () { /* silent */ });
+      } catch (e) { /* silent */ }
+    }
+    // Trigger status fetch when user expands or interacts with the section
+    var personVisionSection = document.getElementById('person-vision-section') ||
+                              (btnRunPersonImageAnalysis && btnRunPersonImageAnalysis.closest('section, fieldset, details'));
+    if (personVisionSection) {
+      personVisionSection.addEventListener('toggle', fetchAndShowAnalyzerStatus, { once: true });
+      personVisionSection.addEventListener('focusin', fetchAndShowAnalyzerStatus, { once: true });
+      personVisionSection.addEventListener('click', fetchAndShowAnalyzerStatus, { once: true });
+    } else {
+      // Fallback: fetch immediately on page load
+      fetchAndShowAnalyzerStatus();
+    }
 
     var btnClearPersonImageAnalysis = document.getElementById('btn-clear-person-image-analysis');
     if (btnClearPersonImageAnalysis) btnClearPersonImageAnalysis.addEventListener('click', function () {
