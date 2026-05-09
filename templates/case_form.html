@@ -1,0 +1,659 @@
+{% extends 'base.html' %}
+{% block title %}{{ case.case_number }} · {{ brand_org_name }}{% endblock %}
+{% block body_class %}page-case-form has-top-step-nav{% endblock %}
+{% block topbar_extra %}
+<div class="top-step-nav" id="top-step-nav" aria-label="Stegnavigasjon for mobil">
+  <button type="button" class="btn btn-secondary btn-small top-step-btn" id="top-prev-step" aria-label="Forrige steg"><span class="top-step-btn-text">Tilbake</span><span class="top-step-btn-icon" aria-hidden="true">←</span></button>
+  <div class="top-step-label" id="top-step-label">1 / 9</div>
+  <button type="button" class="btn btn-primary btn-small top-step-btn" id="top-next-step" aria-label="Neste steg"><span class="top-step-btn-text">Videre</span><span class="top-step-btn-icon" aria-hidden="true">→</span></button>
+</div>
+{% endblock %}
+{% block content %}
+<details class="case-disclosure page-header page-header-soft" id="case-disclosure">
+  <summary class="case-disclosure-summary">
+    <div>
+      <div class="eyebrow">Kontrollsak</div>
+      <strong class="case-disclosure-number">{{ case.case_number }}</strong>
+    </div>
+    <span class="case-disclosure-toggle">Trykk for detaljer</span>
+  </summary>
+  <div class="case-disclosure-body">
+    <div>
+      <div class="case-header-line">
+        <h1>{{ case.case_number }}</h1>
+        <label class="case-number-edit"><span>Rediger løpenummer</span><input type="number" min="1" max="999" step="1" name="case_number_suffix" form="case-form" value="{{ case.case_number.split()[-1] if case.case_number else '' }}" /></label>
+      </div>
+      <p class="muted">Stegvis føring av kontroll med posisjon, registeroppslag, kontrollpunkter og dokumentpakke.</p>
+      <div class="small muted">Bare de tre siste sifrene endres. Prefix og år beholdes automatisk.</div>
+    </div>
+    <div class="actions-row wrap">
+      <button class="btn btn-primary" id="btn-manual-save" type="button">Lagre manuelt</button>
+      <span class="autosave-pill muted" id="autosave-status">Autosave ikke startet</span>
+      {% if not offline_new %}
+      <a class="btn btn-secondary" href="/cases/{{ case.id }}/preview" target="_blank" rel="noopener">Forhåndsvis dokumentpakke</a>
+      <form method="post" action="/cases/{{ case.id }}/interview-pdf" target="_blank" rel="noopener" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><button class="btn btn-secondary" type="submit">Eksporter kun avhørsrapport</button></form>
+      <form method="post" action="/cases/{{ case.id }}/bundle" target="_blank" rel="noopener" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><button class="btn btn-secondary" type="submit">Eksporter PDF og filer (ZIP)</button></form>
+      <form method="post" action="/cases/{{ case.id }}/pdf" target="_blank" rel="noopener" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><button class="btn btn-secondary" type="submit">Avslutt og eksporter PDF</button></form>
+      <span class="pill">Sletting og gjenoppretting gjøres av admin</span>
+      {% else %}
+      <span class="pill">Lokal kladd · synk saken før forhåndsvisning og eksport</span>
+      {% endif %}
+    </div>
+    <div class="callout margin-top-s hidden" id="local-case-status-box"><span id="local-case-status-text">Saken lagres også lokalt på enheten.</span> <button class="btn btn-secondary btn-small" type="button" id="btn-sync-case-draft">Synk sak nå</button> <button class="btn btn-secondary btn-small hidden" type="button" id="btn-discard-local-case">Forkast lokal versjon</button></div>
+  </div>
+</details>
+
+{% if request.query_params.get('saved') %}
+<div class="alert alert-success">Saken er lagret.</div>
+{% endif %}
+{% if case_number_saved %}<div class="alert alert-success">Saksnummeret er oppdatert.</div>{% endif %}
+{% if case_number_error == 'duplicate' %}<div class="alert alert-error">Det saksnummeret finnes allerede. Velg et annet tresifret løpenummer.</div>{% endif %}
+
+{% if missing_server_case %}<div class="alert alert-error">Serverkopi mangler. Synk lokal kladd før eksport.</div>{% endif %}
+{% if offline_new %}<div class="alert">Lokal sakskladd. Synk for saksnummer.</div>{% endif %}
+<div id="case-app"
+     data-case-id="{{ offline_local_id or case.id }}"
+     data-rules-url="/api/rules"
+     data-zones-url="/api/zones/check"
+     data-geo-reverse-url="/api/geo/reverse"
+     data-registry-url="/api/registry/lookup"
+     data-summary-url="/api/summary/suggest"
+     data-autosave-url="{% if not offline_new %}/api/cases/{{ case.id }}/autosave{% endif %}"
+     data-create-case-url="/api/cases/create-from-draft"
+     data-law-browser='{{ law_browser|tojson }}'
+     data-map-catalog='{{ portal_layers|tojson }}'
+     data-portal-mapserver="{{ portal_mapserver_url }}" data-portal-vern-mapserver="{{ portal_vern_mapserver_url }}"
+     data-evidence='{{ evidence|tojson }}'
+     data-map-url="{{ portal_map_url }}"
+     data-case-number="{{ case.case_number }}"
+     data-case-version="{{ case.version or 1 }}"
+     data-current-user-id="{{ current_user.id if current_user else '' }}"
+     data-current-user-email="{{ current_user.email if current_user else '' }}"
+     data-case-updated-at="{{ case.updated_at or "" }}"
+     data-case-url="{% if offline_new %}/cases/offline/new{% if offline_local_id %}?local_id={{ offline_local_id|urlencode }}{% endif %}{% else %}/cases/{{ case.id }}/edit{% endif %}"
+     data-start-step="{{ request.query_params.get('step') or '' }}"
+     data-force-start-step="{{ '1' if request.query_params.get('new_case') or request.query_params.get('step') else '0' }}"
+     data-offline-new="{{ '1' if offline_new else '0' }}">
+
+  <div class="stepper glass-stepper">
+    <button class="step-btn active" type="button" data-step-target="1">1. Roller / grunnlag</button>
+    <button class="step-btn" type="button" data-step-target="2">2. Kontrollvalg</button>
+    <button class="step-btn" type="button" data-step-target="3">3. Person / fartøy</button>
+    <button class="step-btn" type="button" data-step-target="4">4. Posisjon / Kart</button>
+    <button class="step-btn" type="button" data-step-target="5">5. Kontrollpunkter</button>
+    <button class="step-btn" type="button" data-step-target="6">6. Illustrasjonsrapport / bilder</button>
+    <button class="step-btn" type="button" data-step-target="7">7. Avhør</button>
+    <button class="step-btn" type="button" data-step-target="8">8. Beslagsrapport</button>
+    <button class="step-btn" type="button" data-step-target="9">9. Oppsummering</button>
+  </div>
+
+  <form id="case-form" method="post" action="{% if offline_new %}#{% else %}/cases/{{ case.id }}/save{% endif %}" class="stack gap-l">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+    <input type="hidden" name="case_version" id="case_version" value="{{ case.version or 1 }}" />
+    <input type="hidden" name="client_mutation_id" id="client_mutation_id" value="" />
+    <input type="hidden" name="findings_json" id="findings_json" value='{{ case.findings_json|e }}' />
+    <input type="hidden" name="source_snapshot_json" id="source_snapshot_json" value='{{ case.source_snapshot_json|e }}' />
+    <input type="hidden" name="crew_json" id="crew_json" value='{{ (case.crew_json or "[]")|e }}' />
+    <input type="hidden" name="external_actors_json" id="external_actors_json" value='{{ (case.external_actors_json or "[]")|e }}' />
+    <input type="hidden" name="persons_json" id="persons_json" value='{{ (case.persons_json or "[]")|e }}' />
+    <input type="hidden" name="interview_sessions_json" id="interview_sessions_json" value='{{ (case.interview_sessions_json or "[]")|e }}' />
+    <input type="hidden" name="seizure_reports_json" id="seizure_reports_json" value='{{ (case.seizure_reports_json or "[]")|e }}' />
+    <input type="hidden" name="status" value="{{ case.status or 'Utkast' }}" />
+    <input type="hidden" name="basis_source_name" id="basis_source_name" value="{{ (case.basis_source_name or '')|e }}" />
+    <input type="hidden" name="complainant_signature" id="complainant_signature" value='{{ (case.complainant_signature or "")|e }}' />
+    <input type="hidden" name="witness_signature" id="witness_signature" value='{{ (case.witness_signature or "")|e }}' />
+    <input type="hidden" name="investigator_signature" id="investigator_signature" value='{{ (case.investigator_signature or "")|e }}' />
+    <input type="hidden" name="suspect_signature" id="suspect_signature" value='{{ (case.suspect_signature or "")|e }}' />
+
+    <section class="card card-panel step-pane active" data-step="1">
+      <div class="card-header panel-header">
+        <div>
+          <h2>1. Roller / grunnlag</h2>
+        </div>
+      </div>
+      <div class="grid-two">
+        <label><span>Etterforsker</span><input name="investigator_name" id="investigator_name" value="{{ case.investigator_name }}" readonly /></label>
+        <label><span>Anmelder</span><input name="complainant_name" id="complainant_name" value="{{ case.complainant_name or '' }}" /></label>
+        <label><span>Observatør / vitne</span><input name="witness_name" id="witness_name" value="{{ case.witness_name or '' }}" /></label>
+        <label><span>Grunnlag for kontroll</span><select name="case_basis" id="case_basis">{% for option in case_basis_options %}<option value="{{ option.value }}" {% if case.case_basis == option.value %}selected{% endif %}>{{ option.label }}</option>{% endfor %}</select></label>
+        <label class="span-2"><span>Patruljeformål / begrunnelse</span><textarea name="basis_details" id="basis_details" rows="5">{{ case.basis_details or '' }}</textarea></label>
+      </div>
+      <div class="actions-row wrap margin-top-s">
+        <label class="inline-select"><span class="muted small">Standardtekst</span>
+          <select id="basis_preset">
+            <option value="auto">Automatisk forslag</option>
+            <option value="patrol-general">Patrulje - generell kontroll</option>
+            <option value="patrol-fixed">Patrulje - faststående redskap</option>
+            <option value="patrol-hummer">Patrulje - hummeroppsyn</option>
+            <option value="patrol-samleteine">Patrulje - samleteine / sanketeine</option>
+            <option value="patrol-garnlenke">Patrulje - garnlenke / lenkekontroll</option>
+          </select>
+        </label>
+        <button class="btn btn-secondary" type="button" id="btn-generate-basis">Sett inn standardtekst</button>
+        <button class="btn btn-secondary" type="button" id="btn-polish-basis">Formulering</button>
+      </div>
+      <div class="split-panel margin-top-m">
+        <div class="subcard">
+          <div class="subcard-head">
+            <h3>Patruljeteam og roller</h3>
+            <button class="btn btn-secondary btn-small" type="button" id="btn-add-crew">Legg til rolle</button>
+          </div>
+          <div id="crew-list" class="stack gap-s"></div>
+        </div>
+        <div class="subcard">
+          <h3>Eksterne aktører</h3>
+          <div id="external-actors" class="actions-row wrap margin-top-s">
+            {% for actor in external_actor_options %}
+            <label class="check-chip"><input type="checkbox" value="{{ actor }}" {% if actor in external_actors %}checked{% endif %} /> {{ actor }}</label>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      <div class="step-actions"><button type="button" class="btn btn-primary" data-next-step>Videre</button></div>
+    </section>
+
+    <section class="card card-panel step-pane" data-step="2">
+      <div class="card-header panel-header">
+        <div>
+          <h2>2. Kontrollvalg</h2>
+        </div>
+      </div>
+      <div class="subcard">
+        <h3>Kontrollvalg</h3>
+        <div class="grid-two compact-grid-form margin-top-s">
+          <label><span>Kontrolltype</span><select name="control_type" id="control_type"><option value="">Velg</option>{% for option in control_types %}<option value="{{ option }}" {% if case.control_type == option %}selected{% endif %}>{{ option }}</option>{% endfor %}</select></label>
+          <label><span>Fiskeri</span><select name="fishery_type" id="fishery_type"><option value="{{ case.fishery_type or '' }}">{{ case.fishery_type or 'Velg' }}</option></select></label>
+          <label><span>Redskap</span><select name="gear_type" id="gear_type"><option value="{{ case.gear_type or '' }}">{{ case.gear_type or 'Velg' }}</option></select><span class="small muted">Styrer lovgrunnlag, kartfilter og kontrollpunkter.</span></label>
+        </div>
+        <input type="hidden" name="species" id="species" value="{{ case.species or '' }}" /><datalist id="species_options"></datalist>
+        <div class="hidden" aria-hidden="true">
+          <input name="start_time" id="start_time" type="datetime-local" value="{{ case.start_time or '' }}" />
+          <input name="end_time" id="end_time" type="datetime-local" value="{{ case.end_time or '' }}" readonly />
+        </div>
+      </div>
+      <div class="step-actions"><button type="button" class="btn btn-secondary" data-prev-step>Tilbake</button><button type="button" class="btn btn-primary" data-next-step>Videre</button></div>
+    </section>
+
+    <section class="card card-panel step-pane" data-step="3">
+      <div class="card-header panel-header">
+        <div>
+          <h2>3. Person / fartøy</h2>
+          <div id="person-mode-hint" class="muted small hidden"></div>
+        </div>
+      </div>
+      <div class="split-panel margin-top-m">
+        <div class="subcard">
+          <div class="subcard-head">
+            <h3>Bildeanalyse av merke/blåse</h3>
+            <span class="muted small">Ta ett eller flere bilder av vak, blåse, merke eller redskap. Bildet forhåndsvises, kan analyseres og lagres samtidig som rapportvedlegg.</span>
+          </div>
+          <div class="actions-row wrap margin-top-s person-autofill-actions">
+            <button class="btn btn-primary" type="button" id="btn-ocr-camera">Ta bilde</button>
+            <button class="btn btn-secondary" type="button" id="btn-ocr-file">Legg ved bilde</button>
+            <button class="btn btn-secondary" type="button" id="btn-run-person-image-analysis">Analyser bilde</button>
+            <button class="btn btn-secondary" type="button" id="btn-clear-person-image-analysis">Tøm bilder</button>
+            <button class="btn btn-secondary" type="button" id="btn-phone-lookup">Søk mobilnummer</button>
+            <button class="btn btn-secondary" type="button" id="btn-participant-lookup">Søk deltakernummer</button>
+            <button class="btn btn-secondary" type="button" id="btn-lookup-person">Oppslag</button>
+            <input type="file" id="ocr-image-camera" accept="image/*,.heic,.heif" capture="environment" class="hidden" />
+            <input type="file" id="ocr-image-file" accept="image/*,.heic,.heif" multiple class="hidden" />
+            <input type="file" id="inline-evidence-camera-input" accept="image/*,.heic,.heif" capture="environment" class="hidden" />
+            <input type="file" id="inline-evidence-file-input" accept="image/*,.heic,.heif" class="hidden" />
+          </div>
+          <div class="grid-two compact-grid-form margin-top-s">
+            <label><span>Navn eller ansvarlig</span><input id="lookup_name" value="{{ case.suspect_name or '' }}" autocomplete="name" /></label>
+            <label><span>Mobilnummer / fiskerimerke / radiokallesignal / deltakernummer</span><input id="lookup_identifier" value="{{ case.suspect_phone or case.vessel_reg or case.radio_call_sign or case.hummer_participant_no or '' }}" inputmode="text" autocomplete="off" /></label>
+          </div>
+          <details class="source-disclosure margin-top-s">
+            <summary>Vis merketøy/notat ved behov</summary>
+            <label class="margin-top-s"><span>Merketøy / notat</span><textarea name="lookup_text" id="lookup_text" rows="4" placeholder="Skriv inn merketøy eller notat manuelt ved behov.">{{ case.lookup_text or '' }}</textarea></label>
+          </details>
+          <div class="callout margin-top-s hidden" id="ocr-selected-file">Ingen bildefil valgt ennå.</div>
+          <div class="person-image-preview-grid margin-top-s hidden" id="person-image-preview-grid" aria-live="polite"></div>
+          <div class="callout margin-top-s hidden" id="local-media-status"><span id="local-media-status-text">Bilder og lyd lagres lokalt på enheten og synkes til saken i bakgrunnen når nettverket er klart.</span> <button class="btn btn-secondary btn-small" type="button" id="btn-sync-local-media">Synk nå</button></div>
+          <div class="callout margin-top-s" id="registry-result">Bilde/oppslag klar.</div>
+          <div class="person-vision-result hidden margin-top-s" id="person-vision-result" aria-live="polite">
+            <div class="subcard-head compact-head">
+              <h3>Resultat fra bildeanalyse</h3>
+              <span class="muted small">Alle felter kan redigeres. Usikre felter er markert.</span>
+            </div>
+            <div class="grid-two compact-grid-form margin-top-s person-vision-fields">
+              <label data-vision-field="navn"><span>Navn</span><input id="vision_navn" autocomplete="name" /></label>
+              <label data-vision-field="adresse"><span>Adresse</span><input id="vision_adresse" autocomplete="street-address" /></label>
+              <label data-vision-field="postnummer"><span>Postnummer</span><input id="vision_postnummer" inputmode="numeric" autocomplete="postal-code" /></label>
+              <label data-vision-field="poststed"><span>Poststed</span><input id="vision_poststed" autocomplete="address-level2" /></label>
+              <label data-vision-field="mobil"><span>Mobil</span><input id="vision_mobil" inputmode="tel" autocomplete="tel" /></label>
+              <label data-vision-field="deltakernummer">
+                <span>Deltakernummer</span>
+                <div class="deltaker-input-row">
+                  <input id="vision_deltakernummer" inputmode="text" autocomplete="off" />
+                  <button type="button" class="btn btn-secondary btn-small deltaker-lookup-btn"
+                          id="btn-lookup-deltakernummer"
+                          title="Slå opp i Fiskeridirektoratets register over registrerte hummerfiskere"
+                          aria-label="Slå opp i Fiskeridir-registeret">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                    <span>Slå opp</span>
+                  </button>
+                </div>
+              </label>
+              <label class="span-2" data-vision-field="annen_merking"><span>Annen merking</span><input id="vision_annen_merking" inputmode="text" autocomplete="off" /></label>
+            </div>
+            <div class="callout area-warning margin-top-s hidden" id="vision-uncertainty-box"></div>
+            <div class="actions-row wrap margin-top-s">
+              <button class="btn btn-primary btn-small" type="button" id="btn-apply-person-vision-fields">Bruk/oppdater Person/Fartøy-feltene</button>
+            </div>
+          </div>
+          <div id="ocr-autofill-preview" class="ocr-preview hidden"></div>
+          <div id="registry-candidates" class="registry-candidate-list hidden"></div>
+        </div>
+        <div class="subcard">
+          <div class="subcard-head">
+            <h3>Registerstatus</h3>
+          </div>
+          <div id="hummer-registry-status" class="status-panel margin-top-s">
+            <div class="status-title">Ingen registerkontroll kjørt ennå</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-two leisure-fields margin-top-m" id="leisure-fields">
+        <label><span>Navn</span><input name="suspect_name" id="suspect_name" value="{{ case.suspect_name or '' }}" autocomplete="name" /></label>
+        <label><span>Adresse</span><input name="suspect_address" id="suspect_address" value="{{ case.suspect_address or '' }}" autocomplete="street-address" /></label>
+        <label><span>Postnr. og sted</span><input name="suspect_post_place" id="suspect_post_place" value="{{ case.suspect_post_place or '' }}" autocomplete="postal-code" /></label>
+        <label><span>Mobilnummer</span><input name="suspect_phone" id="suspect_phone" value="{{ case.suspect_phone or '' }}" inputmode="tel" autocomplete="tel" /></label>
+        <label><span>Fødselsdato</span><input name="suspect_birthdate" id="suspect_birthdate" value="{{ case.suspect_birthdate or '' }}" /></label>
+        <label><span>Hummerdeltakernummer</span><input name="hummer_participant_no" id="hummer_participant_no" value="{{ case.hummer_participant_no or '' }}" inputmode="numeric" /></label>
+        <label><span>Påmeldt hummerfisket i</span><input name="hummer_last_registered" id="hummer_last_registered" value="{{ case.hummer_last_registered or '' }}" readonly /></label>
+        <label><span>Tidligere registrert på samme person/fartøy i appen</span><input name="observed_gear_count" id="observed_gear_count" type="number" min="0" value="{{ case.observed_gear_count or '' }}" readonly /></label>
+        <div class="callout span-2" id="gear-summary-status">Tidligere registrerte teiner eller andre redskap på samme person/fartøy brukes ikke i oppsummeringen. Feltet holdes på 0, og oppsummeringen bygger bare på faktiske avvik og lovbrudd som registreres i kontrollpunktene.</div>
+      </div>
+      <div class="grid-two commercial-fields hidden margin-top-m" id="commercial-fields">
+        <label><span>Ansvarlig / eier / skipper</span><input id="suspect_name_commercial" value="{{ case.suspect_name or '' }}" /></label>
+        <label><span>Fartøysnavn</span><input name="vessel_name" id="vessel_name" value="{{ case.vessel_name or '' }}" /></label>
+        <label><span>Fiskerimerke</span><input name="vessel_reg" id="vessel_reg" value="{{ case.vessel_reg or '' }}" /></label>
+        <label><span>Radiokallesignal</span><input name="radio_call_sign" id="radio_call_sign" value="{{ case.radio_call_sign or '' }}" /></label>
+      </div>
+      <div class="grid-two compact-grid-form margin-top-s" id="marker-id-fields">
+        <label class="span-2"><span>Merke-ID / vak/blåse</span><input name="gear_marker_id" id="gear_marker_id" value="{{ case.gear_marker_id or '' }}" inputmode="text" placeholder="F.eks. LOB-HUM-1323" /></label>
+        <div class="callout span-2 small">Merke-ID fra blåse/vak lagres separat og fyller ikke ut hummerdeltakernummer. Hummerdeltakernummer brukes kun ved manuelt registertreff.</div>
+      </div>
+
+      <div class="subcard margin-top-m" id="persons-section">
+        <div class="subcard-head">
+          <div>
+            <h3>Flere personer i saken</h3>
+            <div class="muted small">Legg til mistenkt/siktet, eier, fører/skipper, eksternt vitne eller annen relevant person. Disse kan brukes videre i avhør.</div>
+          </div>
+          <div class="actions-row wrap">
+            <button class="btn btn-secondary btn-small" type="button" id="btn-add-suspect">Legg til mistenkt</button>
+            <button class="btn btn-secondary btn-small" type="button" id="btn-add-witness-person">Legg til vitne</button>
+          </div>
+        </div>
+        <div id="persons-list" class="stack gap-m margin-top-s"></div>
+      </div>
+
+      <div class="step-actions"><button type="button" class="btn btn-secondary" data-prev-step>Tilbake</button><button type="button" class="btn btn-primary" data-next-step>Videre</button></div>
+    </section>
+
+    <section class="card card-panel step-pane" data-step="4">
+      <div class="card-header panel-header">
+        <div>
+          <h2>4. Posisjon / Kart</h2>
+        </div>
+      </div>
+      <div class="subcard">
+        <h3>Posisjon og kart</h3>
+        <div class="callout margin-top-s portal-inline-card">
+          <strong>Fiskeridirektoratets kartportal</strong>
+          <div class="small muted">Brukes som hovedkart for full kartoversikt. Kontroll ved posisjon under viser bare relevante reguleringsområder ut fra valgt kontrolltype, art/fiskeri og redskap.</div>
+          <a class="btn btn-secondary btn-small margin-top-s" href="{{ portal_map_url }}" target="_blank" rel="noopener">Åpne kartportal</a>
+        </div>
+        <div class="grid-two compact-grid-form margin-top-s">
+          <label class="span-2"><span>Nærmeste sted</span><input name="location_name" id="location_name" value="{{ case.location_name or '' }}" /><span class="small coordinate-summary" id="position-coordinate-summary">DMS vises her når posisjon er satt.</span></label>
+          <div class="subcard span-2 case-map-card inline-case-map-card" id="case-map-card">
+            <div class="subcard-head compact-map-head">
+              <h3>Kontroll ved posisjon</h3>
+              <button type="button" class="btn btn-secondary btn-small" id="btn-toggle-case-map-fullscreen">Åpne kart</button>
+            </div>
+            <div class="callout margin-top-s map-compact-status" id="map-selection-status">Aktuelle verneområder og reguleringer vises direkte i kartet.</div>
+            <button type="button" class="hidden" id="toggle-zone-hit-overlay" aria-hidden="true" tabindex="-1"><span id="toggle-zone-hit-overlay-text"></span></button>
+            <div id="case-position-map" class="leaflet-map case-map" data-portal-catalog='{{ portal_layers|tojson }}' data-portal-mapserver="{{ portal_mapserver_url }}" data-portal-vern-mapserver="{{ portal_vern_mapserver_url }}"></div>
+            <div class="map-status-legend" aria-label="Forklaring til kartmarkeringer">
+              <span><i class="map-swatch fredning"></i> Fredning/verneområde</span>
+              <span><i class="map-swatch stengt"></i> Stengt/nullfiske</span>
+              <span><i class="map-swatch regulert"></i> Regulering/J-melding</span>
+              <span><i class="map-swatch maksimal"></i> Maksimalmål</span>
+            </div>
+            <details class="map-relevant-panel margin-top-s" id="case-relevant-areas">
+              <summary class="map-relevant-head">
+                <strong>Temalag</strong>
+                <span class="muted small">Åpne/lukk</span>
+              </summary>
+              <div class="map-relevant-list" id="case-relevant-areas-list"><div class="muted small">Velg kontrolltype og redskap.</div></div>
+            </details>
+            <details class="offline-packages-panel margin-top-s" id="offline-regulations-panel">
+              <summary class="offline-packages-head">
+                <div>
+                  <strong>Offline-reguleringer</strong>
+                  <div class="muted small">Lagret på enheten for valgt område.</div>
+                </div>
+              </summary>
+              <div class="callout margin-top-s" id="map-offline-status">Relevante reguleringsområder lagres lokalt for rask feltvisning.</div>
+              <div class="actions-row wrap margin-top-s">
+                <button type="button" class="btn btn-secondary btn-small" id="btn-refresh-offline-packages">Oppdater lagrede pakker</button>
+              </div>
+              <div class="callout margin-top-s" id="offline-packages-summary">Ingen offline-reguleringer er lagret på denne enheten ennå.</div>
+              <div class="offline-packages-list" id="offline-packages-list"></div>
+            </details>
+            <div class="map-layer-panel-host" id="case-map-layer-panel-host"></div>
+          </div>
+          <div class="position-action-group span-2">
+            <span>Handlinger</span>
+            <div class="position-actions margin-top-s">
+              <button type="button" class="btn btn-secondary" id="btn-use-location">Bruk min posisjon</button>
+              <button type="button" class="btn btn-secondary" id="btn-set-manual-position">Sett manuelt i kart</button>
+              <button type="button" class="btn btn-secondary" id="btn-check-zone">Oppdater verneområder</button>
+              <button type="button" class="btn btn-secondary" id="btn-download-map-offline">Lagre reguleringer lokalt</button>
+            </div>
+          </div>
+          <details class="coordinate-disclosure span-2">
+            <summary>Teknisk posisjon</summary>
+            <div class="grid-two margin-top-s">
+              <label><span>WGS84 nord/sør</span><input name="latitude" id="latitude" value="{{ case.latitude or '' }}" /></label>
+              <label><span>WGS84 øst/vest</span><input name="longitude" id="longitude" value="{{ case.longitude or '' }}" /></label>
+            </div>
+          </details>
+          <input type="hidden" name="area_status" id="area_status" value="{{ case.area_status or '' }}" />
+          <input type="hidden" name="area_name" id="area_name" value="{{ case.area_name or '' }}" />
+          <label class="span-2"><span>Verneområder</span><select id="area_restriction_select"><option value="">Oppdater verneområder for å vise aktuelle områder</option></select></label>
+          <div class="callout span-2 area-restriction-detail" id="area-restriction-detail">Relevante verneområder vises etter posisjonssjekk.</div>
+        </div>
+      </div>
+      <div class="step-actions"><button type="button" class="btn btn-secondary" data-prev-step>Tilbake</button><button type="button" class="btn btn-primary" data-next-step>Videre</button></div>
+    </section>
+
+    <section class="card card-panel step-pane" data-step="5">
+      <div class="card-header panel-header">
+        <div>
+          <h2>5. Kontrollpunkter</h2>
+          <div class="muted small">Kontrollpunktene filtreres automatisk av kontrolltype, art, redskap og dato.</div>
+        </div>
+      </div>
+      <div id="rule-bundle-meta" class="callout">Velg kontrolltype, art, redskap og oppdater posisjon først. Deretter vises kun relevante kontrollpunkter.</div>
+      <div id="control-link-toolbar" class="control-link-toolbar margin-top-m"></div>
+      <div id="findings-list" class="stack gap-m margin-top-m"></div>
+      <details class="source-disclosure margin-top-m">
+        <summary>Vis kildespor</summary>
+        <div id="rule-source-list" class="source-list margin-top-s"></div>
+      </details>
+      <div class="step-actions"><button type="button" class="btn btn-secondary" data-prev-step>Tilbake</button><button type="button" class="btn btn-primary" data-next-step>Videre</button></div>
+    </section>
+  </form>
+
+  <section class="card card-panel step-pane" data-step="6">
+    <div class="card-header panel-header">
+      <div>
+        <h2>6. Illustrasjonsrapport / bilder</h2>
+      </div>
+    </div>
+    <div id="selected-finding-card" class="callout">Velg avvik for bilde.</div>
+    <form method="post" action="/cases/{{ case.id }}/evidence" enctype="multipart/form-data" class="stack gap-m margin-top-m" id="evidence-upload-form">
+      <input type="hidden" name="finding_key" id="evidence_finding_key" />
+      <input type="hidden" name="law_text" id="evidence_law_text" />
+      <input type="hidden" name="seizure_ref" id="evidence_seizure_ref" />
+      <div class="grid-two">
+        <label><span>Bildetekst</span><input type="text" name="caption" id="evidence_caption" placeholder="F.eks. manglende fluktåpning" /></label>
+        <label><span>Begrunnelse for lovbrudd</span><input type="text" name="violation_reason" id="evidence_violation_reason" placeholder="Kort og presis begrunnelse" /></label>
+        <label class="span-2"><span>Bilde / video-uttrekk</span><input type="file" name="file" id="evidence-file-input" accept="image/*,.heic,.heif" capture="environment" required /></label>
+      </div>
+      <div class="actions-row wrap">
+        <button class="btn btn-primary" type="submit">Legg til illustrasjon</button>
+        <button class="btn btn-secondary" type="button" id="btn-clear-evidence-target">Nullstill kobling</button>
+      </div>
+    </form>
+    <div class="subsection">
+      <h3>Registrerte illustrasjoner</h3>
+      <div class="evidence-grid" id="evidence-grid">
+        {% for item in evidence %}
+        {% if not item.mime_type or not item.mime_type.startswith('audio/') %}
+        <article class="evidence-card" data-evidence-id="{{ item.id }}" data-evidence-order="{{ item.display_order or loop.index * 10 }}" draggable="true">
+          <img src="/cases/{{ case.id }}/evidence/{{ item.id }}/file" alt="{{ item.caption or item.original_filename }}" />
+          <div class="evidence-body">
+            <strong>{{ item.caption or item.original_filename }}</strong>
+            {% if item.finding_key %}<div class="muted small">Kontrollpunkt: {{ item.finding_key }}</div>{% endif %}
+            {% if item.seizure_ref %}<div class="muted small">Beslag / referanse: {{ item.seizure_ref }}</div>{% endif %}
+            {% if item.violation_reason %}<div class="muted small">Begrunnelse: {{ item.violation_reason }}</div>{% endif %}
+            {% if item.law_text %}<div class="muted small">Hjemmel: {{ item.law_text }}</div>{% endif %}
+            <div class="actions-row wrap margin-top-s evidence-order-actions">
+              <button class="btn btn-secondary btn-small" type="button" data-evidence-move="up" data-evidence-id="{{ item.id }}">Flytt opp</button>
+              <button class="btn btn-secondary btn-small" type="button" data-evidence-move="down" data-evidence-id="{{ item.id }}">Flytt ned</button>
+              <form method="post" action="/evidence/{{ item.id }}/delete" data-confirm="Slette vedlegg?">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                <button class="btn btn-danger btn-small" type="submit">Slett</button>
+              </form>
+            </div>
+          </div>
+        </article>
+        {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+    <div class="step-actions"><button type="button" class="btn btn-secondary" data-prev-step>Tilbake</button><button type="button" class="btn btn-primary" data-next-step>Videre</button></div>
+  </section>
+
+  <section class="card card-panel step-pane" data-step="7" id="interview-step">
+    <div class="card-header panel-header">
+      <div>
+        <h2>7. Avhør</h2>
+        <div class="muted small">Avhør, lydopptak, avhørsutkast og interne forslag til avhørspunkter. Bare avhør som er merket gjennomført tas inn i dokumentpakken.</div>
+      </div>
+    </div>
+
+    <div class="callout margin-bottom-m" id="interview-not-conducted-panel">
+      <label class="check-chip">
+        <input form="case-form" type="checkbox" name="interview_not_conducted" id="interview_not_conducted" value="1" {% if case.interview_not_conducted %}checked{% endif %} />
+        Avhør ikke gjennomført
+      </label>
+      <label class="margin-top-s block" id="interview-not-conducted-reason-wrap"><span>Årsak / standardtekst</span><textarea form="case-form" name="interview_not_conducted_reason" id="interview_not_conducted_reason" rows="2">{{ case.interview_not_conducted_reason or 'Ikke fått kontakt med vedkommende.' }}</textarea></label>
+      <div class="small muted margin-top-s">Når dette er krysset av, eller når ingen avhør er merket gjennomført, fylles ikke avhørsrapporten ut i dokumentpakken.</div>
+    </div>
+    <div class="split-panel">
+      <div class="subcard">
+        <div class="subcard-head">
+          <h3>Avhørspersoner</h3>
+          <button class="btn btn-secondary btn-small" type="button" id="btn-add-interview">Legg til avhør</button>
+        </div>
+        <div id="interview-list" class="stack gap-m margin-top-s"></div>
+        <div class="actions-row wrap margin-top-s">
+          <button class="btn btn-secondary" type="button" id="btn-sync-interviews">Oppdater samlet avhørstekst</button>
+        </div>
+      </div>
+      <div class="subcard">
+        <div class="subcard-head">
+          <h3>Lydopptak og lydfiler</h3>
+        </div>
+        <div class="actions-row wrap margin-top-s">
+          <button class="btn btn-secondary" type="button" id="btn-start-recording">Start opptak</button>
+          <button class="btn btn-secondary" type="button" id="btn-stop-recording">Stopp opptak</button>
+          <button class="btn btn-secondary" type="button" id="btn-start-dictation">Start diktering</button>
+          <button class="btn btn-secondary" type="button" id="btn-stop-dictation">Stopp diktering</button>
+        </div>
+        <div class="actions-row wrap margin-top-s">
+          <input type="file" id="audio-upload-input" accept="audio/*" />
+          <button class="btn btn-secondary" type="button" id="btn-upload-audio">Lagre lydfil lokalt først</button>
+        </div>
+        <div class="callout margin-top-s" id="audio-status">Lydopptak og lydfiler lagres først lokalt på enheten. Opptak deles automatisk opp i korte segmenter slik at lange avhør på opptil 1 time eller mer blir mer stabile og raskere å synke.</div>
+        <div class="stack gap-s margin-top-s" id="audio-list">
+          {% for item in evidence %}
+            {% if item.mime_type and item.mime_type.startswith('audio/') %}
+            <article class="audio-item">
+              <strong>{{ item.caption or item.original_filename }}</strong>
+              <audio controls preload="none" src="/cases/{{ case.id }}/evidence/{{ item.id }}/file"></audio>
+              <div class="actions-row wrap">
+                <a class="btn btn-secondary btn-small" href="/cases/{{ case.id }}/evidence/{{ item.id }}/file" download>Last ned</a>
+                <form method="post" action="/evidence/{{ item.id }}/delete" data-confirm="Slette lydfil?">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                  <button class="btn btn-danger btn-small" type="submit">Slett</button>
+                </form>
+              </div>
+            </article>
+            {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <div class="subcard margin-top-m" id="interview-guidance-panel">
+      <div class="subcard-head">
+        <div>
+          <h3>Forslag til avhørspunkter og rettssikkerhetsmomenter</h3>
+          <div class="muted small">Genereres fra registrerte avvik, kontrollpunkter og personer. Punktene er forslag og må kontrolleres faglig før bruk.</div>
+        </div>
+        <button class="btn btn-secondary btn-small" type="button" id="btn-generate-interview-guidance">Generer punkter</button>
+      </div>
+      <textarea form="case-form" name="interview_guidance_text" id="interview_guidance_text" rows="7" placeholder="Genererte momenter og spørsmål vises her.">{{ case.interview_guidance_text or '' }}</textarea>
+      <div class="actions-row wrap margin-top-s"><button type="button" class="btn btn-secondary btn-small" id="btn-open-guidance-page">Åpne som hel side</button><span class="muted small">Interne forslag eksporteres ikke i anmeldelsen eller dokumentpakken.</span></div>
+    </div>
+    <div class="grid-two margin-top-m">
+      <label class="span-2"><span>Samlet avhørsutkast (kun gjennomførte avhør)</span><textarea form="case-form" name="hearing_text" id="hearing_text" rows="12">{{ case.hearing_text or '' }}</textarea></label>
+      <label class="span-2"><span>Beslag / bevismerknader</span><textarea form="case-form" name="seizure_notes" id="seizure_notes" rows="5">{{ case.seizure_notes or '' }}</textarea></label>
+    </div>
+    <div class="signature-grid margin-top-s">
+      <div class="signature-widget" data-signature-field="investigator_signature" data-signature-name-source="investigator_name"><div><strong>Etterforskers signatur</strong><div class="muted small signature-status">Ikke signert</div></div><button class="btn btn-secondary btn-small" type="button" data-signature-open>Signer</button></div>
+      <div class="signature-widget" data-signature-field="witness_signature" data-signature-name-source="witness_name"><div><strong>Observatør/vitnes signatur</strong><div class="muted small signature-status">Ikke signert</div></div><button class="btn btn-secondary btn-small" type="button" data-signature-open>Signer</button></div>
+      <div class="signature-widget" data-signature-field="suspect_signature" data-signature-name-source="suspect_name"><div><strong>Avhørtes / mistenktes signatur</strong><div class="muted small signature-status">Ikke signert</div></div><button class="btn btn-secondary btn-small" type="button" data-signature-open>Signer</button></div>
+    </div>
+    <div class="actions-row wrap margin-top-s">
+      <form method="post" action="/cases/{{ case.id }}/interview-pdf" target="_blank" rel="noopener" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><button class="btn btn-secondary" type="submit">Eksporter kun avhørsrapport</button></form>
+    </div>
+    <div class="step-actions"><button type="button" class="btn btn-secondary" data-prev-step>Tilbake</button><button type="button" class="btn btn-primary" data-next-step>Videre</button></div>
+  </section>
+
+  <section class="card card-panel step-pane" data-step="8" id="seizure-report-step">
+    <div class="card-header panel-header">
+      <div>
+        <h2>8. Beslagsrapport</h2>
+        <div class="muted small">Alle beslag og bilder knyttet til beslagsnummer vises samlet. Ved avvik på redskap, minstemål eller maksimalmål opprettes beslagsrader automatisk fra kontrollpunkter og bilder. Hver rad kan endres manuelt.</div>
+      </div>
+      <div class="actions-row wrap">
+        <button class="btn btn-secondary btn-small" type="button" id="btn-refresh-seizure-report">Oppdater fra avvik</button>
+        <button class="btn btn-secondary btn-small" type="button" id="btn-add-seizure-report">Legg til beslag manuelt</button>
+      </div>
+    </div>
+    <div class="callout margin-top-s">Beslag knyttes til beslagnummer, kontrollpunkt, beskrivelse, hjemmel og eventuelle bilder. Bilder med beslagnummer sorteres etter kartoversiktene i illustrasjonsrapporten.</div>
+    <div class="seizure-report-list stack gap-m margin-top-m" id="seizure-report-list"><div class="callout">Ingen beslag eller avviksrader generert ennå.</div></div>
+    <label class="margin-top-m block"><span>Utfyllende merknader til beslag</span><textarea form="case-form" name="seizure_report_override" id="seizure_report_override" rows="4">{{ case.seizure_report_override or '' }}</textarea></label>
+    <div class="signature-grid margin-top-s">
+      <div class="signature-widget" data-signature-field="investigator_signature" data-signature-name-source="investigator_name"><div><strong>Etterforskers signatur</strong><div class="muted small signature-status">Ikke signert</div></div><button class="btn btn-secondary btn-small" type="button" data-signature-open>Signer</button></div>
+      <div class="signature-widget" data-signature-field="witness_signature" data-signature-name-source="witness_name"><div><strong>Observatør/vitnes signatur</strong><div class="muted small signature-status">Ikke signert</div></div><button class="btn btn-secondary btn-small" type="button" data-signature-open>Signer</button></div>
+    </div>
+    <div class="step-actions"><button type="button" class="btn btn-secondary" data-prev-step>Tilbake</button><button type="button" class="btn btn-primary" data-next-step>Videre</button></div>
+  </section>
+
+  <section class="card card-panel step-pane" data-step="9" id="document-package-step">
+    <div class="card-header panel-header">
+      <div>
+        <h2>9. Oppsummering / signatur / dokumentpakke</h2>
+        <div class="muted small">Oppsummering, signatur og eksport av dokumentpakken.</div>
+      </div>
+    </div>
+
+    <div class="subcard margin-top-m" id="summary-step-section">
+    <div class="card-header panel-header">
+      <div>
+        <h3>Oppsummering og eksport</h3>
+        <div class="muted small">Dokumentpakken følger samme dokumentrekkefølge som malene du har lastet opp.</div>
+      </div>
+    </div>
+    <div class="grid-two">
+      <label class="span-2"><span>Utfyllende kontrollnotater</span><textarea form="case-form" name="notes" id="notes" rows="8">{{ case.notes or '' }}</textarea></label>
+      <label class="span-2"><span>Rapportutkast / oppsummering</span><textarea form="case-form" name="summary" id="summary" rows="7">{{ case.summary or '' }}</textarea></label>
+    </div>
+    <div class="signature-grid margin-top-s">
+      <div class="signature-widget" data-signature-field="complainant_signature" data-signature-name-source="complainant_name"><div><strong>Anmelders signatur</strong><div class="muted small signature-status">Ikke signert</div></div><button class="btn btn-secondary btn-small" type="button" data-signature-open>Signer</button></div>
+      <div class="signature-widget" data-signature-field="witness_signature" data-signature-name-source="witness_name"><div><strong>Observatør/vitnes signatur</strong><div class="muted small signature-status">Ikke signert</div></div><button class="btn btn-secondary btn-small" type="button" data-signature-open>Signer</button></div>
+      <div class="signature-widget" data-signature-field="investigator_signature" data-signature-name-source="investigator_name"><div><strong>Etterforskers signatur</strong><div class="muted small signature-status">Ikke signert</div></div><button class="btn btn-secondary btn-small" type="button" data-signature-open>Signer</button></div>
+    </div>
+    <div class="actions-row wrap margin-top-s">
+      <button class="btn btn-secondary" type="button" id="btn-generate-summary">Autogenerer tekst</button>
+      {% if not offline_new %}
+      <a class="btn btn-secondary" href="/cases/{{ case.id }}/edit?step=9">Tilbake til sak</a>
+      <a class="btn btn-secondary" href="/cases/{{ case.id }}/preview" target="_blank" rel="noopener">Forhåndsvis dokumentpakke</a>
+      <form method="post" action="/cases/{{ case.id }}/interview-pdf" target="_blank" rel="noopener" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><button class="btn btn-secondary" type="submit">Eksporter kun avhørsrapport</button></form>
+      <form method="post" action="/cases/{{ case.id }}/bundle" target="_blank" rel="noopener" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><button class="btn btn-secondary" type="submit">Eksporter PDF og filer (ZIP)</button></form>
+      <span class="muted small export-return-hint">Eksport åpnes i ny fane. Denne siden blir stående slik at du kan gå tilbake til saken.</span>
+
+      <form method="post" action="/cases/{{ case.id }}/email-package" class="inline-form email-package-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        <input type="email" name="email_to" placeholder="mottaker@domene.no" aria-label="E-postmottaker" />
+        <button class="btn btn-secondary" type="submit">Send anmeldelse med vedlegg</button>
+      </form>
+      <form method="post" action="/cases/{{ case.id }}/pdf" target="_blank" rel="noopener" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><button class="btn btn-primary" type="submit">Avslutt og eksporter PDF</button></form>
+      {% else %}
+      <span class="pill">Synk saken før forhåndsvisning, PDF og ZIP</span>
+      {% endif %}
+    </div>
+    <div class="callout margin-top-s" id="summary-preview">Punktvis utkast vises her når du trykker på knappen. Oppsummeringen bygger bare på registrerte avvik og lovbrudd i kontrollpunktene og viser forholdene per beslagnummer når dette finnes.</div>
+      <div class="step-actions"><button type="button" class="btn btn-secondary" data-prev-step>Tilbake</button></div>
+    </div>
+  </section>
+
+
+  <div class="signature-modal hidden" id="signature-modal" aria-hidden="true">
+    <div class="signature-modal-dialog">
+      <div class="camera-modal-head">
+        <div>
+          <strong id="signature-modal-title">Signer</strong>
+          <div class="muted small" id="signature-modal-description">Signer med finger eller penn. Navnet låses til valgt signaturfelt.</div>
+        </div>
+        <button class="btn btn-secondary btn-small" type="button" id="btn-signature-close">Lukk</button>
+      </div>
+      <div class="signature-name-line" id="signature-name-line">Navn: -</div>
+      <canvas id="signature-canvas" width="760" height="260" aria-label="Signaturfelt"></canvas>
+      <div class="actions-row wrap margin-top-s">
+        <button class="btn btn-secondary" type="button" id="btn-signature-clear">Tøm</button>
+        <button class="btn btn-primary" type="button" id="btn-signature-save">Lagre signatur</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="camera-modal hidden" id="camera-capture-modal" aria-hidden="true">
+    <div class="camera-modal-dialog">
+      <div class="camera-modal-head">
+        <div>
+          <strong id="camera-capture-title">Kamera</strong>
+          <div class="muted small" id="camera-capture-description">Ta bilde direkte og bruk det som bildebevis/vedlegg.</div>
+        </div>
+        <button class="btn btn-secondary btn-small" type="button" id="btn-camera-close">Lukk</button>
+      </div>
+      <video id="camera-capture-video" autoplay playsinline muted></video>
+      <div class="actions-row wrap margin-top-s">
+        <button class="btn btn-primary" type="button" id="btn-camera-capture">Ta bilde</button>
+        <button class="btn btn-secondary" type="button" id="btn-camera-retry">Oppdater kamera</button>
+      </div>
+      <div class="callout margin-top-s hidden" id="camera-capture-status">Kamera klart.</div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+(function () {
+  var root = document.getElementById('case-app');
+  if (!root || String(root.dataset.offlineNew || '0') !== '1') return;
+  var params = new URLSearchParams(window.location.search || '');
+  var localId = String(params.get('local_id') || root.dataset.caseId || '').trim();
+  if (!localId && window.KVLocalCases && typeof window.KVLocalCases.generateLocalCaseId === 'function') {
+    localId = window.KVLocalCases.generateLocalCaseId();
+    params.set('local_id', localId);
+    try { history.replaceState({}, '', window.location.pathname + '?' + params.toString()); } catch (e) {}
+  }
+  if (localId) {
+    root.dataset.caseId = localId;
+    root.dataset.caseUrl = '/cases/offline/new?local_id=' + encodeURIComponent(localId);
+  }
+})();
+</script>
+<script src="/static/js/case-app.js?v=1.8.40"></script>
+{% endblock %}

@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% block title %}Regelverk · {{ app_name }}{% endblock %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>Regelverk fiskeri</h1>
+    <p class="muted">Velg kontrolltype, art/fiskeri og redskap. Siden viser relevant regelverk og kontrollpunkter på samme måte som i kontrollflyten.</p>
+  </div>
+</section>
+
+<section id="rules-overview-root" class="card stack gap-m"
+  data-law='{{ law_browser|tojson }}'
+  data-rules-url="/api/rules">
+  <div class="grid-two">
+    <label>
+      <span>Kontrolltype</span>
+      <select id="overview_control_type">
+        <option value="">Velg kontrolltype</option>
+        {% for option in control_types %}<option value="{{ option }}">{{ option }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>
+      <span>Art / fiskeri</span>
+      <select id="overview_fishery_type">
+        <option value="">Velg</option>
+      </select>
+    </label>
+    <label>
+      <span>Art (kan skrives manuelt)</span>
+      <input id="overview_species" list="overview_species_options" placeholder="Skriv eller velg art" />
+      <datalist id="overview_species_options"></datalist>
+    </label>
+    <label>
+      <span>Redskap</span>
+      <select id="overview_gear_type">
+        <option value="">Velg</option>
+      </select>
+    </label>
+  </div>
+  <div class="actions-row wrap">
+    <button class="btn btn-primary" type="button" id="overview_fetch_rules">Vis relevant regelverk</button>
+    <form method="post" action="/cases/new" class="inline-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+      <button class="btn btn-secondary" type="submit">Bruk i ny kontroll</button>
+    </form>
+  </div>
+  <div id="overview_rule_summary" class="stack gap-m">
+    <div id="rules-overview-meta" class="callout" role="status" aria-live="polite">Velg kontrolltype, art/fiskeri og redskap for å hente relevant regelverk og kontrollpunkter.</div>
+    <div id="rules-overview-findings" class="stack gap-m"></div>
+    <div id="rules-overview-sources" class="source-list"></div>
+  </div>
+</section>
+{% endblock %}
+{% block page_scripts %}<script src="/static/js/rules-overview.js?v=1.8.40"></script>{% endblock %}
