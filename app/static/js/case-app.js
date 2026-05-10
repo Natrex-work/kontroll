@@ -8611,16 +8611,59 @@ function renderHummerStatus(result) {
       speechRec.lang = 'nb-NO';
       speechRec.continuous = true;
       speechRec.interimResults = true;
+      // Track which results we've already committed to avoid duplicate appends
+      var lastFinalIndex = 0;
       speechRec.onresult = function (event) {
-        var out = '';
-        for (var i = event.resultIndex; i < event.results.length; i++) out += event.results[i][0].transcript;
-        var target = activeInterviewTranscript();
-        target.value = (target.value + ' ' + out).trim();
-        syncInterviewsFromDom();
+        var finalText = '';
+        var interimText = '';
+        for (var i = event.resultIndex; i < event.results.length; i++) {
+          var r = event.results[i];
+          if (r.isFinal) finalText += r[0].transcript + ' ';
+          else interimText += r[0].transcript;
+        }
+        // Append final results to the active interview's transcript
+        if (finalText) {
+          var trimmed = finalText.trim();
+          if (trimmed) {
+            var target = activeInterviewTranscript();
+            if (target) {
+              var existing = String(target.value || '').trim();
+              target.value = (existing ? existing + ' ' : '') + trimmed;
+            }
+            // ALSO append to the main "Diktering" field so all dictated speech
+            // accumulates there regardless of which interview is active
+            var hearingTarget = document.getElementById('hearing_text');
+            if (hearingTarget) {
+              var existingHearing = String(hearingTarget.value || '').trim();
+              hearingTarget.value = (existingHearing ? existingHearing + ' ' : '') + trimmed;
+              // Trigger input event so autosave picks it up
+              hearingTarget.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+            syncInterviewsFromDom();
+          }
+        }
       };
+      speechRec.onerror = function (event) {
+        // Auto-restart on most errors so dictation continues through pauses
+        if (event && event.error === 'no-speech') return;
+        if (event && (event.error === 'aborted' || event.error === 'not-allowed')) return;
+        try { speechRec.start(); } catch (e) {}
+      };
+      speechRec.onend = function () {
+        // Auto-restart when paused (Safari ends recognition every ~60s)
+        if (speechRec && speechRec._kvActive) {
+          try { speechRec.start(); } catch (e) {}
+        }
+      };
+      speechRec._kvActive = true;
       speechRec.start();
     });
-    document.getElementById('btn-stop-dictation').addEventListener('click', function () { if (speechRec) speechRec.stop(); });
+    document.getElementById('btn-stop-dictation').addEventListener('click', function () {
+      if (speechRec) {
+        speechRec._kvActive = false;
+        try { speechRec.stop(); } catch (e) {}
+      }
+    });
 
     function ensureTesseract() {
       if (window.Tesseract) return Promise.resolve(window.Tesseract);
@@ -8875,6 +8918,95 @@ function renderHummerStatus(result) {
         renderSummaryDraftPreview(fastDraft, 'Raskt lokalt utkast');
       });
     });
+
+    // Interview report generator — combines diktering + control info → autoreport
+    var btnGenerateInterviewReport = document.getElementById('btn-generate-interview-report');
+    if (btnGenerateInterviewReport) {
+      btnGenerateInterviewReport.addEventListener('click', function () {
+        var hearing = document.getElementById('hearing_text');
+        var seizureNotes = document.getElementById('seizure_notes');
+        if (!seizureNotes) return;
+        var dictation = String((hearing && hearing.value) || '').trim();
+        var sumPayload = buildSummaryPayload();
+        var sumDraft = localSummaryFromFindings(sumPayload);
+        var summaryShort = String((sumDraft && (sumDraft.summary || sumDraft.report)) || '').trim();
+
+        // Step 1: instant local draft so user sees something immediately
+        var localReport = composeLocalInterviewReport(dictation, sumPayload, summaryShort);
+        seizureNotes.value = localReport;
+        seizureNotes.dispatchEvent(new Event('input', { bubbles: true }));
+        setAutosaveStatus('Avhørsrapport generert lokalt', 'is-saved');
+
+        // Step 2: try server-side enhancement (if available) — falls back gracefully
+        if (root.dataset.autosaveUrl) {
+          var fd = new FormData();
+          fd.append('csrf_token', root.dataset.csrfToken || '');
+          fd.append('dictation', dictation);
+          fd.append('case_summary', JSON.stringify(sumPayload));
+          fetch('/api/cases/' + root.dataset.caseId + '/interview-report-draft',
+                secureFetchOptions({ method: 'POST', body: fd }))
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (data) {
+              if (data && data.report && String(data.report).trim().length > localReport.length / 2) {
+                seizureNotes.value = String(data.report);
+                seizureNotes.dispatchEvent(new Event('input', { bubbles: true }));
+                setAutosaveStatus('Avhørsrapport oppdatert fra AI', 'is-saved');
+              }
+            })
+            .catch(function () { /* keep local draft on error */ });
+        }
+      });
+    }
+
+    function composeLocalInterviewReport(dictation, sumPayload, summaryShort) {
+      var lines = [];
+      lines.push('AVHØRSRAPPORT — utkast');
+      lines.push('');
+      lines.push('Sted og tid:');
+      var caseLat = document.getElementById('latitude');
+      var caseLng = document.getElementById('longitude');
+      var loc = (caseLat && caseLat.value && caseLng && caseLng.value)
+        ? caseLat.value + ', ' + caseLng.value : '(posisjon ikke registrert)';
+      lines.push('  Posisjon: ' + loc);
+      lines.push('  Tidspunkt: ' + new Date().toLocaleString('nb-NO'));
+      lines.push('');
+      // Avhørt person
+      var suspectName = document.getElementById('suspect_name');
+      if (suspectName && suspectName.value) {
+        lines.push('Avhørt person: ' + suspectName.value);
+      }
+      lines.push('');
+      // Avvik fra kontrollpunkter
+      var avvikItems = (sumPayload && sumPayload.findings || []).filter(function (f) {
+        return String(f.status || '').toLowerCase() === 'avvik';
+      });
+      if (avvikItems.length) {
+        lines.push('Registrerte avvik:');
+        avvikItems.forEach(function (a, i) {
+          lines.push('  ' + (i + 1) + '. ' + (a.label || a.key) + (a.notes ? ' — ' + a.notes : ''));
+        });
+        lines.push('');
+      }
+      // Diktering
+      if (dictation) {
+        lines.push('Forklaring fra avhørt (diktert):');
+        lines.push(dictation);
+        lines.push('');
+      } else {
+        lines.push('Forklaring: (ingen diktering registrert — fyll inn manuelt)');
+        lines.push('');
+      }
+      // Kort oppsummering for anmeldelsen
+      lines.push('Oppsummering for anmeldelse:');
+      if (summaryShort) {
+        lines.push(summaryShort);
+      } else if (avvikItems.length) {
+        lines.push('Det er registrert ' + avvikItems.length + ' avvik i kontrollen. Avhørte ble forelagt funnene og kunne uttale seg.');
+      } else {
+        lines.push('Det ble ikke registrert avvik i kontrollen som danner grunnlag for anmeldelse.');
+      }
+      return lines.join('\n');
+    }
 
     function performManualSave() {
       if (caseMap && caseMap._kvLeafletMap) {

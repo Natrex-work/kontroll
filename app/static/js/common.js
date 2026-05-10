@@ -504,21 +504,19 @@
   }
 
   function buildLayerPanelGroups(layers, query, activeCategories) {
+    // NOTE: activeCategories parameter is ignored as of v1.8.42 — chips now
+    // toggle map visibility directly instead of filtering the panel. The
+    // panel always shows all selectable regulated layers so users can
+    // fine-tune individual layers.
     var groupsByKey = {};
     var search = String(query || '').trim().toLowerCase();
-    var categoryFilter = (activeCategories && activeCategories.length) ? new Set(activeCategories) : null;
     (layers || []).forEach(function (layer) {
       if (!layer || !isFinite(Number(layer.id))) return;
-      // Use the more inclusive filter so fishery-regulated areas are
-      // available in the panel
       if (!isSelectableRegulatedLayer(layer)) return;
       var category = classifyLayerCategory(layer);
-      // Filter by active category chips when provided
-      if (categoryFilter && !categoryFilter.has(category)) return;
       var haystack = [layer.name, layer.description, layer.status, layer.panel_group].join(' ').toLowerCase();
       if (search && haystack.indexOf(search) === -1) return;
       var group = layerPanelGroup(layer);
-      // Augment the group with category metadata so we can sort/show the chip
       var info = categoryDisplayInfo(category);
       var groupKey = group.key + '__' + category;
       if (!groupsByKey[groupKey]) {
@@ -651,8 +649,11 @@
         state.layerPanelSearch = String(event.target.value || '');
         syncLayerPanel(state, state.map, state.currentLayers || [], state.visibleLayers || []);
       });
-      // Category-chip click handler (uses event delegation since chips are
-      // re-rendered each sync)
+      // Category-chip click handler — toggles actual layer visibility on the map.
+      // Each chip represents a category (Forbud, Verne, Fiskeri, etc.).
+      // Click = if all/most layers in category are hidden → SHOW them all
+      //         else → HIDE them all
+      // The 🌐 "Alle" chip toggles every category at once.
       root.querySelector('.kv-temalag-category-chips').addEventListener('click', function (event) {
         var chip = event.target && event.target.closest ? event.target.closest('[data-category-chip]') : null;
         if (!chip) return;
@@ -660,25 +661,62 @@
         var cat = String(chip.getAttribute('data-category-chip') || '').trim();
         if (!cat) return;
         state.layerPanelPrefs = state.layerPanelPrefs || {};
-        var active = Array.isArray(state.layerPanelPrefs.active_categories) ? state.layerPanelPrefs.active_categories.slice() : null;
-        // null = all (default), otherwise a specific list
-        if (cat === '__all__') {
-          state.layerPanelPrefs.active_categories = null;
-        } else {
-          if (!active) {
-            // Currently "all"; clicking a specific chip selects only that one
-            active = [cat];
-          } else {
-            var idx = active.indexOf(cat);
-            if (idx >= 0) active.splice(idx, 1);
-            else active.push(cat);
-            // If user toggled all chips off, treat as "all" instead of empty
-            if (!active.length) active = null;
-          }
-          state.layerPanelPrefs.active_categories = active;
+        var hiddenIds = Array.isArray(state.layerPanelPrefs.hidden_ids) ? state.layerPanelPrefs.hidden_ids.slice() : [];
+        var hiddenLookup = {};
+        hiddenIds.forEach(function (value) { hiddenLookup[String(value)] = true; });
+        var allLayers = state.currentLayers || [];
+
+        function layersInCategory(catKey) {
+          return allLayers.filter(function (layer) {
+            if (!layer || !isFinite(Number(layer.id))) return false;
+            if (!isSelectableRegulatedLayer(layer)) return false;
+            return classifyLayerCategory(layer) === catKey;
+          });
         }
+
+        function setCategoryVisible(catKey, makeVisible) {
+          var inCat = layersInCategory(catKey);
+          inCat.forEach(function (layer) {
+            var id = String(layer.id);
+            if (makeVisible) delete hiddenLookup[id];
+            else hiddenLookup[id] = true;
+          });
+        }
+
+        if (cat === '__all__') {
+          // Smart toggle: if anything is currently visible across all
+          // categories, hide everything; else show everything.
+          var anyVisible = false;
+          allLayers.forEach(function (layer) {
+            if (!layer || !isFinite(Number(layer.id))) return;
+            if (!isSelectableRegulatedLayer(layer)) return;
+            if (!hiddenLookup[String(layer.id)]) anyVisible = true;
+          });
+          ['forbud','verne','fiskeri','art','redskap','andre'].forEach(function (c) {
+            setCategoryVisible(c, !anyVisible);
+          });
+        } else {
+          // For a specific category: if MOST layers are hidden → show all,
+          // else hide all. Threshold: if more than 30% are visible, hiding
+          // is the user's likely intent.
+          var inCat = layersInCategory(cat);
+          if (!inCat.length) return;
+          var visibleInCat = inCat.filter(function (layer) {
+            return !hiddenLookup[String(layer.id)];
+          }).length;
+          var visibleRatio = visibleInCat / inCat.length;
+          setCategoryVisible(cat, visibleRatio < 0.3);
+        }
+
+        state.layerPanelPrefs.hidden_ids = Object.keys(hiddenLookup);
+        state.layerPanelPrefs.initialized = true;
+        // Clear active_categories filter so user sees all chips/groups while
+        // viewing what they just enabled
+        state.layerPanelPrefs.active_categories = null;
         saveLayerPanelPrefs(state.layerPanelStorageKey, state.layerPanelPrefs);
-        syncLayerPanel(state, state.map, state.currentLayers || [], state.visibleLayers || []);
+        // Refresh the map AND the panel
+        if (typeof state.refreshLayers === 'function') state.refreshLayers();
+        else syncLayerPanel(state, state.map, state.currentLayers || [], state.visibleLayers || []);
       });
     }
     if (mountInfo && mountInfo.element && root.parentNode !== mountInfo.element) {
@@ -724,40 +762,60 @@
     var visibleLookup = {};
     (visibleLayers || []).forEach(function (layer) { visibleLookup[String(layer && layer.id)] = true; });
 
-    // Compute counts per category and render filter chips
-    var categoryCounts = countLayersPerCategory(allLayers);
-    var activeCategories = (prefs.active_categories && Array.isArray(prefs.active_categories)) ? prefs.active_categories : null;
+    // Compute per-category counts: total available + currently visible on the map
+    var categoryCountsTotal = countLayersPerCategory(allLayers);
+    var categoryCountsVisible = {};
+    Object.keys(categoryCountsTotal).forEach(function (cat) { categoryCountsVisible[cat] = 0; });
+    (allLayers || []).forEach(function (layer) {
+      if (!layer || !isFinite(Number(layer.id))) return;
+      if (!isSelectableRegulatedLayer(layer)) return;
+      if (!visibleLookup[String(layer.id)]) return;
+      var c = classifyLayerCategory(layer);
+      if (categoryCountsVisible[c] === undefined) categoryCountsVisible[c] = 0;
+      categoryCountsVisible[c] += 1;
+    });
+
     var chipsHost = root.querySelector('.kv-temalag-category-chips');
     if (chipsHost) {
       var orderedCats = ['forbud','verne','fiskeri','art','redskap','andre'];
-      var totalAvailable = orderedCats.reduce(function (acc, c) { return acc + (categoryCounts[c] || 0); }, 0);
-      var allActive = !activeCategories;
+      var totalAvailable = orderedCats.reduce(function (acc, c) { return acc + (categoryCountsTotal[c] || 0); }, 0);
+      var totalVisibleAll = orderedCats.reduce(function (acc, c) { return acc + (categoryCountsVisible[c] || 0); }, 0);
       var chipParts = [];
-      // "Alle" chip
+      // 🌐 Alle — active when anything is visible
+      var allActive = totalVisibleAll > 0;
       chipParts.push(
-        '<button type="button" class="kv-temalag-chip' + (allActive ? ' is-active' : '') + '" data-category-chip="__all__">' +
+        '<button type="button" class="kv-temalag-chip kv-temalag-chip-all' + (allActive ? ' is-active' : '') + '" data-category-chip="__all__" title="Skru alle reguleringsområder av/på i kartet">' +
           '<span class="kv-chip-emoji">🌐</span>' +
           '<span class="kv-chip-label">Alle</span>' +
-          '<span class="kv-chip-count">' + totalAvailable + '</span>' +
+          '<span class="kv-chip-count">' + totalVisibleAll + '/' + totalAvailable + '</span>' +
         '</button>'
       );
       orderedCats.forEach(function (cat) {
-        var count = categoryCounts[cat] || 0;
-        if (!count) return;
+        var totalCount = categoryCountsTotal[cat] || 0;
+        if (!totalCount) return;
+        var visCount = categoryCountsVisible[cat] || 0;
         var info = categoryDisplayInfo(cat);
-        var isActive = !allActive && activeCategories.indexOf(cat) !== -1;
+        // A chip is "active" when the majority of its layers are visible on the map
+        var isActive = visCount > 0 && (visCount / totalCount) >= 0.5;
+        var isPartial = visCount > 0 && !isActive;
         chipParts.push(
-          '<button type="button" class="kv-temalag-chip' + (isActive ? ' is-active' : '') + '" data-category-chip="' + cat + '" title="' + info.label + '">' +
+          '<button type="button" class="kv-temalag-chip' +
+            (isActive ? ' is-active' : '') +
+            (isPartial ? ' is-partial' : '') +
+            '" data-category-chip="' + cat + '" title="' + info.label + ' — trykk for å skru av/på i kartet">' +
             '<span class="kv-chip-emoji">' + info.emoji + '</span>' +
             '<span class="kv-chip-label">' + info.label + '</span>' +
-            '<span class="kv-chip-count">' + count + '</span>' +
+            '<span class="kv-chip-count">' + visCount + '/' + totalCount + '</span>' +
           '</button>'
         );
       });
       chipsHost.innerHTML = chipParts.join('');
     }
 
-    var groups = buildLayerPanelGroups(allLayers, state.layerPanelSearch || '', activeCategories);
+    // Build groups WITHOUT category filter — chips don't filter the panel
+    // anymore, they toggle map visibility directly. This keeps the panel
+    // showing all groups so user can fine-tune individual layers.
+    var groups = buildLayerPanelGroups(allLayers, state.layerPanelSearch || '', null);
     state._lastLayerPanelGroupKeys = groups.map(function (group) { return String(group.key); });
     var isExternalMobilePanel = root.classList.contains('kv-temalag-panel-external') && window.matchMedia('(max-width: 720px)').matches;
     if (isExternalMobilePanel && !prefs.groups_initialized && !String(state.layerPanelSearch || '').trim() && groups.length > 1) {
@@ -788,7 +846,7 @@
       var collapsed = !!collapsedLookup[group.key];
       return [
         '<section class="kv-temalag-group ' + (collapsed ? 'is-collapsed' : 'is-open') + '" data-group-key="' + escapeHtml(group.key) + '">',
-        '<button type="button" class="kv-temalag-group-toggle" data-group-key="' + escapeHtml(group.key) + '" aria-expanded="' + (collapsed ? 'false' : 'true') + '"><span class="kv-temalag-group-title">' + escapeHtml(group.label) + '</span><span class="kv-temalag-group-count">' + visibleCount + '/' + group.layers.length + '</span></button>',
+        '<button type="button" class="kv-temalag-group-toggle" data-group-key="' + escapeHtml(group.key) + '" aria-expanded="' + (collapsed ? 'false' : 'true') + '"><span class="kv-temalag-group-title"><span class="kv-temalag-group-emoji" aria-hidden="true">' + (group.categoryEmoji || '📍') + '</span>' + escapeHtml(group.label) + '</span><span class="kv-temalag-group-count">' + visibleCount + '/' + group.layers.length + '</span></button>',
         '<div class="kv-temalag-group-body" ' + (collapsed ? 'hidden' : '') + '>',
         '<div class="kv-temalag-group-actions"><button type="button" class="btn btn-secondary btn-small kv-temalag-show-all" data-group-key="' + escapeHtml(group.key) + '">Vis alle i gruppen</button><button type="button" class="btn btn-secondary btn-small kv-temalag-hide-all" data-group-key="' + escapeHtml(group.key) + '">Skjul alle i gruppen</button></div>',
         '<div class="kv-temalag-items">' + itemsHtml + '</div>',
@@ -986,11 +1044,38 @@
       var serviceUrl = normalizedServiceUrl(layer.service_url || '');
       var knownVernIds = portalVernIdLookup();
       var isVernService = serviceUrl && serviceUrl.toLowerCase().indexOf('fiskeridir_vern') !== -1;
+
+      // 1.8.42: Layers classified as 'verne' (verneområder, korall, bunnhabitat,
+      // marine reserves) should ALWAYS use the Fiskeridir_vern MapServer if its
+      // ID is in the known verne-ID lookup OR if the layer name/status indicates
+      // verneområde — even if the upstream catalog put the wrong service_url.
+      // This makes verne-layers actually render on the map when toggled on.
+      var isVerneByContent = (function () {
+        var blob = String((layer.name || '') + ' ' + (layer.status || '') + ' ' + (layer.description || '')).toLowerCase();
+        return /verneomr[åa]de|nasjonal\s*park|naturreservat|landskapsvern|marint\s*vern|korall|bunnhabitat/.test(blob);
+      })();
+
       if (isVernService) {
         meta.url = normalizedServiceUrl(vernServiceUrl || serviceUrl);
         if (knownVernIds[String(rawId)]) meta.layerId = rawId;
         else if (legacyIds.length) meta.layerId = legacyIds[0];
         return meta;
+      }
+      if (isVerneByContent && vernServiceUrl) {
+        // Try to map to a known vern layer ID
+        meta.url = normalizedServiceUrl(vernServiceUrl);
+        if (knownVernIds[String(rawId)]) {
+          meta.layerId = rawId;
+          return meta;
+        }
+        // Try legacy IDs
+        for (var i = 0; i < legacyIds.length; i++) {
+          if (knownVernIds[String(legacyIds[i])]) {
+            meta.layerId = legacyIds[i];
+            return meta;
+          }
+        }
+        // Fall through to fishery service if no vern ID match
       }
       // 1.8.30: Ikke send Yggdrasil-lag til Fiskeridir_vern bare fordi de
       // har gamle/legacy ID-er som tilfeldigvis finnes i vern-tjenesten. Det gjorde

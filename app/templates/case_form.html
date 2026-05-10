@@ -404,7 +404,7 @@
       <div class="grid-two">
         <label><span>Bildetekst</span><input type="text" name="caption" id="evidence_caption" placeholder="F.eks. manglende fluktåpning" /></label>
         <label><span>Begrunnelse for lovbrudd</span><input type="text" name="violation_reason" id="evidence_violation_reason" placeholder="Kort og presis begrunnelse" /></label>
-        <label class="span-2"><span>Bilde / video-uttrekk</span><input type="file" name="file" id="evidence-file-input" accept="image/*,.heic,.heif" capture="environment" required /></label>
+        <label class="span-2"><span>Bilde / video-uttrekk</span><input type="file" name="file" id="evidence-file-input" accept="image/*,.heic,.heif" required /></label>
       </div>
       <div class="actions-row wrap">
         <button class="btn btn-primary" type="submit">Legg til illustrasjon</button>
@@ -445,18 +445,23 @@
     <div class="card-header panel-header">
       <div>
         <h2>7. Avhør</h2>
-        <div class="muted small">Avhør, lydopptak, avhørsutkast og interne forslag til avhørspunkter. Bare avhør som er merket gjennomført tas inn i dokumentpakken.</div>
       </div>
     </div>
 
     <div class="callout margin-bottom-m" id="interview-not-conducted-panel">
       <label class="check-chip">
-        <input form="case-form" type="checkbox" name="interview_not_conducted" id="interview_not_conducted" value="1" {% if case.interview_not_conducted %}checked{% endif %} />
+        <input form="case-form" type="checkbox" name="interview_not_conducted" id="interview_not_conducted" value="1" {% if case.interview_not_conducted is sameas none or case.interview_not_conducted %}checked{% endif %} />
         Avhør ikke gjennomført
       </label>
       <label class="margin-top-s block" id="interview-not-conducted-reason-wrap"><span>Årsak / standardtekst</span><textarea form="case-form" name="interview_not_conducted_reason" id="interview_not_conducted_reason" rows="2">{{ case.interview_not_conducted_reason or 'Ikke fått kontakt med vedkommende.' }}</textarea></label>
-      <div class="small muted margin-top-s">Når dette er krysset av, eller når ingen avhør er merket gjennomført, fylles ikke avhørsrapporten ut i dokumentpakken.</div>
     </div>
+    <details class="interview-details" id="interview-details" {% if case.interview_not_conducted is not sameas none and not case.interview_not_conducted %}open{% endif %}>
+      <summary class="interview-summary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="18" height="18"><path d="m6 9 6 6 6-6"/></svg>
+        <strong>Vis avhørsdetaljer</strong>
+        <span class="muted small">Avhørspersoner, lydopptak, diktering</span>
+      </summary>
+      <div class="interview-details-body">
     <div class="split-panel">
       <div class="subcard">
         <div class="subcard-head">
@@ -507,16 +512,21 @@
       <div class="subcard-head">
         <div>
           <h3>Forslag til avhørspunkter og rettssikkerhetsmomenter</h3>
-          <div class="muted small">Genereres fra registrerte avvik, kontrollpunkter og personer. Punktene er forslag og må kontrolleres faglig før bruk.</div>
         </div>
         <button class="btn btn-secondary btn-small" type="button" id="btn-generate-interview-guidance">Generer punkter</button>
       </div>
       <textarea form="case-form" name="interview_guidance_text" id="interview_guidance_text" rows="7" placeholder="Genererte momenter og spørsmål vises her.">{{ case.interview_guidance_text or '' }}</textarea>
-      <div class="actions-row wrap margin-top-s"><button type="button" class="btn btn-secondary btn-small" id="btn-open-guidance-page">Åpne som hel side</button><span class="muted small">Interne forslag eksporteres ikke i anmeldelsen eller dokumentpakken.</span></div>
+      <div class="actions-row wrap margin-top-s"><button type="button" class="btn btn-secondary btn-small" id="btn-open-guidance-page">Åpne som hel side</button></div>
     </div>
     <div class="grid-two margin-top-m">
-      <label class="span-2"><span>Samlet avhørsutkast (kun gjennomførte avhør)</span><textarea form="case-form" name="hearing_text" id="hearing_text" rows="12">{{ case.hearing_text or '' }}</textarea></label>
-      <label class="span-2"><span>Beslag / bevismerknader</span><textarea form="case-form" name="seizure_notes" id="seizure_notes" rows="5">{{ case.seizure_notes or '' }}</textarea></label>
+      <label class="span-2"><span>Diktering</span><textarea form="case-form" name="hearing_text" id="hearing_text" rows="12" placeholder="All diktert tekst (Start/Stopp diktering) samles her.">{{ case.hearing_text or '' }}</textarea></label>
+      <div class="span-2 ai-report-block">
+        <div class="ai-report-head">
+          <strong>Avhørsrapport autogenerert</strong>
+          <button class="btn btn-secondary btn-small" type="button" id="btn-generate-interview-report">Generer rapport</button>
+        </div>
+        <textarea form="case-form" name="seizure_notes" id="seizure_notes" rows="10" placeholder="Avhørsrapport genereres fra dikteringen + kontrollens øvrige opplysninger. AI fyller inn der diktering mangler, og lager kort oppsummering av viktigste punkter for anmeldelsen.">{{ case.seizure_notes or '' }}</textarea>
+      </div>
     </div>
     <div class="signature-grid margin-top-s">
       <div class="signature-widget" data-signature-field="investigator_signature" data-signature-name-source="investigator_name"><div><strong>Etterforskers signatur</strong><div class="muted small signature-status">Ikke signert</div></div><button class="btn btn-secondary btn-small" type="button" data-signature-open>Signer</button></div>
@@ -526,6 +536,8 @@
     <div class="actions-row wrap margin-top-s">
       <form method="post" action="/cases/{{ case.id }}/interview-pdf" target="_blank" rel="noopener" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><button class="btn btn-secondary" type="submit">Eksporter kun avhørsrapport</button></form>
     </div>
+      </div>
+    </details>
     <div class="step-actions"><button type="button" class="btn btn-secondary" data-prev-step>Tilbake</button><button type="button" class="btn btn-primary" data-next-step>Videre</button></div>
   </section>
 
@@ -533,16 +545,14 @@
     <div class="card-header panel-header">
       <div>
         <h2>8. Beslagsrapport</h2>
-        <div class="muted small">Alle beslag og bilder knyttet til beslagsnummer vises samlet. Ved avvik på redskap, minstemål eller maksimalmål opprettes beslagsrader automatisk fra kontrollpunkter og bilder. Hver rad kan endres manuelt.</div>
       </div>
       <div class="actions-row wrap">
         <button class="btn btn-secondary btn-small" type="button" id="btn-refresh-seizure-report">Oppdater fra avvik</button>
         <button class="btn btn-secondary btn-small" type="button" id="btn-add-seizure-report">Legg til beslag manuelt</button>
       </div>
     </div>
-    <div class="callout margin-top-s">Beslag knyttes til beslagnummer, kontrollpunkt, beskrivelse, hjemmel og eventuelle bilder. Bilder med beslagnummer sorteres etter kartoversiktene i illustrasjonsrapporten.</div>
-    <div class="seizure-report-list stack gap-m margin-top-m" id="seizure-report-list"><div class="callout">Ingen beslag eller avviksrader generert ennå.</div></div>
-    <label class="margin-top-m block"><span>Utfyllende merknader til beslag</span><textarea form="case-form" name="seizure_report_override" id="seizure_report_override" rows="4">{{ case.seizure_report_override or '' }}</textarea></label>
+    <div class="seizure-report-list stack gap-m margin-top-m" id="seizure-report-list"></div>
+    <input form="case-form" type="hidden" name="seizure_report_override" id="seizure_report_override" value="{{ case.seizure_report_override or '' }}" />
     <div class="signature-grid margin-top-s">
       <div class="signature-widget" data-signature-field="investigator_signature" data-signature-name-source="investigator_name"><div><strong>Etterforskers signatur</strong><div class="muted small signature-status">Ikke signert</div></div><button class="btn btn-secondary btn-small" type="button" data-signature-open>Signer</button></div>
       <div class="signature-widget" data-signature-field="witness_signature" data-signature-name-source="witness_name"><div><strong>Observatør/vitnes signatur</strong><div class="muted small signature-status">Ikke signert</div></div><button class="btn btn-secondary btn-small" type="button" data-signature-open>Signer</button></div>
@@ -655,5 +665,5 @@
   }
 })();
 </script>
-<script src="/static/js/case-app.js?v=1.8.40"></script>
+<script src="/static/js/case-app.js?v=1.8.42"></script>
 {% endblock %}

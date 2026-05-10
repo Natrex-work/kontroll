@@ -570,3 +570,82 @@ def api_summary_suggest(request: Request, payload: SummarySuggestRequest):
     case_row = {'summary': '', 'case_basis': payload.case_basis or 'patruljeobservasjon', 'control_type': payload.control_type or '', 'species': payload.species or '', 'fishery_type': payload.fishery_type or payload.species or '', 'gear_type': payload.gear_type or '', 'location_name': payload.location_name or '', 'area_name': payload.area_name or '', 'area_status': payload.area_status or '', 'suspect_name': payload.suspect_name or '', 'vessel_name': payload.vessel_name or '', 'investigator_name': payload.investigator_name or '', 'basis_source_name': payload.basis_source_name or '', 'basis_details': payload.basis_details or '', 'start_time': payload.start_time or '', 'latitude': payload.latitude, 'longitude': payload.longitude, 'persons_json': json.dumps(payload.persons or [], ensure_ascii=False), 'seizure_reports_json': json.dumps(payload.seizure_reports or [], ensure_ascii=False)}
     drafts = build_text_drafts(case_row, payload.findings)
     return JSONResponse(drafts)
+
+
+@router.post('/api/cases/{case_id}/interview-report-draft')
+async def api_interview_report_draft(case_id: int, request: Request):
+    """Generer en avhørsrapport-utkast lokalt fra diktering + saksinformasjon.
+
+    Bruker ikke betalt AI — kun smart sammenstilling av diktering, avvik fra
+    kontrollpunkter og standardformuleringer. Klienten har et lokalt utkast
+    fra start; dette endepunktet kan polere/tilrettelegge teksten.
+    """
+    require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til Minfiskerikontroll.')
+    enforce_csrf(request)
+    form = await request.form()
+    dictation = str(form.get('dictation') or '').strip()
+    case_summary_raw = str(form.get('case_summary') or '').strip()
+    try:
+        sum_payload = json.loads(case_summary_raw) if case_summary_raw else {}
+    except Exception:
+        sum_payload = {}
+
+    findings = sum_payload.get('findings') or []
+    avvik_items = [f for f in findings if isinstance(f, dict) and str(f.get('status') or '').lower() == 'avvik']
+
+    lines = []
+    lines.append('AVHØRSRAPPORT')
+    lines.append('')
+    suspect_name = str(sum_payload.get('suspect_name') or '').strip()
+    if suspect_name:
+        lines.append(f'Avhørt person: {suspect_name}')
+        lines.append('')
+    location_name = str(sum_payload.get('location_name') or '').strip()
+    if location_name:
+        lines.append(f'Avhør sted: {location_name}')
+    start_time = str(sum_payload.get('start_time') or '').strip()
+    if start_time:
+        lines.append(f'Tidspunkt: {start_time}')
+    lines.append('')
+
+    if avvik_items:
+        lines.append('Forelagte avvik:')
+        for i, a in enumerate(avvik_items, 1):
+            label = str(a.get('label') or a.get('key') or 'Punkt').strip()
+            notes = str(a.get('notes') or '').strip()
+            if notes:
+                lines.append(f'{i}. {label} — {notes}')
+            else:
+                lines.append(f'{i}. {label}')
+        lines.append('')
+
+    if dictation:
+        # Light polish: capitalize sentence starts, fix double spaces
+        polished = re.sub(r'\s+', ' ', dictation).strip()
+        polished = re.sub(r'(?<=[.!?])\s+([a-zæøå])',
+                          lambda m: ' ' + m.group(1).upper(), polished)
+        if polished and polished[0].islower():
+            polished = polished[0].upper() + polished[1:]
+        lines.append('Forklaring fra avhørt:')
+        lines.append(polished)
+        lines.append('')
+    else:
+        lines.append('Forklaring: Avhørte ble forelagt funnene og fikk anledning til å uttale seg.')
+        lines.append('(Ingen diktering registrert — fyll inn manuelt.)')
+        lines.append('')
+
+    # Short summary for anmeldelse
+    lines.append('Kort oppsummering for anmeldelse:')
+    if avvik_items:
+        avvik_count = len(avvik_items)
+        avvik_text = 'avvik' if avvik_count == 1 else 'avvik'
+        first_avvik = str(avvik_items[0].get('label') or '').strip()
+        if avvik_count == 1:
+            summary_line = f'Det ble registrert ett {avvik_text} ved kontrollen: {first_avvik}.'
+        else:
+            summary_line = f'Det ble registrert {avvik_count} {avvik_text} ved kontrollen, herunder {first_avvik}.'
+        lines.append(summary_line + ' Avhørte ble forelagt funnene og fikk anledning til å uttale seg.')
+    else:
+        lines.append('Det ble ikke registrert avvik ved kontrollen som danner grunnlag for anmeldelse.')
+
+    return JSONResponse({'report': '\n'.join(lines)}, headers={'Cache-Control': 'no-store, max-age=0'})
