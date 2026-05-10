@@ -29,6 +29,21 @@ async def lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
+    # SECURITY: Refuse to start in production with the default dev session
+    # secret. A predictable secret allows attackers to forge session cookies.
+    if settings.production_mode and settings.session_secret == 'dev-session-secret-change-me':
+        raise RuntimeError(
+            'KRITISK: SESSION_SECRET er satt til standard dev-verdi i produksjon. '
+            'Sett miljøvariabelen SESSION_SECRET til en tilfeldig hex-streng på minst 64 tegn '
+            '(generer: python -c "import secrets; print(secrets.token_hex(48))").'
+        )
+    if settings.production_mode and len(settings.session_secret) < 32:
+        raise RuntimeError(
+            'KRITISK: SESSION_SECRET er for kort i produksjon. '
+            'Bruk minst 32 tegn (helst 64+). Generer: '
+            'python -c "import secrets; print(secrets.token_hex(48))".'
+        )
+
     app = FastAPI(
         title=settings.app_name,
         version=settings.app_version,

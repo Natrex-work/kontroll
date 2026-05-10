@@ -387,7 +387,16 @@ def evidence_file(request: Request, case_id: int, evidence_id: int):
         raise HTTPException(status_code=404, detail='Fant ikke vedlegget.')
     filename = Path(str(row.get('filename') or '')).name
     path = settings.upload_dir / filename
-    if not path.exists():
+    # 1.8.44: Defense-in-depth — verify the resolved path is inside upload_dir
+    # (protects against symlinks pointing outside)
+    try:
+        resolved = path.resolve()
+        upload_root = settings.upload_dir.resolve()
+        if not str(resolved).startswith(str(upload_root) + '/') and resolved != upload_root:
+            raise HTTPException(status_code=404, detail='Fant ikke filen.')
+    except (OSError, ValueError):
+        raise HTTPException(status_code=404, detail='Fant ikke filen.')
+    if not path.exists() or not path.is_file():
         raise HTTPException(status_code=404, detail='Fant ikke filen.')
     media_type = str(row.get('mime_type') or '') or mimetypes.guess_type(filename)[0] or 'application/octet-stream'
     headers = _inline_file_headers(str(row.get('original_filename') or filename))
@@ -405,7 +414,15 @@ def generated_file(request: Request, case_id: int, filename: str):
     if case_prefix and not safe_name.startswith(case_prefix):
         raise HTTPException(status_code=403, detail='Ingen tilgang til filen.')
     path = settings.generated_dir / safe_name
-    if not path.exists():
+    # 1.8.44: Defense-in-depth — verify the resolved path is inside generated_dir
+    try:
+        resolved = path.resolve()
+        generated_root = settings.generated_dir.resolve()
+        if not str(resolved).startswith(str(generated_root) + '/') and resolved != generated_root:
+            raise HTTPException(status_code=404, detail='Fant ikke filen.')
+    except (OSError, ValueError):
+        raise HTTPException(status_code=404, detail='Fant ikke filen.')
+    if not path.exists() or not path.is_file():
         raise HTTPException(status_code=404, detail='Fant ikke filen.')
     media_type = mimetypes.guess_type(safe_name)[0] or 'application/octet-stream'
     headers = _inline_file_headers(safe_name)

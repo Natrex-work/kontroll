@@ -104,10 +104,17 @@ def user_has_permission(user_row: Optional[Dict[str, Any]], permission: str) -> 
 
 @contextmanager
 def get_conn() -> Iterable[sqlite3.Connection]:
-    conn = sqlite3.connect(DB_PATH, timeout=30)
+    conn = sqlite3.connect(DB_PATH, timeout=30, isolation_level='DEFERRED')
     conn.row_factory = dict_factory
     conn.execute('PRAGMA foreign_keys = ON')
     conn.execute('PRAGMA busy_timeout = 10000')
+    # 1.8.44: Defense-in-depth — enable WAL for better concurrency, set
+    # secure_delete to overwrite deleted data, and trusted_schema OFF to
+    # prevent function-injection attacks via maliciously crafted schemas
+    conn.execute('PRAGMA journal_mode = WAL')
+    conn.execute('PRAGMA synchronous = NORMAL')
+    conn.execute('PRAGMA secure_delete = ON')
+    conn.execute('PRAGMA trusted_schema = OFF')
     try:
         yield conn
         conn.commit()

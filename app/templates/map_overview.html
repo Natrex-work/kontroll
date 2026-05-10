@@ -44,6 +44,11 @@
     </button>
   </div>
 
+  <!-- Synlig chip-stripe rett på kartet for kjapp toggle av kategorier -->
+  <div class="map-quick-chips" id="map-quick-chips" aria-label="Skru av/på reguleringsområder i kartet">
+    <div class="map-quick-chips-scroll" id="map-quick-chips-scroll"></div>
+  </div>
+
   <!-- Bottom sheet: glir opp fra bunnen med treff og status -->
   <aside class="map-bottom-sheet" id="map-bottom-sheet" data-state="collapsed" aria-label="Områdetreff og status">
     <button class="map-sheet-handle" type="button" id="map-sheet-toggle" aria-controls="map-sheet-body" aria-expanded="false">
@@ -142,12 +147,35 @@
   if (btnLayers) {
     btnLayers.addEventListener('click', function () {
       var section = document.getElementById('map-layers-section');
-      if (sheet.dataset.state !== 'expanded') setExpanded(true);
-      if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      // Visual flash on the FAB so the user sees the click registered
+      btnLayers.classList.add('map-fab-pulse');
+      setTimeout(function () { btnLayers.classList.remove('map-fab-pulse'); }, 260);
+      var wasCollapsed = sheet.dataset.state !== 'expanded';
+      if (wasCollapsed) setExpanded(true);
+      // Wait for body to render before scrolling — scrollIntoView on a
+      // hidden element fails silently on iOS Safari
+      setTimeout(function () {
+        if (section && typeof section.scrollIntoView === 'function') {
+          section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, wasCollapsed ? 60 : 0);
     });
   }
+
+  // Visual feedback on all map FABs so the user knows tap registered
+  document.querySelectorAll('.map-fab').forEach(function (fab) {
+    fab.addEventListener('touchstart', function () {
+      fab.classList.add('map-fab-touched');
+    }, { passive: true });
+    fab.addEventListener('touchend', function () {
+      setTimeout(function () { fab.classList.remove('map-fab-touched'); }, 200);
+    }, { passive: true });
+    fab.addEventListener('touchcancel', function () {
+      fab.classList.remove('map-fab-touched');
+    }, { passive: true });
+  });
 })();
 </script>
 
 {% endblock %}
-{% block page_scripts %}<script src="/static/js/map-overview.js?v=1.8.42"></script>{% endblock %}
+{% block page_scripts %}<script src="/static/js/map-overview.js?v=1.8.44"></script>{% endblock %}

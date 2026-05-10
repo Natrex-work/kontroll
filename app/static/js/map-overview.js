@@ -269,8 +269,151 @@
       return createPortalMap(el, activeLayers, state).then(function () {
         if (state.recenterTo) state.recenterTo = '';
         renderRelevantAreas(state.latestZoneResult || null);
+        renderQuickChips();  // Re-render chip strip after layer toggle
       });
     }
+
+    // ============ Quick chip strip directly on the map ============
+    // Always-visible category chips that toggle layer visibility on the map
+    // without needing to expand the bottom sheet or open the panel.
+    function renderQuickChips() {
+      var KV = window.KVCommon || {};
+      if (typeof KV.classifyLayerCategory !== 'function') return;
+      var host = document.getElementById('map-quick-chips-scroll');
+      if (!host) return;
+      var classify = KV.classifyLayerCategory;
+      var info = KV.categoryDisplayInfo;
+      var isSel = KV.isSelectableRegulatedLayer;
+      // Read current visibility from prefs (same store as panel chips)
+      var prefs = (typeof KV.loadLayerPanelPrefs === 'function')
+        ? (KV.loadLayerPanelPrefs(state.layerPanelKey) || {})
+        : {};
+      var hiddenLookup = {};
+      (Array.isArray(prefs.hidden_ids) ? prefs.hidden_ids : []).forEach(function (id) {
+        hiddenLookup[String(id)] = true;
+      });
+      // Default-visibility: when prefs not initialized, use default_visible flag
+      var initialized = !!prefs.initialized;
+      function isVisible(layer) {
+        if (hiddenLookup[String(layer.id)]) return false;
+        if (!initialized && layer.default_visible === false) return false;
+        return true;
+      }
+      var orderedCats = ['forbud','verne','fiskeri','art','redskap','andre'];
+      var totals = {}; var visibles = {};
+      orderedCats.forEach(function (c) { totals[c] = 0; visibles[c] = 0; });
+      (allLayers || []).forEach(function (layer) {
+        if (!layer || !isFinite(Number(layer.id))) return;
+        if (!isSel(layer)) return;
+        var c = classify(layer);
+        totals[c] = (totals[c] || 0) + 1;
+        if (isVisible(layer)) visibles[c] = (visibles[c] || 0) + 1;
+      });
+      var totalAvailable = orderedCats.reduce(function (a, c) { return a + (totals[c] || 0); }, 0);
+      var totalVisible = orderedCats.reduce(function (a, c) { return a + (visibles[c] || 0); }, 0);
+      var parts = [];
+      // 🌐 Alle chip
+      parts.push(
+        '<button type="button" class="map-quick-chip' +
+          (totalVisible > 0 ? ' is-active' : '') +
+          '" data-quick-chip="__all__" aria-label="Skru alle reguleringsområder av/på i kartet">' +
+          '<span class="qc-emoji">🌐</span>' +
+          '<span class="qc-label">Alle</span>' +
+          '<span class="qc-count">' + totalVisible + '/' + totalAvailable + '</span>' +
+        '</button>'
+      );
+      orderedCats.forEach(function (cat) {
+        var t = totals[cat] || 0;
+        if (!t) return;
+        var v = visibles[cat] || 0;
+        var meta = info(cat);
+        var isActive = v > 0 && (v / t) >= 0.5;
+        var isPartial = v > 0 && !isActive;
+        parts.push(
+          '<button type="button" class="map-quick-chip' +
+            (isActive ? ' is-active' : '') +
+            (isPartial ? ' is-partial' : '') +
+            '" data-quick-chip="' + cat + '" aria-label="' + meta.label + '">' +
+            '<span class="qc-emoji">' + meta.emoji + '</span>' +
+            '<span class="qc-label">' + meta.label + '</span>' +
+            '<span class="qc-count">' + v + '/' + t + '</span>' +
+          '</button>'
+        );
+      });
+      host.innerHTML = parts.join('');
+    }
+
+    function handleQuickChipClick(event) {
+      var chip = event.target && event.target.closest ? event.target.closest('[data-quick-chip]') : null;
+      if (!chip) return;
+      event.preventDefault();
+      var cat = String(chip.getAttribute('data-quick-chip') || '').trim();
+      if (!cat) return;
+      var KV = window.KVCommon || {};
+      if (typeof KV.classifyLayerCategory !== 'function') return;
+      var classify = KV.classifyLayerCategory;
+      var isSel = KV.isSelectableRegulatedLayer;
+      var prefs = (typeof KV.loadLayerPanelPrefs === 'function')
+        ? (KV.loadLayerPanelPrefs(state.layerPanelKey) || {})
+        : {};
+      var hiddenLookup = {};
+      (Array.isArray(prefs.hidden_ids) ? prefs.hidden_ids : []).forEach(function (id) {
+        hiddenLookup[String(id)] = true;
+      });
+      var initialized = !!prefs.initialized;
+      function isVisibleNow(layer) {
+        if (hiddenLookup[String(layer.id)]) return false;
+        if (!initialized && layer.default_visible === false) return false;
+        return true;
+      }
+
+      function setVisible(layer, makeVisible) {
+        var id = String(layer.id);
+        if (makeVisible) delete hiddenLookup[id];
+        else hiddenLookup[id] = true;
+      }
+
+      if (cat === '__all__') {
+        var anyVisible = false;
+        (allLayers || []).forEach(function (layer) {
+          if (!layer || !isFinite(Number(layer.id))) return;
+          if (!isSel(layer)) return;
+          if (isVisibleNow(layer)) anyVisible = true;
+        });
+        (allLayers || []).forEach(function (layer) {
+          if (!layer || !isFinite(Number(layer.id))) return;
+          if (!isSel(layer)) return;
+          setVisible(layer, !anyVisible);
+        });
+      } else {
+        var inCat = (allLayers || []).filter(function (layer) {
+          return layer && isFinite(Number(layer.id)) && isSel(layer) && classify(layer) === cat;
+        });
+        if (!inCat.length) return;
+        var visibleInCat = inCat.filter(isVisibleNow).length;
+        var ratio = visibleInCat / inCat.length;
+        var makeVisible = ratio < 0.3;
+        inCat.forEach(function (layer) { setVisible(layer, makeVisible); });
+      }
+      // Persist new prefs
+      prefs.hidden_ids = Object.keys(hiddenLookup);
+      prefs.initialized = true;
+      if (typeof KV.saveLayerPanelPrefs === 'function') {
+        KV.saveLayerPanelPrefs(state.layerPanelKey, prefs);
+      }
+      // Pulse animation on the chip for tactile feedback
+      chip.classList.add('qc-pulse');
+      setTimeout(function () { chip.classList.remove('qc-pulse'); }, 220);
+      // Re-render map to apply changes
+      redrawMap();
+    }
+
+    var quickChipsScroll = document.getElementById('map-quick-chips-scroll');
+    if (quickChipsScroll) {
+      quickChipsScroll.addEventListener('click', handleQuickChipClick);
+    }
+    // Initial render of chips
+    renderQuickChips();
 
     function setNationalView() {
       state.deviceLat = null;

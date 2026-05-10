@@ -14,7 +14,7 @@ from starlette.concurrency import run_in_threadpool
 from .. import live_sources
 from .. import area
 from ..dependencies import require_any_permission, require_permission
-from ..security import enforce_csrf
+from ..security import enforce_csrf, enforce_rate_limit
 from ..pdf_export import build_text_drafts
 from ..schemas import SummarySuggestRequest, TextPolishRequest
 from ..services.ocr_service import extract_text_from_image
@@ -378,8 +378,9 @@ def api_gear_summary(request: Request, phone: str = '', name: str = '', address:
 
 @router.post('/api/ocr/extract')
 async def api_ocr_extract(request: Request, file: UploadFile = File(...)):
-    require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til Minfiskerikontroll.')
+    user = require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til Minfiskerikontroll.')
     enforce_csrf(request)
+    enforce_rate_limit(request, 'ocr', max_attempts=20, window_seconds=60, user_id=user.get('id'))
     filename = sanitize_original_filename(file.filename or 'ocr-bilde.jpg')
     content_type = str(file.content_type or '').strip().lower()
     suffix = Path(filename).suffix.lower()
@@ -460,8 +461,9 @@ def api_person_fartoy_analyzer_status(request: Request):
 
 @router.post('/api/person-fartoy/analyze-image')
 async def api_person_fartoy_analyze_image(request: Request, files: list[UploadFile] = File(...)):
-    require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til Minfiskerikontroll.')
+    user = require_permission(request, 'kv_kontroll', detail='Brukeren har ikke tilgang til Minfiskerikontroll.')
     enforce_csrf(request)
+    enforce_rate_limit(request, 'vision', max_attempts=10, window_seconds=60, user_id=user.get('id'))
     if not files:
         raise HTTPException(status_code=400, detail='Legg ved minst ett bilde.')
     if len(files) > VISION_MAX_IMAGES:

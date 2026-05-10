@@ -7819,3 +7819,125 @@ body.page-map-fullscreen {
 .kv-temalag-category-chips:has(.kv-temalag-chip.is-partial)::before {
   display: none;
 }
+
+/* ========================================================================
+   1.8.43 — Synlig chip-stripe på kartet + FAB feedback
+   ======================================================================== */
+
+/* Posisjon: like over bunnsheet-handle, alltid synlig */
+.map-quick-chips {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 60px; /* Plass over bottom-sheet-handle */
+  z-index: 480;
+  padding: 0 12px;
+  pointer-events: none; /* Slipper map-trykk gjennom utenom selve chips */
+}
+body.page-map-fullscreen .map-quick-chips {
+  bottom: calc(60px + var(--mk-safe-bottom, env(safe-area-inset-bottom)));
+}
+
+.map-quick-chips-scroll {
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding: 4px 8px 4px 8px;
+  pointer-events: auto;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: 999px;
+  box-shadow: 0 4px 16px rgba(15, 39, 64, 0.18), 0 1px 3px rgba(15,39,64,0.10);
+  border: 1px solid rgba(213, 223, 235, 0.6);
+}
+.map-quick-chips-scroll::-webkit-scrollbar { display: none; }
+
+.map-quick-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid #d5dfeb;
+  background: #fff;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--muted, #5f6f81);
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, transform 80ms ease;
+  white-space: nowrap;
+  min-height: 30px;
+}
+.map-quick-chip:active {
+  transform: scale(0.94);
+}
+.map-quick-chip.is-active {
+  background: linear-gradient(180deg, #2b80d6 0%, #1e6fc0 100%);
+  border-color: #1e6fc0;
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(43, 128, 214, 0.32);
+}
+.map-quick-chip.is-partial {
+  background: linear-gradient(180deg, #cfe6f8 0%, #b9d7ee 100%);
+  border-color: #5fa3d6;
+  color: #0d4974;
+}
+.map-quick-chip.qc-pulse {
+  animation: qcPulse 220ms ease;
+}
+@keyframes qcPulse {
+  0%   { transform: scale(0.94); }
+  50%  { transform: scale(1.06); box-shadow: 0 4px 14px rgba(43, 128, 214, 0.45); }
+  100% { transform: scale(1.0); }
+}
+
+.qc-emoji { font-size: 1em; line-height: 1; }
+.qc-label {
+  letter-spacing: -0.01em;
+}
+.qc-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(15, 39, 64, 0.08);
+  font-size: 0.66rem;
+  font-weight: 700;
+}
+.map-quick-chip.is-active .qc-count {
+  background: rgba(255,255,255,0.22);
+  color: #fff;
+}
+.map-quick-chip.is-partial .qc-count {
+  background: rgba(43,128,214,0.20);
+  color: #0d4974;
+}
+
+/* På smale telefoner: skjul tekst, vis bare emoji + tall */
+@media (max-width: 380px) {
+  .map-quick-chip { padding: 5px 8px; }
+  .qc-label { display: none; }
+  .qc-emoji { font-size: 1.15em; }
+}
+
+/* FAB pulse-animasjon ved klikk for tydelig respons */
+.map-fab.map-fab-pulse {
+  animation: fabPulse 260ms ease;
+}
+@keyframes fabPulse {
+  0%   { transform: scale(0.92); box-shadow: 0 2px 6px rgba(15, 39, 64, 0.22); }
+  50%  { transform: scale(1.08); box-shadow: 0 6px 18px rgba(43, 128, 214, 0.45); }
+  100% { transform: scale(1.0); }
+}
+.map-fab.map-fab-touched {
+  background: rgba(43, 128, 214, 0.10);
+  border-color: rgba(43, 128, 214, 0.30);
+}

@@ -24,6 +24,9 @@ SESSION_NONCE_KEY = 'session_nonce'
 _rate_lock = threading.Lock()
 _login_attempts: dict[str, deque[float]] = defaultdict(deque)
 _otp_send_attempts: dict[str, deque[float]] = defaultdict(deque)
+# 1.8.44: Generic per-user rate-limit buckets for expensive endpoints
+# (OCR, vision, registry lookup) so abuse can't drain server CPU/quota
+_generic_attempts: dict[str, deque[float]] = defaultdict(deque)
 
 
 def client_ip(request: Request) -> str:
@@ -187,6 +190,30 @@ def record_otp_send_attempt(request: Request, user_id: int) -> None:
         queue = _otp_send_attempts[key]
         queue.append(time.time())
         _prune_attempts(queue, window_seconds=settings.otp_send_rate_limit_window_seconds)
+
+
+def enforce_rate_limit(request: Request, bucket: str, *, max_attempts: int = 30, window_seconds: int = 60, user_id: int | None = None) -> None:
+    """Generic per-user-or-IP rate-limit check for expensive endpoints.
+
+    Raises HTTPException(429) if the limit is exceeded. Use a unique `bucket`
+    name per endpoint family (e.g. 'ocr', 'vision', 'registry').
+
+    Defaults: 30 requests per minute per user/IP. Tune per call site.
+
+    Example:
+        enforce_rate_limit(request, 'vision', max_attempts=10, window_seconds=60, user_id=user['id'])
+    """
+    if user_id is not None:
+        key = f'{bucket}|user:{int(user_id)}'
+    else:
+        key = f'{bucket}|ip:{client_ip(request)}'
+    with _rate_lock:
+        queue = _generic_attempts[key]
+        _prune_attempts(queue, window_seconds=window_seconds)
+        if len(queue) >= max_attempts:
+            audit_security_event('rate_limited', request, {'bucket': bucket, 'limit': max_attempts, 'window_seconds': window_seconds})
+            raise HTTPException(status_code=429, detail=f'For mange forespørsler. Vent {window_seconds} sekunder og prøv igjen.')
+        queue.append(time.time())
 
 
 def audit_security_event(action: str, request: Request, details: dict[str, Any] | None = None) -> None:

@@ -1699,5 +1699,5 @@
 
   window.csrfHeaders = csrfHeaders;
   window.secureFetchOptions = secureFetchOptions;
-  window.KVCommon = { ready: ready, escapeHtml: escapeHtml, parseJson: parseJson, csrfToken: csrfToken, injectCsrfField: injectCsrfField, appendCsrfToForms: appendCsrfToForms, csrfHeaders: csrfHeaders, secureFetchOptions: secureFetchOptions, sourceChip: sourceChip, findingSource: findingSource, lawHelpCard: lawHelpCard, buildReadonlyFindingsHtml: buildReadonlyFindingsHtml, normalizeFeatureCollection: normalizeFeatureCollection, createPortalMap: createPortalMap };
+  window.KVCommon = { ready: ready, escapeHtml: escapeHtml, parseJson: parseJson, csrfToken: csrfToken, injectCsrfField: injectCsrfField, appendCsrfToForms: appendCsrfToForms, csrfHeaders: csrfHeaders, secureFetchOptions: secureFetchOptions, sourceChip: sourceChip, findingSource: findingSource, lawHelpCard: lawHelpCard, buildReadonlyFindingsHtml: buildReadonlyFindingsHtml, normalizeFeatureCollection: normalizeFeatureCollection, createPortalMap: createPortalMap, classifyLayerCategory: classifyLayerCategory, categoryDisplayInfo: categoryDisplayInfo, isSelectableRegulatedLayer: isSelectableRegulatedLayer, countLayersPerCategory: countLayersPerCategory, loadLayerPanelPrefs: loadLayerPanelPrefs, saveLayerPanelPrefs: saveLayerPanelPrefs };
 })();

@@ -53,12 +53,21 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
         response.headers.setdefault('X-Content-Type-Options', 'nosniff')
         response.headers.setdefault('X-Frame-Options', 'DENY')
-        response.headers.setdefault('Permissions-Policy', 'geolocation=(self), camera=(self), microphone=(self), fullscreen=(self)')
+        response.headers.setdefault('Permissions-Policy', 'geolocation=(self), camera=(self), microphone=(self), fullscreen=(self), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=(), interest-cohort=()')
         response.headers.setdefault('Cross-Origin-Opener-Policy', 'same-origin')
         response.headers.setdefault('Cross-Origin-Resource-Policy', 'same-origin')
+        # 1.8.44: Block legacy XML/Flash cross-domain policy lookups
+        response.headers.setdefault('X-Permitted-Cross-Domain-Policies', 'none')
+        # 1.8.44: Hide server signature
+        if 'Server' in response.headers:
+            response.headers['Server'] = 'kv'
         if effective_scheme(request) == 'https':
             response.headers.setdefault('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload')
         if not request.url.path.startswith('/static/'):
             response.headers.setdefault('Cache-Control', 'no-store')
             response.headers.setdefault('Pragma', 'no-cache')
+        else:
+            # 1.8.44: Allow caching of static assets but prevent MIME-sniffing
+            # and ensure they cannot be loaded cross-origin as scripts
+            response.headers.setdefault('X-Content-Type-Options', 'nosniff')
         return response
