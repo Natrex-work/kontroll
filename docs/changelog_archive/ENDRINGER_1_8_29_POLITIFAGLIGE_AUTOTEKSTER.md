@@ -29,5 +29,5 @@ Denne versjonen forbedrer autogenererte tekster for patruljeformål, anmeldt for
 
 ## Cache/versjon
 - Appversjon: 1.8.30
-- Service worker-cache: `kv-kontroll-1-8-30-static` og `kv-kontroll-1-8-30-map-tiles`
+- Service worker-cache: `kv-kontroll-1-8-30-static` og `kv-kontroll-1-8-47-map-tiles`
 - JS/CSS og ikoner lastes med `?v=1.8.30`

@@ -7941,3 +7941,37 @@ body.page-map-fullscreen .map-quick-chips {
   background: rgba(43, 128, 214, 0.10);
   border-color: rgba(43, 128, 214, 0.30);
 }
+
+/* 1.8.47 Lenke: start-/stopposisjon og separat beslag pr lenke */
+.control-link-main-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+.control-link-position-grid {
+  margin-top: 0.75rem;
+}
+.deviation-group-tabs {
+  margin: 0.5rem 0 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.deviation-group-tabs-scroll {
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  padding-bottom: 0.2rem;
+}
+.deviation-group-tab,
+.control-link-tab {
+  white-space: nowrap;
+}
+.deviation-group-tab.is-active,
+.control-link-tab.is-active {
+  font-weight: 700;
+}
+.deviation-link-position-summary {
+  margin: -0.25rem 0 0.5rem;
+}

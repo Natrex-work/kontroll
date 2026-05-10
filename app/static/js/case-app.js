@@ -445,6 +445,12 @@
       parts.push('<div class="callout area-warning"><strong>Områdevarsel</strong><div>' + escapeHtml(result.recommended_violation.message) + '</div></div>');
     }
     if (result.hits && result.hits.length) {
+      var relevantHits = result.hits.filter(areaHitMatchesCurrentSelection);
+      if (relevantHits.length) {
+        parts.push('<div class="callout area-hit-list margin-top-s"><strong>Relevante områdetreff</strong><ol>' + relevantHits.map(function (hit) {
+          return '<li><strong>' + escapeHtml(hit.name || hit.layer || 'Karttreff') + '</strong>' + (hit.status ? ' <span class="muted">(' + escapeHtml(hit.status) + ')</span>' : '') + (hit.notes ? '<div class="small muted">' + escapeHtml(hit.notes) + '</div>' : '') + '</li>';
+        }).join('') + '</ol></div>');
+      }
       parts.push('<div class="source-list margin-top-s">' + result.hits.map(function (hit) {
         return sourceChip({ name: hit.source || hit.layer || 'Karttreff', ref: hit.name || hit.layer || '', url: hit.url || '' });
       }).join('') + '</div>');
@@ -756,8 +762,55 @@
   var controlLinkModeEnabled = false;
   var controlLinkPageCount = 1;
   var controlLinkActiveIndex = 0;
+  var controlLinkGroups = [];
 
-  function ensureControlLinkState() {
+  function defaultControlLinkGroup(index) {
+    return { label: 'Lenke ' + (Number(index || 0) + 1), start: '', end: '', note: '' };
+  }
+
+  function normalizeControlLinkGroup(entry, index) {
+    entry = entry || {};
+    return {
+      label: String(entry.label || ('Lenke ' + (Number(index || 0) + 1))).trim(),
+      start: String(entry.start || entry.start_position || '').trim(),
+      end: String(entry.end || entry.stop || entry.end_position || '').trim(),
+      note: String(entry.note || '').trim()
+    };
+  }
+
+  function loadControlLinkGroupsFromFindings() {
+    var found = null;
+    (findingsState || []).some(function (finding) {
+      if (finding && Array.isArray(finding.control_link_groups) && finding.control_link_groups.length) {
+        found = finding.control_link_groups;
+        return true;
+      }
+      return false;
+    });
+    if (found && found.length) {
+      controlLinkGroups = found.map(function (entry, idx) { return normalizeControlLinkGroup(entry, idx); });
+      controlLinkPageCount = Math.max(controlLinkPageCount || 1, controlLinkGroups.length);
+    }
+  }
+
+  function syncControlLinkGroupsToFindings() {
+    ensureControlLinkState({ skipLoad: true });
+    var groups = controlLinkGroups.map(function (entry, idx) { return normalizeControlLinkGroup(entry, idx); });
+    (findingsState || []).forEach(function (finding) {
+      if (!finding) return;
+      finding.control_link_groups = groups;
+      finding.active_deviation_link_index = controlLinkActiveIndex;
+    });
+  }
+
+  function activeControlLinkGroup() {
+    ensureControlLinkState({ skipLoad: true });
+    return controlLinkGroups[controlLinkActiveIndex] || defaultControlLinkGroup(controlLinkActiveIndex);
+  }
+
+  function ensureControlLinkState(options) {
+    options = options || {};
+    if (!options.skipLoad) loadControlLinkGroupsFromFindings();
     var maxGroup = 0;
     (findingsState || []).forEach(function (finding) {
       ensureDeviationState(finding).forEach(function (row) {
@@ -765,10 +818,58 @@
         if (isFinite(group) && group > maxGroup) maxGroup = group;
       });
     });
-    controlLinkPageCount = Math.max(controlLinkPageCount || 1, maxGroup + 1, 1);
+    controlLinkPageCount = Math.max(controlLinkPageCount || 1, maxGroup + 1, controlLinkGroups.length || 0, 1);
+    while (controlLinkGroups.length < controlLinkPageCount) controlLinkGroups.push(defaultControlLinkGroup(controlLinkGroups.length));
+    controlLinkGroups = controlLinkGroups.slice(0, controlLinkPageCount).map(function (entry, idx) { return normalizeControlLinkGroup(entry, idx); });
     if (!isFinite(controlLinkActiveIndex) || controlLinkActiveIndex < 0) controlLinkActiveIndex = 0;
     if (controlLinkActiveIndex >= controlLinkPageCount) controlLinkActiveIndex = controlLinkPageCount - 1;
-    return { enabled: Boolean(controlLinkModeEnabled), count: controlLinkPageCount, activeIndex: controlLinkActiveIndex };
+    return { enabled: Boolean(controlLinkModeEnabled), count: controlLinkPageCount, activeIndex: controlLinkActiveIndex, groups: controlLinkGroups };
+  }
+
+  function applyControlLinkMetaToRow(row, groupIndex) {
+    if (!row) return row;
+    ensureControlLinkState({ skipLoad: true });
+    var idx = Number(groupIndex != null ? groupIndex : row.link_group_index || 0);
+    if (!isFinite(idx) || idx < 0) idx = 0;
+    var meta = controlLinkGroups[idx] || defaultControlLinkGroup(idx);
+    row.link_group_index = idx;
+    row.link_label = meta.label || ('Lenke ' + (idx + 1));
+    row.link_start_position = meta.start || row.link_start_position || '';
+    row.link_end_position = meta.end || row.link_end_position || '';
+    var links = ensureDeviationLinks(row);
+    if (!links.length) {
+      row.links = [{ start: row.link_start_position || '', end: row.link_end_position || '', note: meta.note || '' }];
+      row.active_link_index = 0;
+    } else {
+      links[0].start = row.link_start_position || links[0].start || '';
+      links[0].end = row.link_end_position || links[0].end || '';
+      if (meta.note && !links[0].note) links[0].note = meta.note;
+    }
+    return row;
+  }
+
+  function propagateControlLinkMeta(index) {
+    ensureControlLinkState({ skipLoad: true });
+    var idx = Number(index || 0);
+    var meta = controlLinkGroups[idx] || defaultControlLinkGroup(idx);
+    (findingsState || []).forEach(function (finding) {
+      ensureDeviationState(finding).forEach(function (row) {
+        if (Number(row.link_group_index || 0) === idx) {
+          row.link_label = meta.label;
+          row.link_start_position = meta.start || '';
+          row.link_end_position = meta.end || '';
+          var links = ensureDeviationLinks(row);
+          if (!links.length) {
+            row.links = [{ start: meta.start || '', end: meta.end || '', note: meta.note || '' }];
+          } else {
+            links[0].start = meta.start || '';
+            links[0].end = meta.end || '';
+            if (meta.note) links[0].note = meta.note;
+          }
+        }
+      });
+    });
+    syncControlLinkGroupsToFindings();
   }
 
   function setActiveControlLinkIndex(index) {
@@ -780,6 +881,7 @@
     (findingsState || []).forEach(function (finding) {
       finding.active_deviation_link_index = controlLinkActiveIndex;
     });
+    syncControlLinkGroupsToFindings();
   }
 
   function renderControlLinkToolbar() {
@@ -790,11 +892,22 @@
       var active = i === state.activeIndex ? ' is-active' : '';
       tabs.push('<button type="button" class="control-link-tab' + active + '" data-link-index="' + i + '" aria-pressed="' + (i === state.activeIndex ? 'true' : 'false') + '">Lenke ' + (i + 1) + '</button>');
     }
+    var activeMeta = state.groups[state.activeIndex] || defaultControlLinkGroup(state.activeIndex);
     controlLinkToolbar.innerHTML = [
       '<div class="control-link-card">',
+      '<div class="control-link-main-row">',
       '<label class="check-chip"><input type="checkbox" id="control-link-mode" ' + (state.enabled ? 'checked' : '') + ' /> Lenke</label>',
       '<div class="control-link-tabs" role="tablist" aria-label="Lenker">' + tabs.join('') + '</div>',
       '<button type="button" class="btn btn-secondary btn-small" id="control-link-add">Legg til lenke</button>',
+      '</div>',
+      '<div class="control-link-position-grid grid-two compact-grid-form">',
+      '<label><span>Startposisjon ' + escapeHtml(activeMeta.label || ('Lenke ' + (state.activeIndex + 1))) + '</span><input id="control-link-start" value="' + escapeHtml(activeMeta.start || '') + '" placeholder="Startposisjon" /></label>',
+      '<div class="actions-row wrap align-end"><button type="button" class="btn btn-secondary btn-small" id="control-link-start-fill">Bruk posisjon som start</button></div>',
+      '<label><span>Stopposisjon ' + escapeHtml(activeMeta.label || ('Lenke ' + (state.activeIndex + 1))) + '</span><input id="control-link-end" value="' + escapeHtml(activeMeta.end || '') + '" placeholder="Stopposisjon" /></label>',
+      '<div class="actions-row wrap align-end"><button type="button" class="btn btn-secondary btn-small" id="control-link-end-fill">Bruk posisjon som stopp</button></div>',
+      '<label class="span-2"><span>Merknad for lenke</span><input id="control-link-note" value="' + escapeHtml(activeMeta.note || '') + '" placeholder="F.eks. nordlig/sørlig lenke, antatt eier, særskilt observasjon" /></label>',
+      '</div>',
+      '<div class="small muted">Valgt lenke får egen kontrollpunktliste/avviksrader og egne beslagsnumre. Start- og stopposisjon følger beslagene i rapportene.</div>',
       '</div>'
     ].join('');
   }
@@ -821,7 +934,8 @@
   function defaultDeviationRow(item) {
     var activeGroup = Number(controlLinkModeEnabled ? controlLinkActiveIndex : (item && item.active_deviation_link_index || 0));
     if (!isFinite(activeGroup) || activeGroup < 0) activeGroup = 0;
-    return { seizure_ref: '', linked_seizure_ref: '', gear_kind: defaultDeviationGearKind(), gear_ref: '', quantity: '1', position: currentCoordText(), violation: suggestedDeviationText(item), note: '', links: [defaultDeviationLink()], active_link_index: 0, link_group_index: activeGroup };
+    var meta = (controlLinkGroups && controlLinkGroups[activeGroup]) || defaultControlLinkGroup(activeGroup);
+    return applyControlLinkMetaToRow({ seizure_ref: '', linked_seizure_ref: '', gear_kind: defaultDeviationGearKind(), gear_ref: '', quantity: '1', position: currentCoordText(), violation: suggestedDeviationText(item), note: '', links: [{ start: meta.start || currentCoordText(), end: meta.end || '', note: meta.note || '' }], active_link_index: 0, link_group_index: activeGroup, link_label: meta.label || ('Lenke ' + (activeGroup + 1)), link_start_position: meta.start || '', link_end_position: meta.end || '' }, activeGroup);
   }
 
   function defaultDeviationLink() {
@@ -1102,6 +1216,7 @@
         row.seizure_ref = itemSupportsMeasurements(item) ? formatMeasurementSeizureRef(nextSeizureSequence()) : formatSeizureRef(nextSeizureSequence());
       }
       if (!row.position && currentCoordText()) row.position = currentCoordText();
+      applyControlLinkMetaToRow(row, row.link_group_index);
       var rowLinks = ensureDeviationLinks(row);
       if (!rowLinks.length) { row.links = [defaultDeviationLink()]; row.active_link_index = 0; }
     });
@@ -1255,6 +1370,7 @@
     return [
       '<div class="finding-extra finding-deviations">',
       '<div class="subhead">Redskap/beslag</div>',
+      deviationGroupTabsHtml(item),
       '<div class="actions-row wrap deviation-action-row"><button type="button" class="btn btn-primary btn-small deviation-add" data-action="add-deviation">Legg til redskap/beslag</button></div>',
       '<div class="deviation-list">' + (!rows.length ? '<div class="callout deviation-empty">Ingen beslag registrert ennå.</div>' : '') + rows.map(function (row, dIndex) {
         var linkedCount = evidenceItemsForDeviation(item, row).length;
@@ -1264,7 +1380,7 @@
         var groupHidden = rowGroup === activeGroup ? '' : ' hidden';
         return [
           '<div class="deviation-row' + selectedClass + '" data-dev-index="' + dIndex + '" data-link-group-index="' + rowGroup + '" data-seizure-ref="' + escapeHtml(String(row.seizure_ref || '')) + '"' + groupHidden + '>',
-          '<div class="deviation-row-head"><strong>Lenke ' + (rowGroup + 1) + ' · Beslag ' + (dIndex + 1) + '</strong><span class="muted small">' + escapeHtml(row.seizure_ref || 'Beslag opprettes') + '</span></div>',
+          '<div class="deviation-row-head"><strong>' + escapeHtml(row.link_label || ('Lenke ' + (rowGroup + 1))) + ' · Beslag ' + (dIndex + 1) + '</strong><span class="muted small">' + escapeHtml(row.seizure_ref || 'Beslag opprettes') + '</span></div>' + ((row.link_start_position || row.link_end_position) ? '<div class="small muted deviation-link-position-summary">Start: ' + escapeHtml(row.link_start_position || 'ikke satt') + ' · Stopp: ' + escapeHtml(row.link_end_position || 'ikke satt') + '</div>' : ''),
           '<div class="deviation-row-fields">',
           '<label><span>Beslagsnummer</span><input class="deviation-seizure-ref" placeholder="LBHN 26001-001" title="Beslagsnummer" value="' + escapeHtml(row.seizure_ref || '') + '" readonly /></label>',
           '<label><span>' + (itemSupportsMeasurements(item) ? 'Tidligere lengdemålingsbeslag' : 'Tidligere beslag') + '</span><select class="deviation-existing-gear" title="Tidligere beslag/redskap i saken">' + deviationExistingGearOptionsHtml(row, item, measurementOptionModeForItem(item)) + '</select></label>',
@@ -2686,7 +2802,7 @@
       storedPositionMode = '';
     }
     if (storedPositionMode !== 'manual' && storedPositionMode !== 'auto') storedPositionMode = '';
-    var zoneOverlayStorageKey = 'kv-case-zone-overlay-1.8.30:' + root.dataset.caseId;
+    var zoneOverlayStorageKey = 'kv-case-zone-overlay-1.8.47:' + root.dataset.caseId;
     var zoneOverlayEnabled = true;
     // Treffende verne-/reguleringsområder skal alltid tegnes i kartet.
     // Tidligere lagret 'skjul'-valg fra eldre PWA-versjoner ignoreres.
@@ -2923,7 +3039,7 @@
     var topPrevStep = document.getElementById('top-prev-step');
     var topNextStep = document.getElementById('top-next-step');
     var topStepLabel = document.getElementById('top-step-label');
-    var stepStorageKey = 'kv-case-step-1.8.30:' + root.dataset.caseId;
+    var stepStorageKey = 'kv-case-step-1.8.47:' + root.dataset.caseId;
     var PERSON_STEP = 3;
     var MAP_STEP = 4;
     var FINDINGS_STEP = 5;
@@ -4232,8 +4348,9 @@
     }
 
     function _doRenderFindings() {
-      findingsInput.value = JSON.stringify(findingsState);
       ensureControlLinkState();
+      syncControlLinkGroupsToFindings();
+      findingsInput.value = JSON.stringify(findingsState);
       renderControlLinkToolbar();
       if (!findingsState.length) {
         findingsList.innerHTML = '<div class="callout">Ingen kontrollpunkter er valgt ennå. Velg kontrolltype, art/fiskeri og redskap for å hente relevante kontrollpunkter automatisk.</div>';
@@ -4374,6 +4491,11 @@
             description: dev.note || item.notes || item.auto_note || item.summary_text || item.label || 'Registrert avvik',
             law_text: lawText,
             violation_reason: dev.violation || item.auto_note || item.summary_text || item.notes || '',
+            link_group_index: Number(dev.link_group_index || 0),
+            link_label: dev.link_label || ('Lenke ' + (Number(dev.link_group_index || 0) + 1)),
+            link_start_position: dev.link_start_position || ((dev.links && dev.links[0] && dev.links[0].start) || ''),
+            link_end_position: dev.link_end_position || ((dev.links && dev.links[0] && dev.links[0].end) || ''),
+            links: dev.links || [],
             auto: true
           });
         });
@@ -4413,6 +4535,10 @@
           type: val('.seizure-type') || prev.type || '',
           quantity: val('.seizure-quantity') || prev.quantity || '',
           position: val('.seizure-position') || prev.position || '',
+          link_group_index: prev.link_group_index || 0,
+          link_label: prev.link_label || '',
+          link_start_position: val('.seizure-link-start') || prev.link_start_position || '',
+          link_end_position: val('.seizure-link-end') || prev.link_end_position || '',
           description: val('.seizure-description') || prev.description || '',
           law_text: val('.seizure-law') || prev.law_text || '',
           violation_reason: val('.seizure-reason') || prev.violation_reason || '',
@@ -4459,12 +4585,14 @@
         ].join('') : '<div class="small muted margin-top-s">Ingen bilder med dette beslagsnummeret er koblet ennå.</div>';
         return [
           '<article class="seizure-report-card" data-seizure-index="' + idx + '">',
-          '<div class="seizure-report-head"><strong>Beslag ' + escapeHtml(row.seizure_ref || ('B' + String(idx + 1).padStart(2, '0'))) + '</strong><button type="button" class="btn btn-danger btn-small" data-seizure-remove="' + idx + '">Fjern</button></div>',
+          '<div class="seizure-report-head"><strong>' + escapeHtml(row.link_label || ('Lenke ' + (Number(row.link_group_index || 0) + 1))) + ' · Beslag ' + escapeHtml(row.seizure_ref || ('B' + String(idx + 1).padStart(2, '0'))) + '</strong><button type="button" class="btn btn-danger btn-small" data-seizure-remove="' + idx + '">Fjern</button></div>',
           '<div class="grid-two compact-grid-form">',
           '<label><span>Beslagsnummer</span><input class="seizure-ref" value="' + escapeHtml(row.seizure_ref || '') + '" /></label>',
           '<label><span>Type</span><input class="seizure-type" value="' + escapeHtml(row.type || '') + '" /></label>',
           '<label><span>Antall</span><input class="seizure-quantity" value="' + escapeHtml(row.quantity || '') + '" /></label>',
           '<label><span>Posisjon knyttet til beslag</span><input class="seizure-position" value="' + escapeHtml(row.position || '') + '" /></label>',
+          '<label><span>Startposisjon lenke</span><input class="seizure-link-start" value="' + escapeHtml(row.link_start_position || '') + '" /></label>',
+          '<label><span>Stopposisjon lenke</span><input class="seizure-link-end" value="' + escapeHtml(row.link_end_position || '') + '" /></label>',
           '<label class="span-2"><span>Lovgrunnlag / kontrollpunkt</span><input class="seizure-law" value="' + escapeHtml(row.law_text || '') + '" /></label>',
           '<label class="span-2"><span>Beskrivelse</span><textarea class="seizure-description" rows="3">' + escapeHtml(row.description || '') + '</textarea></label>',
           '<label class="span-2"><span>Lovbrudd / vurdering</span><textarea class="seizure-reason" rows="3">' + escapeHtml(row.violation_reason || '') + '</textarea></label>',
@@ -4515,6 +4643,32 @@
       };
     }
 
+    function clientControlpointSortKey(item) {
+      item = item || {};
+      var text = normalizeSelectionText([
+        item.key, item.label, item.section, item.source_ref, item.law_text, item.summary_text, item.notes
+      ].join(' '));
+      var label = normalizeSelectionText(item.label || item.key || '');
+      var keyLabel = normalizeSelectionText([item.key, item.label, item.section, item.source_ref].join(' '));
+      var hasArea = item.auto_area_finding || /(omrade|stengt|nullfiske|verneomrade|regulert|maksimalmal omrade)/.test(text);
+      var hasLength = /(lengde|minstemal)/.test(keyLabel) || ['hummer_minstemal', 'hummer_lengdekrav'].indexOf(String(item.key || '')) !== -1;
+      var group = 20;
+      var sub = 0;
+      if (/(vak|blaase|blase|flyt|dobbe|merking|merke)/.test(keyLabel)) { group = 10; sub = 0; }
+      else if (/(deltakernummer|pamelding)/.test(text)) { group = 10; sub = 1; }
+      else if (/(teine|ruse|garn|line|flukt|rommingshull|roemmingshull|ratentrad|raatnetraad|antall|rokting|utforming)/.test(text) && !hasArea) { group = 10; sub = 2; }
+      else if (hasLength) { group = 50; sub = 0; }
+      else if (hasArea) { group = 30; sub = 0; }
+      else if (/(fredningstid|periode|sesong|rognhummer|gjenutsetting|oppbevaring|fangst)/.test(text)) { group = 40; sub = 0; }
+      return String(group).padStart(2, '0') + '|' + String(sub).padStart(2, '0') + '|' + label;
+    }
+
+    function sortControlpointItems(items) {
+      return (Array.isArray(items) ? items.slice() : []).sort(function (a, b) {
+        return clientControlpointSortKey(a).localeCompare(clientControlpointSortKey(b), 'nb');
+      });
+    }
+
     function clientFallbackRuleBundle(reason) {
       var controlVal = String(controlType && controlType.value || 'Fritidsfiske').trim() || 'Fritidsfiske';
       var speciesVal = String((species && species.value) || (fisheryType && fisheryType.value) || '').trim();
@@ -4526,7 +4680,6 @@
         if (items.some(function (row) { return row.key === key; })) return;
         items.push(makeClientRuleItem(key, label, law, section, lawText, helpText));
       }
-      add('generell_posisjon_omrade', 'Posisjon og områderegulering', 'Kartgrunnlag / gjeldende regelverk', 'Områdesjekk', 'Kontroller om kontrollposisjonen ligger i fredningsområde, stengt felt, nullfiskeområde eller annen regulert sone.', 'Bruk verneområdekartet og posisjonssjekken. Registrer avvik dersom valgt art/redskap ikke er tillatt i området.');
       add('generell_merking', 'Merking av redskap', 'Høstingsforskriften', 'Merkekrav', 'Kontroller at redskap/vak/blåse er merket slik regelverket krever for valgt fiskeri.', 'Sjekk navn/adresse, deltakernummer, fiskerimerke, kallesignal eller annen påkrevd identifikasjon.');
       if (gearNorm.indexOf('teine') !== -1 || speciesNorm.indexOf('hummer') !== -1 || speciesNorm.indexOf('krabbe') !== -1) {
         add('generell_teine_utforming', 'Utforming av teine/redskap', 'Høstingsforskriften', 'Redskapskrav', 'Kontroller fluktåpninger, rømmingshull/råtnetråd, antall redskap og at redskapet er egnet/lovlig for valgt art.', 'Registrer hvert beslag/redskap separat dersom flere teiner kontrolleres.');
@@ -4549,7 +4702,7 @@
         title: 'Kontrollpunkter' + (speciesVal || gearVal ? ' for ' + [controlVal, speciesVal, gearVal].filter(Boolean).join(' / ') : ''),
         description: reason || 'Lokal kontrollpunktliste brukes slik at punktene vises også ved tregt eller tomt regeloppslag.',
         items: items,
-        sources: [{ name: 'Lokal kontrollpunktliste', ref: '1.8.30 fallback', url: '' }]
+        sources: [{ name: 'Lokal kontrollpunktliste', ref: '1.8.47 fallback', url: '' }]
       };
     }
 
@@ -4563,10 +4716,11 @@
       metaBox.innerHTML = '<strong>' + escapeHtml(bundle.title || 'Kontrollpunkter') + '</strong><div class="small muted">' + escapeHtml(bundle.description || '') + '</div>';
       var currentByKey = {};
       findingsState.forEach(function (item) { if (item && item.key) currentByKey[item.key] = item; });
-      findingsState = (bundle.items || []).map(function (item) {
+      findingsState = sortControlpointItems(bundle.items || []).map(function (item) {
         var current = resolveCurrentFinding(item, currentByKey) || {};
         return Object.assign({}, item, current, { status: current.status || item.status || 'ikke kontrollert', notes: current.notes || item.notes || '' });
       });
+      syncControlLinkGroupsToFindings();
       renderFindings();
       sourcesState = bundle.sources || [];
       if (sourcesInput) sourcesInput.value = JSON.stringify(sourcesState);
@@ -5789,7 +5943,7 @@
       mapState.showLegend = false;
       mapState.showLayerPanel = !!mapLayerPanelHost;
       mapState.layerPanelDefaultOpen = false;
-      mapState.layerPanelKey = 'case-map-1-8-30';
+      mapState.layerPanelKey = 'case-map-1-8-47';
       mapState.layerPanelTargetSelector = mapLayerPanelHost ? '#case-map-layer-panel-host' : '';
       mapState.rasterLayerIds = allLayerIds;
       mapState.identifyLayerIds = allLayerIds;
@@ -5821,30 +5975,40 @@
       return [];
     }
 
+    function selectedAreaTokens() {
+      return normalizeSelectionText([currentFisherySelection(), currentGearSelection(), currentControlSelection()].join(' '));
+    }
+
     function areaHitMatchesCurrentSelection(hit) {
       hit = hit || {};
       var layerIds = areaHitLayerIds(hit);
       if (layerIds.length) {
-        return layerIds.some(function (rawLayerId) {
+        var layerMatch = layerIds.some(function (rawLayerId) {
           var resolvedLayer = layerDefinitionById(resolveCatalogLayerId(rawLayerId, hit.layer || hit.layer_name || hit.name));
           return resolvedLayer && layerMatchesCurrentSelection(resolvedLayer);
         });
+        if (layerMatch) return true;
       }
-      var status = String(hit.status || '').trim().toLowerCase();
-      if (status === 'fiskeriområde' || status === 'fiskeriomrade') return false;
+      var status = normalizeSelectionText(hit.status || '');
+      if (status === 'fiskeriomrade') return false;
       var text = normalizeSelectionText([hit.name, hit.layer, hit.description, hit.notes, hit.summary, hit.law_text, hit.source].join(' '));
+      if (!/(forbud|fredning|fredningsomrade|stengt|nullfiske|regulert|maksimalmal|forskrift|lov|j melding|j-melding|jmelding|verneomrade|begrensning)/.test(text + ' ' + status)) return false;
+      var selected = selectedAreaTokens();
+      var speciesText = normalizeSelectionText(currentFisherySelection());
+      var gearText = normalizeSelectionText(currentGearSelection());
       if (/svalbard/.test(text)) {
         var latNum = latitude && latitude.value ? Number(String(latitude.value).replace(',', '.')) : null;
         if (!(latNum !== null && latNum > 70)) return false;
       }
-      if (!/(forbud|fredning|fredningsomrade|stengt|nullfiske|regulert|maksimalmal|forskrift|lov|j melding|j-melding|jmelding|verneomrade|begrensning)/.test(text)) return false;
-      var selected = normalizeSelectionText([currentFisherySelection(), currentGearSelection(), currentControlSelection()].join(' '));
-      if (!selected) return true;
-      if (/hummer/.test(selected) && /hummer/.test(text)) return true;
-      if (/torsk/.test(selected) && /(torsk|kysttorsk|skrei)/.test(text)) return true;
-      if (/krabbe/.test(selected) && /krabbe/.test(text)) return true;
-      if (currentGearSelection() && text.indexOf(normalizeSelectionText(currentGearSelection())) !== -1) return true;
-      return /(stengt|nullfiske|fredning|fiskeforbud|totalforbud|forbud mot)/.test(text);
+      if (/hummer/.test(speciesText)) return /hummer|stengt|nullfiske|forbud|fiskeforbud/.test(text + ' ' + status);
+      if (/torsk/.test(speciesText)) return /torsk|kysttorsk|skrei|oslofjord|stengt|nullfiske|forbud|fiskeforbud/.test(text + ' ' + status);
+      if (/krabbe|kongekrabbe|snoekrabbe|snokrabbe/.test(speciesText)) return /krabbe|stengt|nullfiske|forbud|fiskeforbud/.test(text + ' ' + status);
+      if (/leppefisk/.test(speciesText)) return /leppefisk|stengt|nullfiske|forbud|fiskeforbud/.test(text + ' ' + status);
+      if (gearText && text.indexOf(gearText) !== -1) return true;
+      // Generelle stengte/nullfiske-/forbudsområder gjelder normalt på tvers, men rene
+      // fredningsområder uten art/redskapsmatch skal ikke automatisk gi kontrollpunkt.
+      if (/(stengt|nullfiske|fiskeforbud|totalforbud|forbud mot)/.test(text + ' ' + status)) return true;
+      return false;
     }
 
     function autoAreaFindingKey(hit, index) {
@@ -5910,8 +6074,8 @@
       return rows;
     }
 
-    var zoneResultStoragePrefix = 'kv-zone-result-1.8.30:';
-    var nearestPlaceStoragePrefix = 'kv-nearest-place-1.8.30:';
+    var zoneResultStoragePrefix = 'kv-zone-result-1.8.47:';
+    var nearestPlaceStoragePrefix = 'kv-nearest-place-1.8.47:';
     var nearestPlaceController = null;
     var nearestPlaceSequence = 0;
     var nearestPlaceTimer = null;
@@ -6058,6 +6222,7 @@
           syncDeviationDefaults(existing);
         }
       });
+      findingsState = sortControlpointItems(findingsState);
       renderFindings();
       if (result.match && result.hits && result.hits.length) {
         mergeSources(result.hits.map(function (hit) { return { name: hit.source || 'Karttreff', ref: hit.name || hit.layer || 'Områdetreff', url: hit.url || '' }; }));
@@ -6211,7 +6376,7 @@
       scheduleAutosave('Manuell posisjon aktivert');
     }
 
-    var devicePositionStorageKey = 'kv-device-position-1.8.30';
+    var devicePositionStorageKey = 'kv-device-position-1.8.47';
     function readCachedDevicePosition() {
       if (!window.localStorage) return null;
       try {
@@ -7069,7 +7234,7 @@ function renderHummerStatus(result) {
         notes: '',
         summary: summaryText,
         complaint_preview: complaintLines.join('\n').trim(),
-        source_label: 'lokal politifaglig IKV-mal 1.8.30'
+        source_label: 'lokal politifaglig IKV-mal 1.8.47'
       };
     }
 
@@ -7509,6 +7674,22 @@ function renderHummerStatus(result) {
 
     if (controlLinkToolbar) {
       controlLinkToolbar.addEventListener('change', function (event) {
+
+        if (event.target && (event.target.id === 'control-link-start' || event.target.id === 'control-link-end' || event.target.id === 'control-link-note')) {
+          ensureControlLinkState({ skipLoad: true });
+          var meta = controlLinkGroups[controlLinkActiveIndex] || defaultControlLinkGroup(controlLinkActiveIndex);
+          var startEl = document.getElementById('control-link-start');
+          var endEl = document.getElementById('control-link-end');
+          var noteEl = document.getElementById('control-link-note');
+          meta.start = startEl ? startEl.value : meta.start;
+          meta.end = endEl ? endEl.value : meta.end;
+          meta.note = noteEl ? noteEl.value : meta.note;
+          controlLinkGroups[controlLinkActiveIndex] = meta;
+          propagateControlLinkMeta(controlLinkActiveIndex);
+          findingsInput.value = JSON.stringify(findingsState);
+          scheduleAutosave('Lenkeposisjoner oppdatert');
+          return;
+        }
         if (event.target && event.target.id === 'control-link-mode') {
           controlLinkModeEnabled = Boolean(event.target.checked);
           setActiveControlLinkIndex(controlLinkActiveIndex);
@@ -7527,10 +7708,25 @@ function renderHummerStatus(result) {
           scheduleAutosave('Lenke valgt');
           return;
         }
+
+        if (event.target && (event.target.id === 'control-link-start-fill' || event.target.id === 'control-link-end-fill')) {
+          event.preventDefault();
+          ensureControlLinkState({ skipLoad: true });
+          var fillMeta = controlLinkGroups[controlLinkActiveIndex] || defaultControlLinkGroup(controlLinkActiveIndex);
+          if (event.target.id === 'control-link-start-fill') fillMeta.start = currentCoordText();
+          else fillMeta.end = currentCoordText();
+          controlLinkGroups[controlLinkActiveIndex] = fillMeta;
+          propagateControlLinkMeta(controlLinkActiveIndex);
+          findingsInput.value = JSON.stringify(findingsState);
+          renderFindings();
+          scheduleAutosave(event.target.id === 'control-link-start-fill' ? 'Startposisjon for lenke satt' : 'Stopposisjon for lenke satt');
+          return;
+        }
         if (event.target && event.target.id === 'control-link-add') {
           event.preventDefault();
           controlLinkModeEnabled = true;
           controlLinkPageCount = Math.max(1, controlLinkPageCount || 1) + 1;
+          controlLinkGroups.push({ label: 'Lenke ' + controlLinkPageCount, start: currentCoordText(), end: '', note: '' });
           setActiveControlLinkIndex(controlLinkPageCount - 1);
           findingsInput.value = JSON.stringify(findingsState);
           renderFindings();
@@ -7872,6 +8068,8 @@ function renderHummerStatus(result) {
         findingsState[idx].status = 'avvik';
         var groupRows = ensureDeviationState(item);
         var groupState = normalizeDeviationLinkGroups(item);
+        controlLinkPageCount = Math.max(controlLinkPageCount || 1, groupState.count + 1);
+        while (controlLinkGroups.length < controlLinkPageCount) controlLinkGroups.push(defaultControlLinkGroup(controlLinkGroups.length));
         item.active_deviation_link_index = groupState.count;
         var groupRow = defaultDeviationRow(item);
         groupRow.link_group_index = item.active_deviation_link_index;
@@ -8147,6 +8345,13 @@ function renderHummerStatus(result) {
       if (addBtn) addBtn.disabled = disabled;
       if (syncBtn) syncBtn.disabled = disabled;
       if (hearingText && disabled) hearingText.value = '';
+      // 1.8.47: Når brukeren krysser av "Avhør ikke gjennomført", lukk
+      // details-blokken automatisk. Når de fjerner avkrysningen (avhør ER
+      // gjennomført), åpne details så de ser avhørsfeltene.
+      var details = document.getElementById('interview-details');
+      if (details) {
+        details.open = !disabled;
+      }
       serializeInterviews();
     }
 

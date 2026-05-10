@@ -210,7 +210,7 @@ def init_db() -> None:
                 seizure_report_override TEXT,
                 interview_sessions_json TEXT NOT NULL DEFAULT '[]',
                 seizure_reports_json TEXT NOT NULL DEFAULT '[]',
-                interview_not_conducted INTEGER NOT NULL DEFAULT 0,
+                interview_not_conducted INTEGER NOT NULL DEFAULT 1,
                 interview_not_conducted_reason TEXT,
                 interview_guidance_text TEXT,
                 complainant_signature TEXT,
@@ -351,7 +351,7 @@ def init_db() -> None:
         _ensure_column(conn, 'cases', 'seizure_report_override', 'seizure_report_override TEXT')
         _ensure_column(conn, 'cases', 'interview_sessions_json', "interview_sessions_json TEXT NOT NULL DEFAULT '[]'")
         _ensure_column(conn, 'cases', 'seizure_reports_json', "seizure_reports_json TEXT NOT NULL DEFAULT '[]'")
-        _ensure_column(conn, 'cases', 'interview_not_conducted', 'interview_not_conducted INTEGER NOT NULL DEFAULT 0')
+        _ensure_column(conn, 'cases', 'interview_not_conducted', 'interview_not_conducted INTEGER NOT NULL DEFAULT 1')
         _ensure_column(conn, 'cases', 'interview_not_conducted_reason', 'interview_not_conducted_reason TEXT')
         _ensure_column(conn, 'cases', 'interview_guidance_text', 'interview_guidance_text TEXT')
         _ensure_column(conn, 'cases', 'complainant_signature', 'complainant_signature TEXT')
@@ -718,7 +718,10 @@ def create_case(created_by: int, investigator_name: str, complainant_name: str |
                 '[]',
                 '[]',
                 '[]',
-                0,
+                # 1.8.47: Default to interview_not_conducted=1 (ikke gjennomført).
+                # Brukere må eksplisitt huke av at avhør ER gjennomført. Tidligere
+                # var standard 0 (gjennomført) som ga feil oppførsel for nye saker.
+                1,
                 None,
                 None,
                 None,

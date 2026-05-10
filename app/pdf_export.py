@@ -8691,3 +8691,308 @@ def _image_caption_base_1_8_24(item: Dict[str, Any], idx: int) -> str:  # type: 
     if low.startswith('foto viser'):
         raw = raw[5:].strip()
     return _sentence_1_7('Bilde viser ' + raw[0].lower() + raw[1:])
+
+# ---- 1.8.47: lenke-stotte med start-/stopposisjon, egne beslag pr lenke og rapportvisning ----
+
+def _link_index_1_8_47(row: Dict[str, Any]) -> int:
+    try:
+        idx = int(row.get('link_group_index') or 0)
+    except Exception:
+        idx = 0
+    return max(0, idx)
+
+
+def _link_label_1_8_47(row: Dict[str, Any]) -> str:
+    label = str(row.get('link_label') or '').strip()
+    if label:
+        return label
+    return f'Lenke {_link_index_1_8_47(row) + 1}'
+
+
+def _link_positions_1_8_47(row: Dict[str, Any]) -> tuple[str, str]:
+    start = str(row.get('link_start_position') or row.get('link_start') or '').strip()
+    end = str(row.get('link_end_position') or row.get('link_end') or row.get('link_stop_position') or '').strip()
+    links = row.get('links') or []
+    if isinstance(links, list) and links:
+        first = links[0] if isinstance(links[0], dict) else {}
+        if not start:
+            start = str(first.get('start') or '').strip()
+        if not end:
+            end = str(first.get('end') or first.get('stop') or '').strip()
+    return start, end
+
+
+def _deviation_link_fields_1_8_47(row: Dict[str, Any]) -> Dict[str, Any]:
+    idx = _link_index_1_8_47(row)
+    start, end = _link_positions_1_8_47(row)
+    return {
+        'link_group_index': idx,
+        'link_label': _link_label_1_8_47(row),
+        'link_start_position': start,
+        'link_end_position': end,
+        'links': row.get('links') if isinstance(row.get('links'), list) else [],
+    }
+
+
+def _collect_seizure_rows_from_findings(findings: list[Dict[str, Any]]) -> list[Dict[str, Any]]:  # type: ignore[override]
+    rows: list[Dict[str, Any]] = []
+    for item in findings or []:
+        if not isinstance(item, dict) or str(item.get('status') or '').lower() != 'avvik':
+            continue
+        finding_key = str(item.get('key') or '').strip()
+        caption = str(item.get('label') or item.get('key') or 'Avvik').strip()
+        law_text = str(item.get('law_text') or item.get('help_text') or '').strip()
+        for idx, row in enumerate(_deviation_rows(item), start=1):
+            if not isinstance(row, dict):
+                continue
+            violation = _strip_position_phrases_1_8_24(row.get('violation') or '') or _strip_position_phrases_1_8_24(_finding_display_note(item))
+            link_fields = _deviation_link_fields_1_8_47(row)
+            rows.append({
+                'finding_key': finding_key,
+                'caption': caption,
+                'seizure_ref': str(row.get('seizure_ref') or '').strip() or f'{str(item.get("key") or "AVVIK").upper()}-{idx:02d}',
+                'gear_kind': str(row.get('gear_kind') or '').strip(),
+                'gear_ref': str(row.get('gear_ref') or '').strip(),
+                'quantity': str(row.get('quantity') or '').strip() or '1',
+                'position': str(row.get('position') or '').strip(),
+                'linked_seizure_ref': str(row.get('linked_seizure_ref') or '').strip(),
+                'violation_reason': violation,
+                'description': violation,
+                'law_text': law_text,
+                'note': _strip_position_phrases_1_8_24(row.get('note') or ''),
+                'photo_ref': str(row.get('photo_ref') or '').strip(),
+                **link_fields,
+            })
+        measurements = item.get('measurements') or []
+        if isinstance(measurements, list):
+            for idx, row in enumerate(measurements, start=1):
+                if not isinstance(row, dict):
+                    continue
+                seizure_ref = str(row.get('seizure_ref') or row.get('reference') or '').strip() or f'{str(item.get("key") or "MALING").upper()}-M{idx:02d}'
+                length = str(row.get('length_cm') or '').strip()
+                delta_text = str(row.get('delta_text') or '').strip()
+                violation_reason = str(row.get('violation_text') or '').strip()
+                if not violation_reason:
+                    if length and delta_text:
+                        violation_reason = f'Kontrollmålt til {length} cm - {delta_text}.'
+                    elif length:
+                        violation_reason = f'Kontrollmålt til {length} cm.'
+                    else:
+                        violation_reason = _strip_position_phrases_1_8_24(_finding_display_note(item))
+                rows.append({
+                    'finding_key': finding_key,
+                    'caption': caption,
+                    'seizure_ref': seizure_ref,
+                    'gear_kind': 'Lengdemåling',
+                    'gear_ref': '',
+                    'quantity': '1',
+                    'position': str(row.get('position') or '').strip(),
+                    'linked_seizure_ref': str(row.get('linked_seizure_ref') or '').strip(),
+                    'violation_reason': _strip_position_phrases_1_8_24(violation_reason),
+                    'description': _strip_position_phrases_1_8_24(violation_reason),
+                    'law_text': law_text,
+                    'note': _strip_position_phrases_1_8_24(row.get('note') or ''),
+                    'photo_ref': str(row.get('photo_ref') or '').strip(),
+                    'link_group_index': 0,
+                    'link_label': '',
+                    'link_start_position': '',
+                    'link_end_position': '',
+                })
+    return rows
+
+
+def _link_group_summary_1_8_47(rows: list[Dict[str, Any]]) -> list[Dict[str, Any]]:
+    groups: dict[int, Dict[str, Any]] = {}
+    for row in rows or []:
+        if not isinstance(row, dict):
+            continue
+        idx = _link_index_1_8_47(row)
+        label = _link_label_1_8_47(row)
+        start, end = _link_positions_1_8_47(row)
+        group = groups.setdefault(idx, {'index': idx, 'label': label, 'start': '', 'end': '', 'count': 0, 'refs': []})
+        group['label'] = group.get('label') or label
+        if start and not group.get('start'):
+            group['start'] = start
+        if end and not group.get('end'):
+            group['end'] = end
+        ref = str(row.get('seizure_ref') or '').strip()
+        if ref:
+            group['refs'].append(ref)
+        group['count'] = int(group.get('count') or 0) + 1
+    return [groups[key] for key in sorted(groups.keys()) if groups[key].get('count')]
+
+
+def _build_seizure_report(case_row: Dict[str, Any], evidence_rows: list[Dict[str, Any]]) -> str:  # type: ignore[override]
+    rows = _stored_seizure_rows_v93(case_row, _safe_findings(case_row), evidence_rows)
+    override = str(case_row.get('seizure_report_override') or '').strip()
+    if not rows and not override:
+        return 'Det er ikke registrert beslag i saken.'
+    lines = ['Beslagsrapport', '']
+    place = _case_place_1_8_23(case_row) if '_case_place_1_8_23' in globals() else _location_line(case_row)
+    if place and place != '-':
+        lines.append(f'Kontrollsted: {place}.')
+    lines.append(f'Ledet av: {_fmt_value(case_row.get("investigator_name"))}.')
+    link_groups = _link_group_summary_1_8_47(rows)
+    if len(link_groups) > 1 or any(group.get('start') or group.get('end') for group in link_groups):
+        lines.extend(['', 'Lenker:'])
+        for group in link_groups:
+            parts = [str(group.get('label') or f'Lenke {int(group.get("index") or 0) + 1}')]
+            if group.get('start'):
+                parts.append(f'start {group.get("start")}')
+            if group.get('end'):
+                parts.append(f'stopp {group.get("end")}')
+            refs = ', '.join(group.get('refs') or [])
+            if refs:
+                parts.append(f'beslag {refs}')
+            lines.append('- ' + '; '.join(parts) + '.')
+    if rows:
+        lines.extend(['', 'Registrerte beslag:'])
+        last_group = None
+        for idx, row in enumerate(rows, start=1):
+            group_label = _link_label_1_8_47(row)
+            if group_label != last_group:
+                lines.append(f'{group_label}:')
+                last_group = group_label
+            ref = _first_clean_1_7(row.get('seizure_ref'), f'Beslag {idx}')
+            kind = _first_clean_1_7(row.get('gear_kind'), row.get('type'), 'redskap/beslag')
+            qty = _first_clean_1_7(row.get('quantity'))
+            desc = _strip_position_phrases_1_8_24(_first_clean_1_7(row.get('description'), row.get('violation_reason'), row.get('caption'), 'registrert avvik'))
+            note = _strip_position_phrases_1_8_24(row.get('note'))
+            pos = _first_clean_1_7(row.get('position'))
+            start, end = _link_positions_1_8_47(row)
+            ev = ', '.join([str(x) for x in row.get('evidence_refs') or [] if str(x).strip()])
+            first = f'   {idx}. {ref} - {kind}'
+            if qty:
+                first += f', antall {qty}'
+            first += '.'
+            lines.append(first)
+            if start or end:
+                lines.append(f'      Lenke: start {start or "ikke oppgitt"}; stopp {end or "ikke oppgitt"}.')
+            if desc:
+                lines.append(f'      Avvik: {_shorten_sentence_1_8_21(desc, 260)}')
+            if note and note.lower() not in (desc or '').lower():
+                lines.append(f'      Merknad: {_shorten_sentence_1_8_21(note, 220)}')
+            if pos:
+                lines.append(f'      Posisjon: {pos}.')
+            if ev:
+                lines.append(f'      Tilknyttede bilder: {_shorten_sentence_1_8_21(ev, 220)}')
+    if override:
+        lines.extend(['', 'Utfyllende merknader:', _strip_position_phrases_1_8_24(override)])
+    return _clean_standard_text_1_7('\n'.join(lines).strip(), case_row)
+
+
+def _link_summary_sentence_1_8_47(case_row: Dict[str, Any], findings: list[Dict[str, Any]]) -> str:
+    rows = _seizure_rows_1_7(case_row, findings)
+    groups = _link_group_summary_1_8_47(rows)
+    if len(groups) <= 1:
+        return ''
+    labels = []
+    for group in groups:
+        label = str(group.get('label') or '').strip()
+        refs = ', '.join(group.get('refs') or [])
+        labels.append(label + (f' ({refs})' if refs else ''))
+    return 'Beslag/redskap er fordelt på ' + _natural_join(labels) + ', og fremgår nærmere av beslagsrapporten.'
+
+
+def _build_short_complaint(case_row: Dict[str, Any], findings: list[Dict[str, Any]], sources: list[Dict[str, Any]]) -> str:  # type: ignore[override]
+    override = str(case_row.get('complaint_override') or '').strip()
+    if override:
+        return _clean_standard_text_1_7(_strip_doc_heading_1_8_23(override), case_row)
+    subject = _subject_name_1_8_30(case_row)
+    when = _case_when_1_8_30(case_row)
+    place = _case_place_1_8_30(case_row)
+    unit = _case_vessel_unit_1_8_30(case_row)
+    topic = _topic_narrative_1_8_30(case_row)
+    offences = _offence_blocks(case_row, findings)
+    titles = _offence_titles_1_8_25(case_row, findings)
+    avvik_rows = _avvik_rows_1_8_30(findings)
+    count = max(len(titles), len(avvik_rows), len(offences))
+    if not offences and not avvik_rows:
+        return _clean_standard_text_1_7(
+            f'Det ble gjennomført fiskerikontroll {when} ved {place}. Det er ikke registrert avvik som danner grunnlag for anmeldelse i kontrollpunktene på tidspunktet for utkastet.',
+            case_row,
+        )
+    lines: list[str] = []
+    if count <= 1:
+        title = titles[0] if titles else (avvik_rows[0][0] if avvik_rows else 'mulig overtredelse av fiskeriregelverket')
+        lines.append(f'Med dette anmeldes {subject} for {title.lower()} avdekket {when} ved {place}.')
+    else:
+        lines.append(f'Med dette anmeldes {subject} for følgende forhold avdekket {when} ved {place}:')
+        for idx, title in enumerate(titles or [row[0] for row in avvik_rows], start=1):
+            lines.append(f'{idx}. {title}.')
+    lines.append('')
+    intro = f'Forholdene ble avdekket da {unit} gjennomførte fiskerioppsyn/kontroll med {topic}.' if count > 1 else f'Forholdet ble avdekket da {unit} gjennomførte fiskerioppsyn/kontroll med {topic}.'
+    if _normal_case_basis_1_8_22(case_row.get('case_basis')) == 'tips':
+        intro += ' Kontrollen ble gjennomført på bakgrunn av mottatte tips/opplysninger. De faktiske forholdene bygger på patruljens egne observasjoner og dokumentasjon sikret under kontrollen.'
+    lines.append(intro)
+    link_sentence = _link_summary_sentence_1_8_47(case_row, findings)
+    if link_sentence:
+        lines.append(link_sentence)
+    lines.append('')
+    lines.append('Kort faktumbeskrivelse:')
+    if offences:
+        for idx, block in enumerate(offences, start=1):
+            lines.append(_offence_fact_line_1_8_25(block, idx))
+    else:
+        for idx, (title, note) in enumerate(avvik_rows, start=1):
+            text = title + (': ' + note if note else '')
+            lines.append(f'{idx}. {_sentence_1_7(_shorten_sentence_1_8_21(text, 260))}')
+    lines.append('')
+    if count > 1:
+        lines.append(f'Forholdene kan etter sin art være relevante for vurdering etter {_legal_head_list_1_8_30(case_row, findings)}. Endelig rettslig vurdering tilligger påtalemyndigheten.')
+    else:
+        lines.append(f'Forholdet kan etter sin art være relevant for vurdering etter {_legal_head_list_1_8_30(case_row, findings)}. Endelig rettslig vurdering tilligger påtalemyndigheten.')
+    lines.append('For nærmere detaljer om faktiske observasjoner, redskap/beslag og sikret bildedokumentasjon vises det til sakens ' + _evidence_doc_phrase_1_8_26(case_row) + '.')
+    return _clean_standard_text_1_7('\n'.join(lines).strip(), case_row)
+
+
+def _build_own_report(case_row: Dict[str, Any], findings: list[Dict[str, Any]]) -> str:  # type: ignore[override]
+    override = str(case_row.get('own_report_override') or '').strip()
+    if override:
+        return _clean_standard_text_1_7(_strip_doc_heading_1_8_23(override), case_row)
+    investigator = _first_clean_1_7(case_row.get('investigator_name'), 'rapportskriver')
+    unit = _case_vessel_unit_1_8_30(case_row)
+    when = _case_when_1_8_30(case_row)
+    place = _case_place_1_8_30(case_row)
+    topic = _topic_narrative_1_8_30(case_row)
+    crew = _crew_text(case_row)
+    subject = _subject_name_1_8_30(case_row, fallback='')
+    paragraphs: list[str] = []
+    paragraphs.append(f'Den {when} gjennomførte {unit} fiskerioppsyn ved {place}. Jeg, {investigator}, deltok i kontrollen. Kontrolltema var {topic}.')
+    if crew and crew != '-':
+        paragraphs.append(f'Øvrig personell/observatører som deltok i kontrollen: {crew}.')
+    paragraphs.append(_own_report_basis_1_8_25(case_row, findings))
+    paragraphs.append(_control_execution_sentence_1_8_30(case_row, findings))
+    if subject:
+        paragraphs.append(f'Kontrollobjekt/ansvarlig registrert i saken: {subject}.')
+    avvik_rows = _avvik_rows_1_8_30(findings)
+    if avvik_rows:
+        paragraphs.append('Kontrollør registrerte følgende avvik:\n' + '\n'.join(_short_avvik_lines_1_8_24(findings, limit=250)))
+    else:
+        paragraphs.append('Det er ikke registrert avvik i kontrollpunktene på tidspunktet rapporten ble laget.')
+    link_sentence = _link_summary_sentence_1_8_47(case_row, findings)
+    if link_sentence:
+        paragraphs.append(link_sentence)
+    if _seizure_rows_1_7(case_row, findings):
+        paragraphs.append('Redskap/beslag er ført i egen beslagsrapport. Posisjon og eventuell start-/stopposisjon for den enkelte lenke fremgår der. Relevante fotografier og kartutsnitt fremgår av illustrasjonsmappe/fotomappe.')
+    else:
+        paragraphs.append('Relevante fotografier og kartutsnitt fremgår av illustrasjonsmappe/fotomappe der dette er registrert.')
+    if _has_interview_report_content_1_8_21(case_row):
+        paragraphs.append('Gjennomført avhør/forklaring er protokollert i egen avhørsrapport.')
+    notes = _strip_coords_1_8_30(_strip_position_phrases_1_8_24(_strip_inline_seizure_text_1_8_24(_strip_generated_report_noise_1_8_21(case_row.get('notes')))))
+    if notes:
+        paragraphs.append('Kontrollørs merknad: ' + _shorten_sentence_1_8_21(notes, 340))
+    text = '\n\n'.join(_dedupe_paragraphs_1_8_30(paragraphs))
+    for bad in _BAD_REPORT_PHRASES_1_8_30:
+        text = re.sub(r'\b' + re.escape(bad) + r'\b', '', text, flags=re.IGNORECASE)
+    return _clean_standard_text_1_7(text.strip(), case_row)
+
+
+def build_text_drafts(case_row: Dict[str, Any], findings: list[Dict[str, Any]]) -> Dict[str, str]:  # type: ignore[override]
+    return {
+        'summary': build_summary(case_row, findings),
+        'basis_details': build_control_reason(case_row, findings),
+        'notes': '',
+        'complaint_preview': _build_short_complaint(case_row, findings, _safe_sources(case_row)),
+        'source_label': 'straffesaksmal 1.8.47',
+    }

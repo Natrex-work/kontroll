@@ -563,6 +563,46 @@ def _unique(items: List[dict[str, str]]) -> List[dict[str, str]]:
 
 
 
+def _has_checked_position(lat: float | None = None, lng: float | None = None) -> bool:
+    return _float_or_none(lat) is not None and _float_or_none(lng) is not None
+
+
+def _is_area_status(status: str | None) -> bool:
+    status_n = _norm(status)
+    if not status_n or status_n in {'ingen treff', 'normalt område', 'normalt omrade'}:
+        return False
+    return any(token in status_n for token in ('fredningsområde', 'fredningsomrade', 'stengt område', 'stengt omrade', 'nullfiske', 'maksimalmål område', 'maksimalmal omrade', 'regulert område', 'regulert omrade'))
+
+
+def _controlpoint_sort_key(item: dict[str, Any]) -> tuple[int, int, str]:
+    key = _norm(item.get('key'))
+    label = _norm(item.get('label'))
+    section = _norm(item.get('section') or item.get('source_ref'))
+    text = ' '.join([key, label, section, _norm(item.get('law_text')), _norm(item.get('summary_text')), _norm(item.get('notes'))])
+
+    key_label = ' '.join([key, label, section])
+    has_area = bool(item.get('auto_area_finding')) or any(token in text for token in ('område', 'omrade', 'stengt', 'nullfiske', 'verneområde', 'verneomrade', 'regulert', 'maksimalmål område', 'maksimalmal omrade'))
+    has_length = any(token in key_label for token in ('lengde', 'minstemål', 'minstemal')) or key in {'hummer_minstemal', 'hummer_lengdekrav'}
+
+    if any(token in key_label for token in ('vak', 'blåse', 'blaase', 'flyt', 'dobbe', 'merking', 'merke')):
+        return (10, 0, label or key)
+    if 'deltakernummer' in text or 'påmelding' in text or 'pamelding' in text:
+        return (10, 1, label or key)
+    if any(token in text for token in ('teine', 'ruse', 'garn', 'line', 'fluktåpning', 'fluktaapning', 'rømmingshull', 'rommingshull', 'råtnetråd', 'ratentrad', 'antall', 'røkting', 'rokting', 'utforming')) and not has_area:
+        return (10, 2, label or key)
+    if has_length:
+        return (50, 0, label or key)
+    if has_area:
+        return (30, 0, label or key)
+    if any(token in text for token in ('fredningstid', 'periode', 'sesong', 'rognhummer', 'gjenutsetting', 'oppbevaring', 'fangst')):
+        return (40, 0, label or key)
+    return (20, 0, label or key)
+
+
+def _sort_controlpoints(items: List[dict[str, Any]]) -> List[dict[str, Any]]:
+    return sorted(items, key=_controlpoint_sort_key)
+
+
 def _date_note(control_date: str | None, item: dict[str, str], latitude: float | None = None) -> dict[str, str]:
     dt = _parse_date(control_date)
     if not dt:
@@ -781,16 +821,16 @@ def get_rule_bundle(
         lng=lng,
     ))
 
-    rec = recommend_area_violation(area_status=area_status, area_name=area_name, species=species, gear_type=gear_type, notes=area_notes)
+    # Område-/fredningspunkter skal bare inn i kontrollpunktlisten når en faktisk
+    # kontrollposisjon er kontrollert og ligger i et relevant område. Manuelle eller
+    # gamle area_status-verdier uten lat/lng skal ikke gi generiske områdepunkter.
+    has_checked_area_position = _has_checked_position(lat, lng) and _is_area_status(area_status)
+    rec = recommend_area_violation(area_status=area_status, area_name=area_name, species=species, gear_type=gear_type, notes=area_notes) if has_checked_area_position else None
     if rec and rec.get('item'):
-        items.append(rec['item'])
-    else:
-        status_n = _norm(area_status)
-        if status_n and status_n not in {'ingen treff', 'normalt område'}:
-            for key, item in AREA_GENERIC_STATUS_ITEMS.items():
-                if key in status_n:
-                    items.append(item)
-                    break
+        area_item = rec['item']
+        area_item['auto_area_finding'] = True
+        items.append(area_item)
+
 
     if not items:
         items.append(_item(
@@ -803,7 +843,7 @@ def get_rule_bundle(
             'Bruk dette som midlertidig kontrollpunkt dersom art/fiskeri eller redskap ikke er ferdig valgt.',
         ))
 
-    items = [_date_note(control_date, _clone(item), latitude=lat) for item in _unique(items)]
+    items = _sort_controlpoints([_date_note(control_date, _clone(item), latitude=lat) for item in _unique(items)])
 
     description = 'Appen viser bare kontrollpunkter som er relevante for valgt kontrolltype, art, redskap, dato, registrert områdestatus og tilgjengelig posisjon.'
     if rec and rec.get('message'):

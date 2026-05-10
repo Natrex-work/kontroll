@@ -450,12 +450,12 @@
 
     <div class="callout margin-bottom-m" id="interview-not-conducted-panel">
       <label class="check-chip">
-        <input form="case-form" type="checkbox" name="interview_not_conducted" id="interview_not_conducted" value="1" {% if case.interview_not_conducted is sameas none or case.interview_not_conducted %}checked{% endif %} />
+        <input form="case-form" type="checkbox" name="interview_not_conducted" id="interview_not_conducted" value="1" {% if case.interview_not_conducted %}checked{% endif %} />
         Avhør ikke gjennomført
       </label>
       <label class="margin-top-s block" id="interview-not-conducted-reason-wrap"><span>Årsak / standardtekst</span><textarea form="case-form" name="interview_not_conducted_reason" id="interview_not_conducted_reason" rows="2">{{ case.interview_not_conducted_reason or 'Ikke fått kontakt med vedkommende.' }}</textarea></label>
     </div>
-    <details class="interview-details" id="interview-details" {% if case.interview_not_conducted is not sameas none and not case.interview_not_conducted %}open{% endif %}>
+    <details class="interview-details" id="interview-details"{% if not case.interview_not_conducted %} open{% endif %}>
       <summary class="interview-summary">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="18" height="18"><path d="m6 9 6 6 6-6"/></svg>
         <strong>Vis avhørsdetaljer</strong>
@@ -665,5 +665,5 @@
   }
 })();
 </script>
-<script src="/static/js/case-app.js?v=1.8.44"></script>
+<script src="/static/js/case-app.js?v=1.8.47"></script>
 {% endblock %}
