@@ -7975,3 +7975,72 @@ body.page-map-fullscreen .map-quick-chips {
 .deviation-link-position-summary {
   margin: -0.25rem 0 0.5rem;
 }
+
+/* ========================================================================
+   1.8.48 — Fjern lenke-knapp på tabs + område-context-callout
+   ======================================================================== */
+
+.control-link-tab {
+  position: relative;
+  padding-right: 32px;  /* gjør plass til ×-knappen */
+}
+.control-link-tab.is-active {
+  padding-right: 32px;
+}
+
+.control-link-tab-remove {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1;
+  color: rgba(15, 39, 64, 0.55);
+  background: rgba(15, 39, 64, 0.08);
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.control-link-tab-remove:hover {
+  background: rgba(194, 55, 74, 0.92);
+  color: #fff;
+}
+.control-link-tab.is-active .control-link-tab-remove {
+  color: rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.18);
+}
+.control-link-tab.is-active .control-link-tab-remove:hover {
+  background: #c2374a;
+  color: #fff;
+}
+
+/* Område-context-callout i lengdemåling */
+.callout.area-info {
+  background: linear-gradient(180deg, #eaf3fb 0%, #dceaf6 100%);
+  border: 1px solid #abd6ee;
+  color: #0d4974;
+  padding: 8px 12px;
+  border-radius: var(--mk-radius-md, 14px);
+  margin: 8px 0;
+}
+.callout.area-info strong {
+  color: #0d4974;
+  font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .control-link-tab {
+    padding-right: 28px;
+  }
+  .control-link-tab-remove {
+    width: 20px;
+    height: 20px;
+    font-size: 0.82rem;
+  }
+}

@@ -426,6 +426,38 @@
     return Boolean(result && result.match && result.recommended_violation && result.recommended_violation.item);
   }
 
+  // 1.8.48: Detect if controller's position is in an area where MAKSIMALMÅL
+  // (maximum-size limit) applies for the selected species/gear. Returns the
+  // matching hit object so we can use its details, or null if not in such an area.
+  function activeMaksimalmalArea() {
+    var result = latestZoneResult;
+    if (!result || !result.match) return null;
+    var hits = Array.isArray(result.hits) ? result.hits : [];
+    for (var i = 0; i < hits.length; i++) {
+      var hit = hits[i];
+      if (!hit) continue;
+      var blob = String((hit.name || '') + ' ' + (hit.status || '') + ' ' + (hit.layer || '') + ' ' + (hit.notes || '')).toLowerCase();
+      // Normalize Norwegian å/æ
+      blob = blob.replace(/å/g, 'a').replace(/æ/g, 'ae').replace(/ø/g, 'o');
+      if (/maksimalmal/.test(blob)) {
+        // Hit found — also verify it matches selected fishery (hummer is the
+        // primary species with maks-mål regulations)
+        if (typeof areaHitMatchesCurrentSelection === 'function') {
+          if (areaHitMatchesCurrentSelection(hit)) return hit;
+        } else {
+          return hit;
+        }
+      }
+    }
+    // Also check top-level result status
+    var topStatus = String((result.status || '') + ' ' + (result.name || '')).toLowerCase()
+      .replace(/å/g, 'a').replace(/æ/g, 'ae').replace(/ø/g, 'o');
+    if (/maksimalmal/.test(topStatus)) {
+      return { name: result.name || '', status: result.status || '', notes: result.notes || '' };
+    }
+    return null;
+  }
+
   function areaContextForNarrative() {
     if (zoneHasRelevantRestriction(latestZoneResult)) {
       return String((latestZoneResult && (latestZoneResult.name || latestZoneResult.status)) || '').trim();
@@ -730,12 +762,35 @@
     return raw.replace(/\s+/g, ' ');
   }
 
-  function formatSeizureRef(sequence) {
-    return seizureBaseCaseNumber() + '-' + String(sequence || nextSeizureSequence()).padStart(3, '0');
+  function formatSeizureRef(sequence, linkIndex) {
+    // 1.8.48: New format "LBHN 26 001 L1 001"
+    // - LBHN 26 001 = case number (prefix + year + case-number)
+    // - L1          = Lenke 1 (link index + 1)
+    // - 001         = sequence number within the case (zero-padded)
+    var base = seizureBaseCaseNumber();
+    var seqStr = String(sequence || nextSeizureSequence()).padStart(3, '0');
+    var linkPart = '';
+    if (linkIndex !== undefined && linkIndex !== null && linkIndex !== '') {
+      var n = Number(linkIndex);
+      if (isFinite(n) && n >= 0) {
+        linkPart = ' L' + String(n + 1);
+      }
+    }
+    return base + linkPart + ' ' + seqStr;
   }
 
-  function formatMeasurementSeizureRef(sequence) {
-    return seizureBaseCaseNumber() + ' - Måling -' + String(sequence || nextSeizureSequence()).padStart(3, '0');
+  function formatMeasurementSeizureRef(sequence, linkIndex) {
+    // 1.8.48: Same format but with "Måling" marker
+    var base = seizureBaseCaseNumber();
+    var seqStr = String(sequence || nextSeizureSequence()).padStart(3, '0');
+    var linkPart = '';
+    if (linkIndex !== undefined && linkIndex !== null && linkIndex !== '') {
+      var n = Number(linkIndex);
+      if (isFinite(n) && n >= 0) {
+        linkPart = ' L' + String(n + 1);
+      }
+    }
+    return base + linkPart + ' Måling ' + seqStr;
   }
 
   function deviationGearOptions() {
@@ -890,7 +945,11 @@
     var tabs = [];
     for (var i = 0; i < state.count; i += 1) {
       var active = i === state.activeIndex ? ' is-active' : '';
-      tabs.push('<button type="button" class="control-link-tab' + active + '" data-link-index="' + i + '" aria-pressed="' + (i === state.activeIndex ? 'true' : 'false') + '">Lenke ' + (i + 1) + '</button>');
+      // 1.8.48: Add remove-X button on each tab (only when more than one link exists)
+      var removeBtn = state.count > 1
+        ? '<span class="control-link-tab-remove" data-link-remove="' + i + '" title="Fjern denne lenken" role="button" tabindex="0" aria-label="Fjern Lenke ' + (i + 1) + '">×</span>'
+        : '';
+      tabs.push('<button type="button" class="control-link-tab' + active + '" data-link-index="' + i + '" aria-pressed="' + (i === state.activeIndex ? 'true' : 'false') + '">Lenke ' + (i + 1) + removeBtn + '</button>');
     }
     var activeMeta = state.groups[state.activeIndex] || defaultControlLinkGroup(state.activeIndex);
     controlLinkToolbar.innerHTML = [
@@ -907,7 +966,7 @@
       '<div class="actions-row wrap align-end"><button type="button" class="btn btn-secondary btn-small" id="control-link-end-fill">Bruk posisjon som stopp</button></div>',
       '<label class="span-2"><span>Merknad for lenke</span><input id="control-link-note" value="' + escapeHtml(activeMeta.note || '') + '" placeholder="F.eks. nordlig/sørlig lenke, antatt eier, særskilt observasjon" /></label>',
       '</div>',
-      '<div class="small muted">Valgt lenke får egen kontrollpunktliste/avviksrader og egne beslagsnumre. Start- og stopposisjon følger beslagene i rapportene.</div>',
+      '<div class="small muted">Valgt lenke får egen kontrollpunktliste/avviksrader og egne beslagsnumre (f.eks. ' + escapeHtml(seizureBaseCaseNumber() + ' L1 001') + ', ' + escapeHtml(seizureBaseCaseNumber() + ' L2 002') + '). Start- og stopposisjon følger beslagene i rapportene.</div>',
       '</div>'
     ].join('');
   }
@@ -1213,7 +1272,12 @@
         }
       }
       if (!row.seizure_ref) {
-        row.seizure_ref = itemSupportsMeasurements(item) ? formatMeasurementSeizureRef(nextSeizureSequence()) : formatSeizureRef(nextSeizureSequence());
+        var linkIdx = (row.link_group_index !== undefined && row.link_group_index !== null)
+          ? Number(row.link_group_index)
+          : (item && item.active_deviation_link_index !== undefined ? Number(item.active_deviation_link_index) : 0);
+        row.seizure_ref = itemSupportsMeasurements(item)
+          ? formatMeasurementSeizureRef(nextSeizureSequence(), linkIdx)
+          : formatSeizureRef(nextSeizureSequence(), linkIdx);
       }
       if (!row.position && currentCoordText()) row.position = currentCoordText();
       applyControlLinkMetaToRow(row, row.link_group_index);
@@ -1281,29 +1345,70 @@
     return parts.join(' | ');
   }
 
+  function isUserInMaksimalmalArea() {
+    // 1.8.48: True when latestZoneResult indicates the controller's position
+    // is inside an area with maksimalmål-restriksjon. Used to decide whether
+    // to show the "Gjeldende maksimumsmål"-field in measurement section.
+    if (!latestZoneResult || !latestZoneResult.match) return false;
+    var hits = Array.isArray(latestZoneResult.hits) ? latestZoneResult.hits : [];
+    for (var i = 0; i < hits.length; i++) {
+      var h = hits[i] || {};
+      var status = String(h.status || '').toLowerCase();
+      var name = String(h.name || '').toLowerCase();
+      var layer = String(h.layer || h.layer_name || '').toLowerCase();
+      if (/maksimalmål|maksimalmal|max\s*mål|maks-mål|hummer.*maks/.test(status + ' ' + name + ' ' + layer)) {
+        return true;
+      }
+    }
+    var topStatus = String(latestZoneResult.status || '').toLowerCase();
+    return /maksimalmål|maksimalmal/.test(topStatus);
+  }
+
   function measurementSectionHtml(item, index) {
     if (!itemSupportsMeasurements(item)) return '';
     var rows = ensureMeasurementState(item);
     if (String(item.status || '').toLowerCase() === 'avvik' && !rows.length) rows.push(defaultMeasurementRow());
     syncMeasurementDefaults(item);
+    // 1.8.48: Only render the maksimalmål field/limit when controller is
+    // actually in a maks-mål area for the selected fishery, OR when the
+    // kontrollpunkt itself is specifically about maksimalmål.
+    var maksArea = activeMaksimalmalArea();
+    var itemIsMaksimalmal = String(item.key || '').toLowerCase().indexOf('maksimalmal') !== -1;
+    var showMaxField = Boolean(maksArea) || itemIsMaksimalmal;
     var minLabel = measurementLimitRaw(item, null, 'min') ? ('Minstemål: ' + escapeHtml(String(measurementLimitRaw(item, null, 'min'))) + ' cm') : '';
-    var maxLabel = measurementLimitRaw(item, null, 'max') ? (' / Maksimumsmål: ' + escapeHtml(String(measurementLimitRaw(item, null, 'max'))) + ' cm') : '';
+    var maxLabel = (showMaxField && measurementLimitRaw(item, null, 'max')) ? (' / Maksimumsmål: ' + escapeHtml(String(measurementLimitRaw(item, null, 'max'))) + ' cm') : '';
+    // Build helper text — clearer about over/under tillatt lengde when relevant
+    var helperText = 'Skriv lengdemålt verdi i cm. Desimal på 0,1 cm tilsvarer 1 mm. Feltet vurderer automatisk under minstemål';
+    if (showMaxField) {
+      helperText += ' og over/på maksimumsmål';
+    }
+    helperText += ' når gjeldende grense er kjent.';
+    // Add area-context note when in maks-area
+    var areaContextNote = '';
+    if (maksArea && maksArea.name) {
+      areaContextNote = '<div class="callout area-info margin-top-s"><strong>Maksimalmål-område</strong><div class="small">Kontrollstedet ligger i ' + escapeHtml(maksArea.name || 'maksimalmål-område') + '. Maksimumsmål-kontroll er aktivert. Hummer over tillatt mål skal settes ut igjen.</div></div>';
+    }
     return [
       '<div class="finding-extra finding-measurements">',
       '<div class="subhead">Lengdemålt fangst' + (minLabel || maxLabel ? ' <span class="muted small">' + minLabel + maxLabel + '</span>' : '') + '</div>',
-      '<div class="small muted">Skriv lengdemålt verdi i cm. Desimal på 0,1 cm tilsvarer 1 mm. Feltet vurderer automatisk under minstemål og over/på maksimumsmål når gjeldende grense er kjent.</div>',
+      '<div class="small muted">' + helperText + '</div>',
+      areaContextNote,
       '<div class="measurement-list">' + rows.map(function (row, mIndex) {
         var evaluationClass = 'measurement-evaluation';
         if (row.measurement_state === 'under_min' || row.measurement_state === 'over_max') evaluationClass += ' is-alert';
         else if (row.measurement_state === 'ok') evaluationClass += ' is-ok';
         else if (row.measurement_state === 'needs_limit') evaluationClass += ' is-waiting';
+        // 1.8.48: Conditional max-limit field rendering
+        var maxFieldHtml = showMaxField
+          ? '<label class="measurement-field"><span>Gjeldende maksimumsmål</span><input class="measurement-max-limit" type="text" inputmode="decimal" placeholder="' + escapeHtml(measurementLimitPlaceholder(item, 'max')) + '" value="' + escapeHtml(measurementLimitDisplayValue(item, row, 'max')) + '" /></label>'
+          : '<input type="hidden" class="measurement-max-limit" value="" />';
         return [
           '<div class="measurement-row" data-measure-index="' + mIndex + '" data-measure-state="' + escapeHtml(row.measurement_state || '') + '">',
           '<label class="measurement-field measurement-ref-field"><span>Måling/beslag</span><input class="measurement-reference" placeholder="Måling / beslag" value="' + escapeHtml(row.reference || '') + '" readonly /></label>',
           '<label class="measurement-field measurement-link-field"><span>Tidligere lengdemålingsbeslag</span><select class="measurement-existing-gear" title="Knytt måling til tidligere beslag/redskap">' + deviationExistingGearOptionsHtml(row, item, 'measurement') + '</select></label>',
           '<label class="measurement-field measurement-length-field"><span>Lengdemålt (cm)</span><input class="measurement-length" type="text" inputmode="decimal" placeholder="f.eks. 24,9" value="' + escapeHtml(row.length_cm || '') + '" /></label>',
           '<label class="measurement-field"><span>Gjeldende minstemål</span><input class="measurement-min-limit" type="text" inputmode="decimal" placeholder="' + escapeHtml(measurementLimitPlaceholder(item, 'min')) + '" value="' + escapeHtml(measurementLimitDisplayValue(item, row, 'min')) + '" /></label>',
-          '<label class="measurement-field"><span>Gjeldende maksimumsmål</span><input class="measurement-max-limit" type="text" inputmode="decimal" placeholder="' + escapeHtml(measurementLimitPlaceholder(item, 'max')) + '" value="' + escapeHtml(measurementLimitDisplayValue(item, row, 'max')) + '" /></label>',
+          maxFieldHtml,
           '<label class="measurement-field measurement-position-field"><span>Posisjon</span><input class="measurement-position" placeholder="Posisjon for måling/beslag" value="' + escapeHtml(row.position || '') + '" /></label>',
           '<button type="button" class="btn btn-secondary btn-small measurement-position-fill">Bruk posisjon</button>',
           '<div class="' + evaluationClass + '">' + escapeHtml(row.delta_text || 'Skriv lengdemålt verdi i cm. 0,1 cm = 1 mm.') + '</div>',
@@ -4483,7 +4588,7 @@
         ensureDeviationState(item).forEach(function (dev, dIdx) {
           syncDeviationDefaults(item);
           addRow({
-            seizure_ref: dev.seizure_ref || formatSeizureRef(nextSeizureSequence()),
+            seizure_ref: dev.seizure_ref || formatSeizureRef(nextSeizureSequence(), Number(dev.link_group_index || 0)),
             source_key: (item.key || ('finding-' + idx)) + ':dev:' + dIdx,
             type: dev.gear_kind || item.label || 'Redskap med avvik',
             quantity: dev.quantity || '1',
@@ -4611,7 +4716,24 @@
     }
 
     if (btnRefreshSeizureReport) btnRefreshSeizureReport.addEventListener('click', function () { mergeSeizureReportsWithDefaults(); renderSeizureReports(); scheduleAutosave('Beslagsrapport oppdatert'); });
-    if (btnAddSeizureReport) btnAddSeizureReport.addEventListener('click', function () { seizureReportsState.push({ seizure_ref: formatSeizureRef(nextSeizureSequence()), type: 'Manuelt beslag', quantity: '1', position: currentCoordText(), description: '', law_text: '', violation_reason: '', auto: false }); renderSeizureReports(); scheduleAutosave('Manuelt beslag lagt til'); });
+    if (btnAddSeizureReport) btnAddSeizureReport.addEventListener('click', function () {
+      // 1.8.48: Include current active link index in the new seizure reference
+      var currentLink = (typeof controlLinkActiveIndex === 'number' && controlLinkModeEnabled) ? controlLinkActiveIndex : 0;
+      seizureReportsState.push({
+        seizure_ref: formatSeizureRef(nextSeizureSequence(), currentLink),
+        type: 'Manuelt beslag',
+        quantity: '1',
+        position: currentCoordText(),
+        description: '',
+        law_text: '',
+        violation_reason: '',
+        link_group_index: currentLink,
+        link_label: 'Lenke ' + (currentLink + 1),
+        auto: false
+      });
+      renderSeizureReports();
+      scheduleAutosave('Manuelt beslag lagt til');
+    });
 
     function appendQueryValue(params, key, value) {
       var raw = String(value == null ? '' : value).trim();
@@ -6000,10 +6122,10 @@
         var latNum = latitude && latitude.value ? Number(String(latitude.value).replace(',', '.')) : null;
         if (!(latNum !== null && latNum > 70)) return false;
       }
-      if (/hummer/.test(speciesText)) return /hummer|stengt|nullfiske|forbud|fiskeforbud/.test(text + ' ' + status);
-      if (/torsk/.test(speciesText)) return /torsk|kysttorsk|skrei|oslofjord|stengt|nullfiske|forbud|fiskeforbud/.test(text + ' ' + status);
-      if (/krabbe|kongekrabbe|snoekrabbe|snokrabbe/.test(speciesText)) return /krabbe|stengt|nullfiske|forbud|fiskeforbud/.test(text + ' ' + status);
-      if (/leppefisk/.test(speciesText)) return /leppefisk|stengt|nullfiske|forbud|fiskeforbud/.test(text + ' ' + status);
+      if (/hummer/.test(speciesText)) return /hummer|stengt|nullfiske|forbud|fiskeforbud|maksimalmal|minstemal|fredning/.test(text + ' ' + status);
+      if (/torsk/.test(speciesText)) return /torsk|kysttorsk|skrei|oslofjord|stengt|nullfiske|forbud|fiskeforbud|maksimalmal|minstemal/.test(text + ' ' + status);
+      if (/krabbe|kongekrabbe|snoekrabbe|snokrabbe/.test(speciesText)) return /krabbe|stengt|nullfiske|forbud|fiskeforbud|maksimalmal|minstemal/.test(text + ' ' + status);
+      if (/leppefisk/.test(speciesText)) return /leppefisk|stengt|nullfiske|forbud|fiskeforbud|minstemal/.test(text + ' ' + status);
       if (gearText && text.indexOf(gearText) !== -1) return true;
       // Generelle stengte/nullfiske-/forbudsområder gjelder normalt på tvers, men rene
       // fredningsområder uten art/redskapsmatch skal ikke automatisk gi kontrollpunkt.
@@ -7699,6 +7821,67 @@ function renderHummerStatus(result) {
         }
       });
       controlLinkToolbar.addEventListener('click', function (event) {
+        // 1.8.48: Handle remove-X click (must be before tab-click since the
+        // X-button is inside the tab)
+        var removeBtn = event.target && event.target.closest ? event.target.closest('[data-link-remove]') : null;
+        if (removeBtn) {
+          event.preventDefault();
+          event.stopPropagation();
+          var removeIdx = Number(removeBtn.getAttribute('data-link-remove'));
+          if (!isFinite(removeIdx) || removeIdx < 0) return;
+          var st = ensureControlLinkState({ skipLoad: true });
+          if (st.count <= 1) return;  // never remove the last link
+          if (!window.confirm('Fjern Lenke ' + (removeIdx + 1) + ' og alle tilknyttede avviksrader?')) return;
+          // Remove the link group itself
+          controlLinkGroups.splice(removeIdx, 1);
+          controlLinkPageCount = Math.max(1, controlLinkGroups.length);
+          // Remove all deviation rows that belong to this link, and shift
+          // indices on rows that belong to higher-numbered links
+          (findingsState || []).forEach(function (item) {
+            if (!item || !Array.isArray(item.deviation_units)) return;
+            item.deviation_units = item.deviation_units.filter(function (row) {
+              return Number(row.link_group_index || 0) !== removeIdx;
+            });
+            item.deviation_units.forEach(function (row) {
+              var gi = Number(row.link_group_index || 0);
+              if (gi > removeIdx) {
+                row.link_group_index = gi - 1;
+                row.link_label = 'Lenke ' + (gi);  // gi-1 was new, label is new+1
+              }
+            });
+            // Also adjust active index on the finding itself
+            var ai = Number(item.active_deviation_link_index || 0);
+            if (ai === removeIdx) item.active_deviation_link_index = 0;
+            else if (ai > removeIdx) item.active_deviation_link_index = ai - 1;
+          });
+          // Adjust seizure_reports state too
+          (seizureReportsState || []).forEach(function (row) {
+            var gi = Number(row.link_group_index || 0);
+            if (gi > removeIdx) {
+              row.link_group_index = gi - 1;
+              row.link_label = 'Lenke ' + gi;
+            }
+          });
+          // Remove seizure reports tied to the removed link
+          seizureReportsState = (seizureReportsState || []).filter(function (row) {
+            return Number(row.link_group_index || 0) !== removeIdx;
+          });
+          // Adjust active index
+          if (controlLinkActiveIndex === removeIdx) controlLinkActiveIndex = 0;
+          else if (controlLinkActiveIndex > removeIdx) controlLinkActiveIndex -= 1;
+          // If only one link left, turn off lenke-mode
+          if (controlLinkGroups.length <= 1) {
+            controlLinkModeEnabled = false;
+          }
+          setActiveControlLinkIndex(controlLinkActiveIndex);
+          findingsInput.value = JSON.stringify(findingsState);
+          if (seizureReportsInput) seizureReportsInput.value = JSON.stringify(seizureReportsState || []);
+          renderFindings();
+          renderSeizureReports();
+          scheduleAutosave('Lenke fjernet');
+          return;
+        }
+
         var tab = event.target.closest('.control-link-tab');
         if (tab) {
           event.preventDefault();
