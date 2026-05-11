@@ -942,6 +942,21 @@
   function renderControlLinkToolbar() {
     if (!controlLinkToolbar) return;
     var state = ensureControlLinkState();
+    // 1.8.49: When lenke-modus is NOT enabled, render only the checkbox.
+    // Tabs, start/stop positions and the "Legg til lenke"-button are hidden
+    // until user explicitly enables lenke-mode. Avviksrader will also not
+    // show link-tabs as long as state.enabled is false (handled in renderFindings).
+    if (!state.enabled) {
+      controlLinkToolbar.innerHTML = [
+        '<div class="control-link-card is-collapsed">',
+        '<div class="control-link-main-row">',
+        '<label class="check-chip"><input type="checkbox" id="control-link-mode" /> Lenke (start- og sluttposisjon for redskap)</label>',
+        '</div>',
+        '<div class="small muted">Huk av for å registrere lenker av redskap (f.eks. teine- eller garnlenker) med egne start- og sluttposisjoner. Hver lenke får egen kontrollpunktliste og egne beslagsnumre.</div>',
+        '</div>'
+      ].join('');
+      return;
+    }
     var tabs = [];
     for (var i = 0; i < state.count; i += 1) {
       var active = i === state.activeIndex ? ' is-active' : '';
@@ -953,9 +968,9 @@
     }
     var activeMeta = state.groups[state.activeIndex] || defaultControlLinkGroup(state.activeIndex);
     controlLinkToolbar.innerHTML = [
-      '<div class="control-link-card">',
+      '<div class="control-link-card is-expanded">',
       '<div class="control-link-main-row">',
-      '<label class="check-chip"><input type="checkbox" id="control-link-mode" ' + (state.enabled ? 'checked' : '') + ' /> Lenke</label>',
+      '<label class="check-chip"><input type="checkbox" id="control-link-mode" checked /> Lenke</label>',
       '<div class="control-link-tabs" role="tablist" aria-label="Lenker">' + tabs.join('') + '</div>',
       '<button type="button" class="btn btn-secondary btn-small" id="control-link-add">Legg til lenke</button>',
       '</div>',
@@ -1079,6 +1094,10 @@
   function deviationLinksHtml(row, dIndex) {
     var links = ensureDeviationLinks(row);
     var activeIdx = activeDeviationLinkIndex(row);
+    // 1.8.49: When global lenke-modus is OFF, do not render the per-row link
+    // tabs UI. Each row implicitly belongs to "no link" (group 0) and the
+    // existing link metadata is preserved silently.
+    if (!controlLinkModeEnabled) return '';
     var nav = links.length ? '<div class="deviation-link-tabs-nav" role="tablist">' + links.map(function (_entry, linkIndex) {
       var active = linkIndex === activeIdx ? ' is-active' : '';
       return '<button type="button" class="deviation-link-tab-btn' + active + '" data-link-index="' + linkIndex + '" role="tab" aria-selected="' + (linkIndex === activeIdx ? 'true' : 'false') + '">Lenke ' + (linkIndex + 1) + '</button>';
@@ -1485,7 +1504,12 @@
         var groupHidden = rowGroup === activeGroup ? '' : ' hidden';
         return [
           '<div class="deviation-row' + selectedClass + '" data-dev-index="' + dIndex + '" data-link-group-index="' + rowGroup + '" data-seizure-ref="' + escapeHtml(String(row.seizure_ref || '')) + '"' + groupHidden + '>',
-          '<div class="deviation-row-head"><strong>' + escapeHtml(row.link_label || ('Lenke ' + (rowGroup + 1))) + ' · Beslag ' + (dIndex + 1) + '</strong><span class="muted small">' + escapeHtml(row.seizure_ref || 'Beslag opprettes') + '</span></div>' + ((row.link_start_position || row.link_end_position) ? '<div class="small muted deviation-link-position-summary">Start: ' + escapeHtml(row.link_start_position || 'ikke satt') + ' · Stopp: ' + escapeHtml(row.link_end_position || 'ikke satt') + '</div>' : ''),
+          // 1.8.49: When lenke-modus is OFF, drop the "Lenke X · " prefix
+          // and the start/stop summary so the UI looks clean for single-control
+          // (non-lenke) cases. The link metadata is preserved silently.
+          (controlLinkModeEnabled
+            ? '<div class="deviation-row-head"><strong>' + escapeHtml(row.link_label || ('Lenke ' + (rowGroup + 1))) + ' · Beslag ' + (dIndex + 1) + '</strong><span class="muted small">' + escapeHtml(row.seizure_ref || 'Beslag opprettes') + '</span></div>' + ((row.link_start_position || row.link_end_position) ? '<div class="small muted deviation-link-position-summary">Start: ' + escapeHtml(row.link_start_position || 'ikke satt') + ' · Stopp: ' + escapeHtml(row.link_end_position || 'ikke satt') + '</div>' : '')
+            : '<div class="deviation-row-head"><strong>Beslag ' + (dIndex + 1) + '</strong><span class="muted small">' + escapeHtml(row.seizure_ref || 'Beslag opprettes') + '</span></div>'),
           '<div class="deviation-row-fields">',
           '<label><span>Beslagsnummer</span><input class="deviation-seizure-ref" placeholder="LBHN 26001-001" title="Beslagsnummer" value="' + escapeHtml(row.seizure_ref || '') + '" readonly /></label>',
           '<label><span>' + (itemSupportsMeasurements(item) ? 'Tidligere lengdemålingsbeslag' : 'Tidligere beslag') + '</span><select class="deviation-existing-gear" title="Tidligere beslag/redskap i saken">' + deviationExistingGearOptionsHtml(row, item, measurementOptionModeForItem(item)) + '</select></label>',
@@ -4690,7 +4714,11 @@
         ].join('') : '<div class="small muted margin-top-s">Ingen bilder med dette beslagsnummeret er koblet ennå.</div>';
         return [
           '<article class="seizure-report-card" data-seizure-index="' + idx + '">',
-          '<div class="seizure-report-head"><strong>' + escapeHtml(row.link_label || ('Lenke ' + (Number(row.link_group_index || 0) + 1))) + ' · Beslag ' + escapeHtml(row.seizure_ref || ('B' + String(idx + 1).padStart(2, '0'))) + '</strong><button type="button" class="btn btn-danger btn-small" data-seizure-remove="' + idx + '">Fjern</button></div>',
+          // 1.8.49: Same UI rule as deviation rows — only show "Lenke X · "
+          // prefix when global lenke-modus is active.
+          (controlLinkModeEnabled
+            ? '<div class="seizure-report-head"><strong>' + escapeHtml(row.link_label || ('Lenke ' + (Number(row.link_group_index || 0) + 1))) + ' · Beslag ' + escapeHtml(row.seizure_ref || ('B' + String(idx + 1).padStart(2, '0'))) + '</strong><button type="button" class="btn btn-danger btn-small" data-seizure-remove="' + idx + '">Fjern</button></div>'
+            : '<div class="seizure-report-head"><strong>Beslag ' + escapeHtml(row.seizure_ref || ('B' + String(idx + 1).padStart(2, '0'))) + '</strong><button type="button" class="btn btn-danger btn-small" data-seizure-remove="' + idx + '">Fjern</button></div>'),
           '<div class="grid-two compact-grid-form">',
           '<label><span>Beslagsnummer</span><input class="seizure-ref" value="' + escapeHtml(row.seizure_ref || '') + '" /></label>',
           '<label><span>Type</span><input class="seizure-type" value="' + escapeHtml(row.type || '') + '" /></label>',
@@ -4834,6 +4862,62 @@
       bundle = bundle || clientFallbackRuleBundle('Lokal kontrollpunktliste.');
       if (!Array.isArray(bundle.items) || !bundle.items.length) {
         bundle = clientFallbackRuleBundle('Regeloppslaget ga ingen punkter. Lokal kontrollpunktliste vises i stedet.');
+      }
+      // 1.8.49: Client-side guard — filter out area-specific controlpoints
+      // that the server may have included based on stale or speculative
+      // area_status. The rule should only appear when the latest zone-check
+      // actually placed the user in a relevant area on the map.
+      bundle.items = (bundle.items || []).filter(function (item) {
+        if (!item || !item.key) return true;
+        var key = String(item.key).toLowerCase();
+        // Hummer fredningsområde redskap: only show when latest zone result
+        // has a hummer-fredning hit that matches the current selection
+        if (key === 'hummer_fredningsomrade_redskap') {
+          var hasFredningHit = false;
+          if (latestZoneResult && latestZoneResult.match && Array.isArray(latestZoneResult.hits)) {
+            hasFredningHit = latestZoneResult.hits.some(function (hit) {
+              if (!hit) return false;
+              var blob = String((hit.name || '') + ' ' + (hit.status || '') + ' ' + (hit.layer || '') + ' ' + (hit.layer_name || ''))
+                .toLowerCase()
+                .replace(/å/g, 'a').replace(/æ/g, 'ae').replace(/ø/g, 'o');
+              return /fredningsomr/.test(blob) && /hummer/.test(blob);
+            });
+          }
+          return hasFredningHit;
+        }
+        // Generic fredningsomrade_status: only when zone has any fredning hit
+        if (key === 'fredningsomrade_status') {
+          var hasAnyFredning = false;
+          if (latestZoneResult && latestZoneResult.match && Array.isArray(latestZoneResult.hits)) {
+            hasAnyFredning = latestZoneResult.hits.some(function (hit) {
+              if (!hit) return false;
+              var blob = String((hit.name || '') + ' ' + (hit.status || '') + ' ' + (hit.layer || ''))
+                .toLowerCase()
+                .replace(/å/g, 'a').replace(/æ/g, 'ae').replace(/ø/g, 'o');
+              return /fredningsomr/.test(blob);
+            });
+          }
+          return hasAnyFredning;
+        }
+        // Stengt-omrade / nullfiske: only when zone has matching hit
+        if (key === 'stengt_omrade_status') {
+          var hasStengt = false;
+          if (latestZoneResult && latestZoneResult.match && Array.isArray(latestZoneResult.hits)) {
+            hasStengt = latestZoneResult.hits.some(function (hit) {
+              if (!hit) return false;
+              var blob = String((hit.name || '') + ' ' + (hit.status || '') + ' ' + (hit.layer || ''))
+                .toLowerCase()
+                .replace(/å/g, 'a').replace(/æ/g, 'ae').replace(/ø/g, 'o');
+              return /stengt|nullfiske/.test(blob);
+            });
+          }
+          return hasStengt;
+        }
+        return true;
+      });
+      // If the filter removed everything (unlikely), fall back to local items
+      if (!bundle.items.length) {
+        bundle = clientFallbackRuleBundle('Områdespesifikke punkter ble filtrert bort. Lokal kontrollpunktliste vises.');
       }
       metaBox.innerHTML = '<strong>' + escapeHtml(bundle.title || 'Kontrollpunkter') + '</strong><div class="small muted">' + escapeHtml(bundle.description || '') + '</div>';
       var currentByKey = {};

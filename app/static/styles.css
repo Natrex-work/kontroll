@@ -8044,3 +8044,36 @@ body.page-map-fullscreen .map-quick-chips {
     font-size: 0.82rem;
   }
 }
+
+/* ========================================================================
+   1.8.49 — Lenke-toolbar kollapset/utvidet states
+   ======================================================================== */
+
+/* Når lenke ikke er aktivert: kompakt boks med kun checkbox + hjelpetekst */
+.control-link-card.is-collapsed {
+  padding: 10px 12px;
+  background: #fafbfd;
+  border: 1px solid rgba(213, 223, 235, 0.6);
+  border-radius: var(--mk-radius-md, 14px);
+}
+.control-link-card.is-collapsed .control-link-main-row {
+  margin-bottom: 4px;
+}
+.control-link-card.is-collapsed .small.muted {
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+/* Når lenke er aktivert: full layout */
+.control-link-card.is-expanded {
+  padding: 12px;
+  background: linear-gradient(180deg, #f6faff 0%, #ffffff 60%);
+  border: 1px solid rgba(43, 128, 214, 0.18);
+  border-radius: var(--mk-radius-md, 14px);
+}
+
+/* Animasjon ved utvidelse */
+.control-link-card.is-collapsed,
+.control-link-card.is-expanded {
+  transition: padding 180ms ease, background-color 180ms ease, border-color 180ms ease;
+}
